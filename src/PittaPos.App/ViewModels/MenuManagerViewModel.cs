@@ -513,6 +513,7 @@ public partial class MenuManagerViewModel : ObservableObject
                 PrintName = printName.Length > 0 ? printName : null,
                 Customizable = ProductCustomizable,
                 ExtraNames = extraNames,
+                Ingredients = ingredients,
             };
             (ProductCategory ?? SelectedCategory).Products.Add(product);
             _store.Save();
@@ -528,6 +529,7 @@ public partial class MenuManagerViewModel : ObservableObject
             SelectedProduct.PrintName = printName.Length > 0 ? printName : null;
             SelectedProduct.Customizable = ProductCustomizable;
             SelectedProduct.ExtraNames = extraNames;
+            SelectedProduct.Ingredients = ingredients;
 
             // Αλλαγή κατηγορίας: το προϊόν μεταφέρεται στο τέλος της νέας. Κρατιέται το ίδιο
             // αντικείμενο (ίδιος κωδικός), οπότε παλιές παραγγελίες στο ιστορικό εξακολουθούν να

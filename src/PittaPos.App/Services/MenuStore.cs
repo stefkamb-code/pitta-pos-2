@@ -327,9 +327,11 @@ public class MenuStore
     private static List<string> SeedIngredientsCopy() => [.. MenuSeed.IncludedIngredients];
 
     /// <summary>Τα υλικά που ισχύουν για ένα προϊόν: τα δικά του αν έχει δηλώσει, αλλιώς ο κοινός
-    /// κατάλογος — έτσι όσα προϊόντα δεν ρυθμίστηκαν ποτέ δουλεύουν ακριβώς όπως πριν.</summary>
+    /// κατάλογος — έτσι όσα προϊόντα δεν ρυθμίστηκαν ποτέ δουλεύουν ακριβώς όπως πριν.
+    /// Άδεια λίστα σημαίνει «κανένα υλικό» και το σέβεται: πριν έπεφτε κι αυτή στον κοινό κατάλογο,
+    /// οπότε ένα προϊόν που ξετσεκάριζες όλα του τα υλικά τα ξανάβγαζε όλα.</summary>
     public IReadOnlyList<string> IngredientsFor(Product product) =>
-        product.Ingredients is { Count: > 0 } own ? own : Ingredients;
+        product.Ingredients ?? Ingredients;
 
     private static List<ExtraItem> SeedExtrasCopy() =>
         MenuSeed.Extras.Select(e => new ExtraItem { Name = e.Name, Price = e.Price }).ToList();
@@ -396,11 +398,17 @@ public class MenuStore
         Save();
     }
 
-    /// <summary>Προσθήκη υλικού στον κοινό κατάλογο.</summary>
+    /// <summary>Προσθήκη υλικού στον κοινό κατάλογο. Το νέο υλικό ΔΕΝ μπαίνει μόνο του σε όσα προϊόντα
+    /// δεν το ζήτησαν: προϊόν χωρίς δική του λίστα σημαίνει «όλα του καταλόγου», οπότε αν προσθέταμε
+    /// σκέτα το υλικό θα εμφανιζόταν στα 124 προϊόντα ταυτόχρονα. Γι' αυτό, πριν μπει, κάθε τέτοιο
+    /// προϊόν «κλειδώνει» ρητά τα υλικά που έχει αυτή τη στιγμή — μένουν ακριβώς όπως ήταν, και το νέο
+    /// υλικό το παίρνει μόνο όποιο προϊόν τσεκαριστεί ρητά (βλ. MenuManagerViewModel.AddIngredient).</summary>
     public void AddIngredient(string name)
     {
         if (Ingredients.Contains(name))
             return;
+        foreach (var product in Categories.SelectMany(c => c.Products))
+            product.Ingredients ??= [.. Ingredients];
         Ingredients.Add(name);
         Save();
     }

@@ -190,7 +190,7 @@ public partial class ProductsViewModel : ObservableObject
             : c.Note;
 
         var mods = new List<string>();
-        mods.AddRange(MenuSeed.DescribeRemovedIngredients(c.Removed));
+        mods.AddRange(MenuSeed.DescribeRemovedIngredients(c.Removed, store.IngredientsFor(product)));
         mods.AddRange(c.Extras.Where(e => e.Value > 0)
             .Select(e => "+ " + e.Key + (e.Value > 1 ? " ×" + e.Value : "")));
 

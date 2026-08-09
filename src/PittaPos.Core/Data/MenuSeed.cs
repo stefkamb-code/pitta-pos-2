@@ -91,18 +91,23 @@ public static class MenuSeed
 
     /// <summary>Περιγραφή αφαιρεμένων υλικών για απόδειξη/ετικέτα παραγγελίας. Με λίγες αφαιρέσεις
     /// («χωρίς ντομάτα · χωρίς κρεμμύδι») διαβάζεται εύκολα, αλλά από 3 υλικά και πάνω η αράδα μεγαλώνει
-    /// υπερβολικά — πιο σαφές να πει τι ΕΜΕΙΝΕ («μόνο με») παρά τι λείπει. Αν αφαιρέθηκαν όλα, είναι ΣΚΕΤΟ.</summary>
-    public static IEnumerable<string> DescribeRemovedIngredients(IReadOnlyCollection<string> removed)
+    /// υπερβολικά — πιο σαφές να πει τι ΕΜΕΙΝΕ («μόνο με») παρά τι λείπει. Αν αφαιρέθηκαν όλα, είναι ΣΚΕΤΟ.
+    /// <para><paramref name="included"/> = τα βασικά υλικά ΤΟΥ ΣΥΓΚΕΚΡΙΜΕΝΟΥ προϊόντος
+    /// (MenuStore.IngredientsFor). Πριν διάβαζε πάντα τη σταθερή <see cref="IncludedIngredients"/>,
+    /// οπότε ό,τι υλικό πρόσθετε ο χρήστης από τη Διαχείριση δεν έβγαινε ποτέ στο «μόνο με:» της
+    /// απόδειξης και το «σκέτο» μετριόταν με λάθος σύνολο.</para></summary>
+    public static IEnumerable<string> DescribeRemovedIngredients(
+        IReadOnlyCollection<string> removed, IReadOnlyCollection<string> included)
     {
         if (removed.Count == 0)
             return [];
-        if (removed.Count >= IncludedIngredients.Count)
+        if (included.Count > 0 && removed.Count >= included.Count)
             return ["σκέτο"];
         if (removed.Count >= 3)
         {
             // "μόνο με" σε δική του γραμμή, μετά ένα υλικό ανά γραμμή — ίδια κάθετη λογική με το
             // χωρίς/έξτρα, ώστε ο υπάλληλος να τα διαβάζει το ένα κάτω απ' το άλλο, όχι σε μία αράδα.
-            var remaining = IncludedIngredients.Where(i => !removed.Contains(i)).Select(Lowercase);
+            var remaining = included.Where(i => !removed.Contains(i)).Select(Lowercase);
             return new[] { "μόνο με:" }.Concat(remaining);
         }
         // Ίδια μορφή με το «μόνο με»: η λέξη-κλειδί σε δική της γραμμή με άνω κάτω τελεία και από κάτω

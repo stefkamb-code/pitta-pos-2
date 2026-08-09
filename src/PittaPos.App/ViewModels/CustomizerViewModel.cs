@@ -170,7 +170,9 @@ public partial class CustomizerViewModel : ObservableObject
         };
 
         var mods = new List<string>();
-        mods.AddRange(MenuSeed.DescribeRemovedIngredients(customization.Removed));
+        // Τα υλικά που δείχνει αυτή τη στιγμή ο customizer είναι ακριβώς τα βασικά του προϊόντος.
+        mods.AddRange(MenuSeed.DescribeRemovedIngredients(
+            customization.Removed, [.. Ingredients.Select(i => i.Name)]));
         mods.AddRange(Extras.Where(e => e.Quantity > 0)
             .Select(e => "+ " + e.Name + (e.Quantity > 1 ? " ×" + e.Quantity : "")));
         if (NoCharge) mods.Add("ΔΩΡΕΑΝ");

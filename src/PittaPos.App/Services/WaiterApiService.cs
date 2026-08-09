@@ -634,7 +634,8 @@ public static class WaiterApiService
         var breadLine = MenuStore.Instance.HasBreadChoice(category) && !MenuStore.Instance.FuseBreadIntoName(category) ? bread : "";
 
         var mods = new List<string>();
-        mods.AddRange(MenuSeed.DescribeRemovedIngredients(l.RemovedIngredients ?? []));
+        mods.AddRange(MenuSeed.DescribeRemovedIngredients(
+            l.RemovedIngredients ?? [], MenuStore.Instance.IngredientsFor(p)));
         mods.AddRange(extras.Select(e => "+ " + e.Key + (e.Value > 1 ? " ×" + e.Value : "")));
 
         return string.Join("\n", new[] { breadLine, note, string.Join("\n", mods) }.Where(s => s.Length > 0));
