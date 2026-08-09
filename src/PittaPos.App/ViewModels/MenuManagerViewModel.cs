@@ -99,6 +99,10 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty] private string _productDescription = "";
     /// <summary>Κενό = τυπώνεται ό,τι λέει και το μενού (βλ. Product.PrintName).</summary>
     [ObservableProperty] private string _productPrintName = "";
+
+    /// <summary>Σε ποια κατηγορία ανήκει το προϊόν. Αλλάζοντάς την και αποθηκεύοντας, το προϊόν
+    /// μεταφέρεται — πριν έπρεπε να διαγραφεί και να ξαναγραφτεί από την αρχή στη σωστή.</summary>
+    [ObservableProperty] private MenuCategory? _productCategory;
     [ObservableProperty] private bool _productCustomizable;
 
     /// <summary>Ένα κουτάκι ανά έξτρα του κοινού καταλόγου (_store.Extras) — ποια επιτρέπονται σε αυτό
@@ -175,6 +179,10 @@ public partial class MenuManagerViewModel : ObservableObject
         ProductDescription = value?.Description ?? "";
         ProductPrintName = value?.PrintName ?? "";
         ProductCustomizable = value?.Customizable ?? false;
+        // Νέο προϊόν: προεπιλογή η κατηγορία που κοιτάει ήδη ο χρήστης. Υπάρχον: αυτή που το έχει.
+        ProductCategory = value is null
+            ? SelectedCategory
+            : Categories.FirstOrDefault(c => c.Products.Contains(value)) ?? SelectedCategory;
         RebuildExtraToggles();
     }
 
@@ -439,7 +447,7 @@ public partial class MenuManagerViewModel : ObservableObject
                 Customizable = ProductCustomizable,
                 ExtraNames = extraNames,
             };
-            SelectedCategory.Products.Add(product);
+            (ProductCategory ?? SelectedCategory).Products.Add(product);
             _store.Save();
             RefreshLists();
             SelectedProduct = product;
@@ -454,9 +462,23 @@ public partial class MenuManagerViewModel : ObservableObject
             SelectedProduct.PrintName = printName.Length > 0 ? printName : null;
             SelectedProduct.Customizable = ProductCustomizable;
             SelectedProduct.ExtraNames = extraNames;
+
+            // Αλλαγή κατηγορίας: το προϊόν μεταφέρεται στο τέλος της νέας. Κρατιέται το ίδιο
+            // αντικείμενο (ίδιος κωδικός), οπότε παλιές παραγγελίες στο ιστορικό εξακολουθούν να
+            // δείχνουν σωστά σε αυτό — π.χ. το «ΜΙΑ ΑΠΟ ΤΑ ΙΔΙΑ» δεν χάνει το προϊόν.
+            var moved = false;
+            if (ProductCategory is { } target && !target.Products.Contains(SelectedProduct))
+            {
+                foreach (var c in Categories)
+                    c.Products.Remove(SelectedProduct);
+                target.Products.Add(SelectedProduct);
+                SelectedCategory = target;
+                moved = true;
+            }
+
             _store.Save();
             RefreshLists();
-            Flash("✓ Αποθηκεύτηκε");
+            Flash(moved ? "✓ Μεταφέρθηκε στην «" + ProductCategory!.Name + "»" : "✓ Αποθηκεύτηκε");
         }
     }
 
