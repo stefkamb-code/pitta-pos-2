@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using System.Windows.Threading;
 using PittaPos.Core.Data;
 using PittaPos.Core.Models;
 
@@ -190,6 +191,10 @@ public class MenuStore
                     Categories = data.Categories;
                     Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
                     DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
+                    // Καταγράφεται και η επιτυχία: χωρίς αυτό, μια αναφορά «βλέπω λάθος κατάλογο» δεν
+                    // ξεχωρίζει από «δεν άνοιξε καν η εφαρμογή» — δεν υπάρχει τίποτα στο αρχείο.
+                    AppLog.Write("menu", $"φορτώθηκε: {Categories.Count} κατηγορίες, {Extras.Count} έξτρα " +
+                        $"(πρώτη: {Categories[0].Name})");
                     return;
                 }
 
@@ -217,6 +222,47 @@ public class MenuStore
         Categories = SeedCopy();
         Extras = SeedExtrasCopy();
         DoublePitaPrices = SeedDoublePitaPrices();
+        StartRecoveryRetries();
+    }
+
+    /// <summary>
+    /// Ξαναδοκιμάζει το φόρτωμα στο παρασκήνιο, κάθε 3 δευτερόλεπτα για ένα λεπτό. Ό,τι κρατούσε το
+    /// αρχείο κλειδωμένο (σάρωση antivirus, συγχρονισμός) τελειώνει σε δευτερόλεπτα — δεν έχει νόημα
+    /// να μείνει το ταμείο με λάθος κατάλογο μέχρι να το κλείσει και να το ξανανοίξει κάποιος.
+    /// Μόλις πετύχει, οι οθόνες ανανεώνονται μόνες τους μέσω του Changed.
+    /// </summary>
+    private void StartRecoveryRetries()
+    {
+        var attempts = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        timer.Tick += (_, _) =>
+        {
+            attempts++;
+            if (attempts > 20)
+            {
+                timer.Stop();
+                return;
+            }
+
+            string text;
+            try { text = File.ReadAllText(_path); }
+            catch (Exception) { return; } // ακόμη κλειδωμένο — ξαναδοκιμάζουμε στον επόμενο χτύπο
+
+            MenuData? data;
+            try { data = JsonSerializer.Deserialize<MenuData>(text); }
+            catch (JsonException) { return; }
+            if (data is null || data.Categories.Count == 0)
+                return;
+
+            timer.Stop();
+            Categories = data.Categories;
+            Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
+            DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
+            LoadFailed = false;
+            AppLog.Write("menu", $"ο κατάλογος ανακτήθηκε με την {attempts}η προσπάθεια: {Categories.Count} κατηγορίες");
+            Changed?.Invoke();
+        };
+        timer.Start();
     }
 
     /// <summary>Βαθύ αντίγραφο του αρχικού μενού ώστε οι αλλαγές να μην αγγίζουν το seed.</summary>
