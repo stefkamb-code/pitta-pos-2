@@ -281,35 +281,41 @@
                                         <TextBlock Text="{Binding DoublePitaOptionLabel}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource FlatButton}" Padding="14,7" Margin="0,0,8,6"
-                                        Command="{Binding ToggleSketoCommand}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="14" Height="14" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
-                                                VerticalAlignment="Center" Margin="0,0,7,0">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="Transparent"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSketo}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource Ink}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-                                        <TextBlock Text="ΣΚΕΤΟ" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
-                                    </StackPanel>
-                                </Button>
                             </WrapPanel>
                         </Border>
 
                         <!-- included ingredients -->
-                        <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="20,12,20,14">
+                        <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="20,10,20,9">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,11">
-                                    <Rectangle Width="8" Height="8" Fill="{DynamicResource Ink}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="ΥΛΙΚΑ" Style="{StaticResource SectionLabel}" Margin="9,0,0,0" VerticalAlignment="Center"/>
-                                </StackPanel>
+                                <!-- Το ΣΚΕΤΟ κάθεται εδώ, μικρό, δεξιά από την ετικέτα ΥΛΙΚΑ — και όχι
+                                     μαζί με τα ψωμιά από πάνω, όπου έπιανε ολόκληρη δεύτερη σειρά και
+                                     ψήλωνε άδικα το πάνω μέρος. Ανήκει άλλωστε στα υλικά: τα σβήνει
+                                     όλα μονομιάς. -->
+                                <DockPanel Margin="0,0,0,11">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Padding="9,3"
+                                            Command="{Binding ToggleSketoCommand}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="12" Height="12" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
+                                                    VerticalAlignment="Center" Margin="0,0,6,0">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSketo}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource Ink}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBlock Text="ΣΚΕΤΟ" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                        <Rectangle Width="8" Height="8" Fill="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="ΥΛΙΚΑ" Style="{StaticResource SectionLabel}" Margin="9,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DockPanel>
                                 <ItemsControl ItemsSource="{Binding Ingredients}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -376,7 +382,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <DockPanel Grid.Row="0" Margin="20,11,20,9">
+                            <DockPanel Grid.Row="0" Margin="20,9,20,7">
                                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Rectangle Width="8" Height="8" Fill="{DynamicResource Accent}" VerticalAlignment="Center"/>
                                     <TextBlock Text="ΕΞΤΡΑ" Style="{StaticResource SectionLabel}" Margin="9,0,0,0" VerticalAlignment="Center"/>
@@ -391,7 +397,9 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:ExtraViewModel}">
-                                            <Button Margin="0,0,10,10" Padding="13,9"
+                                            <!-- Σφιχτά κενά επίτηδες: κάθε pixel που γλιτώνει εδώ είναι
+                                                 ένα έξτρα παραπάνω που φαίνεται χωρίς κύλιση. -->
+                                            <Button Margin="0,0,8,7" Padding="11,7"
                                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                     Command="{Binding TapCommand}">
                                                 <Button.Style>
