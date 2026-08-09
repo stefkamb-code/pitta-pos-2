@@ -39,10 +39,14 @@
         </Border>
 
         <Grid Grid.Row="1">
+            <!-- Αναλογικές στήλες (24/30/46 — όσο πιάνουν σε οθόνη 1280) αντί για σταθερές 300/380:
+                 όταν μεγαλώνει το παράθυρο μοιράζονται τον επιπλέον χώρο και οι τρεις. Πριν, μόνο η
+                 φόρμα δεξιά φάρδαινε και οι λίστες έμεναν στενές όσο μεγάλη κι αν ήταν η οθόνη.
+                 Τα MinWidth κρατούν τις λίστες χρησιμοποιήσιμες σε μικρό παράθυρο. -->
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300"/>
-                <ColumnDefinition Width="380"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="24*" MinWidth="250"/>
+                <ColumnDefinition Width="30*" MinWidth="300"/>
+                <ColumnDefinition Width="46*" MinWidth="420"/>
             </Grid.ColumnDefinitions>
 
             <!-- categories -->
