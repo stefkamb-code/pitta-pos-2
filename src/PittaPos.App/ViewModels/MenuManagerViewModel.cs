@@ -80,6 +80,11 @@ public partial class MenuManagerViewModel : ObservableObject
     private bool _isNewCategory;
 
     public bool ShowCategoryEditor => HasCategory || IsNewCategory;
+
+    /// <summary>Η μετονομασία κατηγορίας δείχνεται μόνο όταν ΔΕΝ δουλεύεις προϊόν — στη θέση της
+    /// μπαίνει τότε η επιλογή κατηγορίας του προϊόντος. Τα υπόλοιπα της κατηγορίας (σειρά, διαγραφή,
+    /// συμπεριφορά) μένουν πάντα ορατά.</summary>
+    public bool ShowCategoryRename => !IsEditingProduct;
     public string CategoryFormTitle => IsNewCategory ? "ΝΕΑ ΚΑΤΗΓΟΡΙΑ" : "ΚΑΤΗΓΟΡΙΑ";
     public string CategorySaveLabel => IsNewCategory ? "ΔΗΜΙΟΥΡΓΙΑ ΚΑΤΗΓΟΡΙΑΣ" : "ΑΠΟΘΗΚΕΥΣΗ ΟΝΟΜΑΤΟΣ";
 
