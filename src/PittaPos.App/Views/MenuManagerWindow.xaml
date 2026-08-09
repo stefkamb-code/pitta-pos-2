@@ -190,7 +190,11 @@
                                   DisplayMemberPath="Name" Height="42" FontSize="14"
                                   VerticalContentAlignment="Center"/>
                     </StackPanel>
-                    <Grid Margin="0,10,0,0">
+                    <!-- Όλη η γραμμή της κατηγορίας (μετονομασία / ▲▼ / κάδος) φεύγει όσο δουλεύεις
+                         προϊόν: εκεί δεν επεξεργάζεσαι κατηγορία και έπιανε τζάμπα χώρο. Κρύβεται το
+                         ίδιο το Grid, όχι μόνο τα κουμπιά, αλλιώς έμενε το κενό του περιθωρίου. -->
+                    <Grid Margin="0,10,0,0"
+                          Visibility="{Binding ShowCategoryRename, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="8"/>
