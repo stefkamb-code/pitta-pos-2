@@ -91,6 +91,9 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEditingProduct))]
     [NotifyPropertyChangedFor(nameof(ProductFormTitle))]
+    // Χωρίς αυτό η οθόνη δεν ξαναρωτούσε αν πρέπει να δείχνει τη μετονομασία, οπότε έμεναν ορατά
+    // ΚΑΙ τα δύο πεδία κατηγορίας μόλις άνοιγε κανείς προϊόν.
+    [NotifyPropertyChangedFor(nameof(ShowCategoryRename))]
     private Product? _selectedProduct;
 
     public bool HasCategory => SelectedCategory is not null;
