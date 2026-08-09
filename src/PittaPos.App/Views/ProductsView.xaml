@@ -7,6 +7,29 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:UpperCaseGreekConverter x:Key="UpperCase"/>
+
+        <!-- Κάρτα φαγητού.
+             Πριν, η κάρτα είχε ΤΟ ΙΔΙΟ χρώμα με το φόντο της οθόνης και ξεχώριζε μόνο από ένα σκληρό
+             γκρι περίγραμμα — γι' αυτό έμοιαζε παλιά, σαν πίνακας με πλαίσια. Τώρα είναι λευκή πάνω
+             στο γκρι φόντο, χωρίς περίγραμμα, με απαλή σκιά που της δίνει βάθος. Το περίγραμμα
+             κρατιέται διαφανές και ανάβει κόκκινο μόνο στο φαγητό που έχει ανοιχτά τα υλικά του. -->
+        <Style x:Key="ProductCard" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="Template" Value="{StaticResource ElevatedButtonTemplate}"/>
+            <Setter Property="Background" Value="{DynamicResource Surface}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Margin" Value="0,0,0,9"/>
+            <Setter Property="Padding" Value="17,12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -91,7 +114,8 @@
 
             <!-- Λίγος αέρας στο τέλος: χωρίς αυτόν η τελευταία σειρά κολλούσε στο κάτω χείλος και
                  φαινόταν κομμένη στη μέση, σαν να λείπει προϊόν. -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,0,14">
+            <!-- Περιθώριο γύρω-γύρω ώστε οι σκιές των καρτών να μην κόβονται στα χείλη -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="14,12,12,16">
                 <!-- Χωρίς ItemsPanel: το προεπιλεγμένο StackPanel του ItemsControl στοιβάζει ήδη
                      κάθετα, μια σειρά ανά φαγητό. -->
                 <ItemsControl ItemsSource="{Binding Tiles}" VerticalAlignment="Top">
@@ -100,23 +124,8 @@
                             <Button Command="{Binding DataContext.TapProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
                                     MouseDoubleClick="ProductRow_MouseDoubleClick"
-                                    Padding="15,9" HorizontalAlignment="Stretch"
-                                    ToolTip="{Binding ListToolTip}"
-                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                        <!-- Η κάτω γραμμή χωρίζει τις σειρές· η αριστερή μπάρα ανάβει
-                                             κόκκινη στο φαγητό που έχει ανοιχτά τα υλικά του δίπλα. -->
-                                        <Setter Property="BorderThickness" Value="4,0,0,2"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsOpen}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
+                                    Style="{StaticResource ProductCard}"
+                                    ToolTip="{Binding ListToolTip}">
                                 <DockPanel LastChildFill="True">
                                     <!-- Πιο ελαφριά γράμματα, όπως στη μακέτα: με ExtraBold παντού η
                                          λίστα έβγαινε συμπαγής μαύρη μάζα και δεν ξεχώριζε τίποτα.
