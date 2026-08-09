@@ -66,10 +66,14 @@ public sealed record SharedSettingsDto(
 /// κατηγορίες: τα κοινά έξτρα και οι χρεώσεις διπλής πίτας δεν έφταναν ποτέ, οπότε στο δεύτερο ταμείο
 /// έλειπαν (ή έμεναν στις αρχικές τιμές) και ό,τι επεξεργαζόταν εκεί ο ταμίας χανόταν στο επόμενο
 /// άνοιγμα — δεν αποθηκεύεται τοπικά στο δεύτερο ταμείο.</summary>
+/// <param name="Ingredients">Ο κοινός κατάλογος βασικών υλικών (MenuStore.Ingredients) — προεπιλογή
+/// για προϊόντα που δεν έχουν ρητή δική τους λίστα (βλ. MenuStore.IngredientsFor). Πρόσφατη προσθήκη
+/// (default []) για παλιά αιτήματα από πριν υπάρξει η δυνατότητα — βλ. ApplySyncDto.</param>
 public sealed record MenuSyncDto(
     List<MenuCategory> Categories,
     List<ExtraItem> Extras,
-    Dictionary<string, decimal> DoublePitaPrices);
+    Dictionary<string, decimal> DoublePitaPrices,
+    List<string>? Ingredients = null);
 
 public sealed record TableSyncRequest(int Table);
 public sealed record TableLayoutSyncRequest(int Table, double X, double Y);

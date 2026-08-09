@@ -116,12 +116,13 @@ public class MenuStore
     public bool SupportsDoublePita(string categoryLabel) =>
         FindCategory(categoryLabel)?.SupportsDoublePita ?? MenuSeed.SupportsDoublePita(categoryLabel);
 
-    /// <summary>Ολόκληρο το μενού για συγχρονισμό — κατηγορίες, κοινά έξτρα ΚΑΙ χρεώσεις διπλής πίτας.</summary>
-    public MenuSyncDto BuildSyncDto() => new(Categories, Extras, DoublePitaPrices);
+    /// <summary>Ολόκληρο το μενού για συγχρονισμό — κατηγορίες, κοινά έξτρα, χρεώσεις διπλής πίτας ΚΑΙ
+    /// ο κοινός κατάλογος βασικών υλικών.</summary>
+    public MenuSyncDto BuildSyncDto() => new(Categories, Extras, DoublePitaPrices, Ingredients);
 
     /// <summary>Εφαρμόζει μενού που ήρθε από το δίκτυο (host που δέχεται από client, ή client που
     /// τραβάει από host). Κενές λίστες αγνοούνται αντί να σβήσουν ό,τι υπάρχει — ένα αίτημα από
-    /// παλιότερη έκδοση, που δεν στέλνει έξτρα, δεν πρέπει να μηδενίσει τον κατάλογο έξτρα.</summary>
+    /// παλιότερη έκδοση, που δεν στέλνει έξτρα/υλικά, δεν πρέπει να μηδενίσει τον κατάλογο.</summary>
     public void ApplySyncDto(MenuSyncDto dto)
     {
         Categories = dto.Categories;
@@ -129,6 +130,8 @@ public class MenuStore
             Extras = dto.Extras;
         if (dto.DoublePitaPrices.Count > 0)
             DoublePitaPrices = dto.DoublePitaPrices;
+        if (dto.Ingredients is { Count: > 0 })
+            Ingredients = dto.Ingredients;
     }
 
     /// <summary>Δεύτερο ταμείο (client) — αντικαθιστά το τοπικό μενού με αυτό του host, ΜΑΖΙ με τα
@@ -142,6 +145,8 @@ public class MenuStore
         ApplySyncDto(dto);
         if (Extras.Count == 0)
             Extras = SeedExtrasCopy();
+        if (Ingredients.Count == 0)
+            Ingredients = SeedIngredientsCopy();
         Changed?.Invoke();
     }
 
