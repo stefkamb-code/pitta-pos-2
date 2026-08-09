@@ -132,14 +132,54 @@ public class MenuStore
         Changed?.Invoke();
     }
 
+    /// <summary>Το αρχείο υπήρχε αλλά δεν διαβάστηκε — τότε ΔΕΝ επιτρέπεται καμία εγγραφή, γιατί θα
+    /// έγραφε τον εργοστασιακό κατάλογο πάνω στον πραγματικό.</summary>
+    public bool LoadFailed { get; private set; }
+
+    /// <summary>
+    /// Διαβάζει τον κατάλογο από τον δίσκο.
+    ///
+    /// Το διάβασμα γίνεται με επαναλήψεις: το αρχείο μπορεί να είναι κλειδωμένο για κλάσματα του
+    /// δευτερολέπτου (antivirus που το σαρώνει, συγχρονισμός cloud, προηγούμενο instance που κλείνει).
+    /// Πριν, μια τέτοια στιγμιαία αποτυχία γύριζε ΣΙΩΠΗΛΑ ολόκληρο το ταμείο στον εργοστασιακό
+    /// κατάλογο — και προσπαθούσε κιόλας να τον γράψει πάνω στον πραγματικό. Αν τύχαινε η εγγραφή να
+    /// πετύχει, ο κατάλογος του μαγαζιού θα χανόταν οριστικά, χωρίς κανένα μήνυμα.
+    /// </summary>
     private void Load()
     {
-        try
+        if (!File.Exists(_path))
         {
-            if (File.Exists(_path))
-            {
-                var text = File.ReadAllText(_path);
+            // Πρώτη εκκίνηση: εδώ και μόνο εδώ είναι σωστό να γραφτεί ο εργοστασιακός κατάλογος.
+            Categories = SeedCopy();
+            Extras = SeedExtrasCopy();
+            DoublePitaPrices = SeedDoublePitaPrices();
+            SaveToDisk();
+            return;
+        }
 
+        string? text = null;
+        for (var attempt = 1; attempt <= 5 && text is null; attempt++)
+        {
+            try
+            {
+                text = File.ReadAllText(_path);
+            }
+            catch (IOException ex)
+            {
+                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.Message}");
+                Thread.Sleep(150);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.Message}");
+                Thread.Sleep(150);
+            }
+        }
+
+        if (text is not null)
+        {
+            try
+            {
                 // Τρέχουσα μορφή: αντικείμενο με Categories + Extras
                 MenuData? data = null;
                 try { data = JsonSerializer.Deserialize<MenuData>(text); }
@@ -164,15 +204,19 @@ public class MenuStore
                     return;
                 }
             }
+            catch (Exception ex)
+            {
+                AppLog.Write("menu", $"χαλασμένο menu.json: {ex.GetType().Name}: {ex.Message}");
+            }
         }
-        catch (Exception)
-        {
-            // Χαλασμένο αρχείο — συνέχισε με το αρχικό μενού
-        }
+
+        // Υπάρχει αρχείο αλλά δεν βγάλαμε άκρη. Δείχνουμε τον εργοστασιακό για να δουλέψει το ταμείο,
+        // ΧΩΡΙΣ όμως να τον γράψουμε πουθενά — ο πραγματικός κατάλογος μένει ανέπαφος στον δίσκο.
+        LoadFailed = true;
+        AppLog.Write("menu", "ΠΡΟΣΟΧΗ: ο κατάλογος δεν φορτώθηκε· εμφανίζεται ο εργοστασιακός και οι αλλαγές δεν αποθηκεύονται");
         Categories = SeedCopy();
         Extras = SeedExtrasCopy();
         DoublePitaPrices = SeedDoublePitaPrices();
-        SaveToDisk();
     }
 
     /// <summary>Βαθύ αντίγραφο του αρχικού μενού ώστε οι αλλαγές να μην αγγίζουν το seed.</summary>
@@ -225,6 +269,14 @@ public class MenuStore
 
     private void SaveToDisk()
     {
+        // Δικλείδα: αν το φόρτωμα απέτυχε, στη μνήμη κάθεται ο εργοστασιακός κατάλογος. Οποιαδήποτε
+        // εγγραφή εδώ θα τον έγραφε πάνω στον πραγματικό — ακριβώς η καταστροφή που αποφεύγουμε.
+        if (LoadFailed)
+        {
+            AppLog.Write("menu", "η αποθήκευση αγνοήθηκε: ο κατάλογος δεν είχε φορτωθεί σωστά");
+            return;
+        }
+
         try
         {
             var data = new MenuData { Categories = Categories, Extras = Extras, DoublePitaPrices = DoublePitaPrices };
