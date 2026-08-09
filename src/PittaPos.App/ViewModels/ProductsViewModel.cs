@@ -406,8 +406,9 @@ public partial class ProductsViewModel : ObservableObject
     /// πειραχτεί τίποτα, μπαίνει με τα προεπιλεγμένα του: αυτό είναι και η συνηθισμένη περίπτωση,
     /// ο πελάτης που δεν ζητάει καμία αλλαγή.
     ///
-    /// Τα υλικά ΔΕΝ κλείνουν — μένουν όπως είναι, ώστε ένα δεύτερο διπλό κλικ να βάλει άλλο ένα
-    /// ολόιδιο χωρίς να ξαναδιαλέξει κανείς τα ίδια έξτρα.
+    /// Τα υλικά ΔΕΝ κλείνουν, αλλά ξαναγυρίζουν στα προεπιλεγμένα: μόλις το φαγητό μπει στο δελτίο,
+    /// τα έξτρα που διαλέχτηκαν γι' αυτό δεν ισχύουν πια. Αν έμεναν πατημένα, το επόμενο πάτημα θα
+    /// έβαζε σιωπηλά άλλη μια πίττα με τα ίδια έξτρα — και θα χρεωνόταν κάτι που δεν ζητήθηκε.
     /// </summary>
     [RelayCommand]
     private void QuickAddProduct(ProductTileViewModel tile)
@@ -429,7 +430,11 @@ public partial class ProductsViewModel : ObservableObject
             Customizer = open;
         }
 
-        open.AddKeepingOpen();
+        open.Commit(); // μπαίνει στο δελτίο· το CommitCustomizedLine κλείνει τα υλικά
+
+        // Ξανανοίγουν αμέσως, καθαρά, για το ίδιο φαγητό: η στήλη δεν αδειάζει μπροστά στον ταμία,
+        // αλλά ούτε κουβαλάει τα έξτρα της προηγούμενης πίττας στην επόμενη.
+        Customizer = new CustomizerViewModel(this, tile.Product, ActiveCategory?.Category.Name ?? "");
     }
 
     /// <summary>Κλικ στο badge ποσότητας του tile: αφαίρεση ενός.</summary>
@@ -468,8 +473,7 @@ public partial class ProductsViewModel : ObservableObject
     /// την κατηγορία — βλ. MenuSeed.HasBreadChoice/FuseBreadIntoName).</summary>
     public void CommitCustomizedLine(CartLineViewModel? editingLine, Product product,
         LineCustomization customization, int quantity, decimal unitPrice, int discountPct,
-        bool noCharge, string name, string descLine1, string descLine2,
-        bool keepCustomizerOpen = false)
+        bool noCharge, string name, string descLine1, string descLine2)
     {
         var line = editingLine;
         if (line is null)
@@ -490,10 +494,7 @@ public partial class ProductsViewModel : ObservableObject
         line.DescLine1 = descLine1;
         line.DescLine2 = descLine2;
 
-        // Το διπλό κλικ στη λίστα προσθέτει χωρίς να κλείσει τίποτα: ο ταμίας κρατάει μπροστά του τα
-        // υλικά που μόλις διάλεξε και μπορεί να ξαναπατήσει για δεύτερο ολόιδιο.
-        if (!keepCustomizerOpen)
-            Customizer = null;
+        Customizer = null;
         OnCartChanged();
     }
 

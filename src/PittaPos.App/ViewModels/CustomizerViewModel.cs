@@ -146,26 +146,9 @@ public partial class CustomizerViewModel : ObservableObject
     /// <summary>Άνοιξε από το ✎ μιας γραμμής του δελτίου (διόρθωση), όχι για νέα προσθήκη.</summary>
     public bool IsEditingExistingLine => _editingLine is not null;
 
-    /// <summary>Όσο είναι true, η προσθήκη δεν κλείνει τα υλικά.</summary>
-    private bool _keepOpenAfterCommit;
-
-    /// <summary>
-    /// Προσθήκη στο δελτίο ΧΩΡΙΣ να κλείσουν τα υλικά — έτσι δουλεύει το διπλό κλικ πάνω στο φαγητό:
-    /// μπαίνει ό,τι έχει ήδη διαλεγεί (π.χ. + γκούντα) και οι επιλογές μένουν στη θέση τους, ώστε ένα
-    /// δεύτερο διπλό κλικ να βάλει άλλο ένα ολόιδιο χωρίς να τα ξαναπατήσει κανείς.
-    /// </summary>
-    public void AddKeepingOpen()
-    {
-        _keepOpenAfterCommit = true;
-        try
-        {
-            Add();
-        }
-        finally
-        {
-            _keepOpenAfterCommit = false;
-        }
-    }
+    /// <summary>Ό,τι ακριβώς κάνει το κουμπί ΠΡΟΣΘΗΚΗ — το καλεί το διπλό κλικ πάνω στη λίστα, ώστε
+    /// το φαγητό να μπαίνει με ό,τι έχει ήδη διαλεγεί εδώ (ψωμί, υλικά, έξτρα, ποσότητα).</summary>
+    public void Commit() => Add();
 
     [RelayCommand]
     private void Add()
@@ -217,7 +200,6 @@ public partial class CustomizerViewModel : ObservableObject
         // Κάθε ιδιαιτερότητα (χωρίς/μόνο με/έξτρα/έκπτωση) σε δική της γραμμή αντί για μία αράδα με "·" —
         // πιο ευανάγνωστο στην απόδειξη όταν ένα προϊόν έχει πολλές τροποποιήσεις.
         _owner.CommitCustomizedLine(_editingLine, Product, customization, Quantity,
-            UnitPriceWithExtras, DiscountPct, NoCharge, name, descLine1, string.Join("\n", mods),
-            _keepOpenAfterCommit);
+            UnitPriceWithExtras, DiscountPct, NoCharge, name, descLine1, string.Join("\n", mods));
     }
 }
