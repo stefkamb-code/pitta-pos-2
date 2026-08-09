@@ -10,9 +10,14 @@
     </UserControl.Resources>
 
     <Grid>
+        <!-- Τέσσερις στήλες: κατηγορίες | λίστα φαγητών | υλικά | δελτίο.
+             Η στήλη των υλικών κρατάει ΠΑΝΤΑ το πλάτος της, ακόμα και άδεια. Δοκιμάστηκε να μαζεύεται
+             στο μηδέν όταν δεν υπάρχει επιλεγμένο φαγητό, αλλά τότε η λίστα φάρδαινε και στένευε σε
+             κάθε άνοιγμα/κλείσιμο: τα ονόματα χοροπηδούσαν και ο ταμίας έχανε τη σειρά που κοίταζε. -->
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="170"/>
             <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="430"/>
             <ColumnDefinition Width="340"/>
         </Grid.ColumnDefinitions>
 
@@ -59,18 +64,11 @@
             </ScrollViewer>
         </Border>
 
-        <!-- ================= Middle: tile grid ================= -->
+        <!-- ================= Κάθετη λίστα φαγητών της κατηγορίας =================
+             ΔΕΝ κρύβεται ποτέ. Παλιά ο customizer άνοιγε ακριβώς εδώ, στη θέση της λίστας, οπότε σε
+             κάθε πίττα χανόταν από τα μάτια του ταμία ο κατάλογος και χρειαζόταν «πίσω» για την
+             επόμενη. Τώρα τα υλικά ανοίγουν στη διπλανή στήλη και η λίστα μένει στη θέση της. -->
         <Grid Grid.Column="1">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsTileGrid}" Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -86,63 +84,55 @@
                 </StackPanel>
             </Border>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,16">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <!-- Χωρίς ItemsPanel: το προεπιλεγμένο StackPanel του ItemsControl στοιβάζει ήδη
+                     κάθετα, μια σειρά ανά φαγητό. -->
                 <ItemsControl ItemsSource="{Binding Tiles}" VerticalAlignment="Top">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="3"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ProductTileViewModel}">
                             <Button Command="{Binding DataContext.TapProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
-                                    Margin="0,0,12,12" Padding="14" MinHeight="92"
-                                    HorizontalAlignment="Stretch" ToolTip="{Binding Description}"
-                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                                    MouseDoubleClick="ProductRow_MouseDoubleClick"
+                                    Padding="17,13" HorizontalAlignment="Stretch"
+                                    ToolTip="{Binding ListToolTip}"
+                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                        <Setter Property="BorderThickness" Value="2"/>
-                                        <Setter Property="Template" Value="{StaticResource ElevatedButtonTemplate}"/>
+                                        <!-- Η κάτω γραμμή χωρίζει τις σειρές· η αριστερή μπάρα ανάβει
+                                             κόκκινη στο φαγητό που έχει ανοιχτά τα υλικά του δίπλα. -->
+                                        <Setter Property="BorderThickness" Value="4,0,0,2"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasQty}" Value="True">
+                                            <DataTrigger Binding="{Binding IsOpen}" Value="True">
                                                 <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
                                                 <Setter Property="Background" Value="{DynamicResource Accent100}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Text="{Binding Name}" FontSize="15" FontWeight="ExtraBold"
-                                               Foreground="{DynamicResource Ink}" TextWrapping="Wrap" Margin="0,0,20,0"/>
-                                    <TextBlock Grid.Row="1" Text="{Binding NameEn}" FontSize="11" Foreground="{DynamicResource Neutral500}"
-                                               Visibility="{Binding ShowEn, Converter={StaticResource BoolToVis}}"/>
-                                    <DockPanel Grid.Row="3" LastChildFill="False" Margin="0,8,0,0">
-                                        <Border DockPanel.Dock="Left" Width="26" Height="26"
-                                                Background="{DynamicResource Accent}" CornerRadius="6"
-                                                Visibility="{Binding HasQty, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock Text="{Binding Quantity}" Foreground="White"
-                                                       FontWeight="ExtraBold" FontSize="13"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="17"
-                                                   FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" VerticalAlignment="Bottom"/>
-                                    </DockPanel>
-                                    <!-- ✎ μόνο σε customizable κατηγορίες -->
-                                    <Button Grid.Row="0" Content="✎" Width="22" Height="22"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top"
-                                            Style="{StaticResource FlatButton}" Padding="0"
-                                            HorizontalContentAlignment="Center" FontSize="11"
-                                            Visibility="{Binding Customizable, Converter={StaticResource BoolToVis}}"
-                                            Command="{Binding DataContext.OpenCustomizerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"/>
-                                </Grid>
+                                <DockPanel LastChildFill="True">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="16"
+                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                    <Border DockPanel.Dock="Right" Width="26" Height="26" Margin="12,0,0,0"
+                                            Background="{DynamicResource Accent}" CornerRadius="6"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding HasQty, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding Quantity}" Foreground="White"
+                                                   FontWeight="ExtraBold" FontSize="13"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <!-- Το badge ποσότητας δίπλα τρώει λίγο πλάτος όταν εμφανίζεται·
+                                             με αποσιωπητικά το όνομα κονταίνει καθαρά αντί να κόβεται
+                                             στη μέση μιας λέξης. -->
+                                        <TextBlock Text="{Binding ShortName}" FontSize="15" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Ink}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding NameEn}" FontSize="11" Foreground="{DynamicResource Neutral500}"
+                                                   Visibility="{Binding ShowEn, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                </DockPanel>
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -150,8 +140,15 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ================= Middle: customizer ================= -->
-        <ContentControl Grid.Column="1" Content="{Binding Customizer}">
+        <!-- ================= Υλικά/έξτρα — ανοίγουν ΔΙΠΛΑ στη λίστα ================= -->
+
+        <!-- Όσο δεν έχει πατηθεί φαγητό η στήλη μένει σκέτη κενή — κρατάει μόνο τη θέση της, ώστε να
+             μη μετακινείται η λίστα δίπλα. -->
+        <Border Grid.Column="2" Background="{DynamicResource Bg}"
+                BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0"
+                Visibility="{Binding IsTileGrid, Converter={StaticResource BoolToVis}}"/>
+
+        <ContentControl Grid.Column="2" Content="{Binding Customizer}">
             <ContentControl.Style>
                 <Style TargetType="ContentControl">
                     <Setter Property="Visibility" Value="Visible"/>
@@ -173,34 +170,47 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- header -->
+                        <!-- header —
+                             Σε δύο σειρές, όχι σε μία: η στήλη είναι πλέον στενή (ανοίγει δίπλα στη
+                             λίστα, δεν πιάνει όλη τη μέση της οθόνης) και το όνομα σε μία σειρά μαζί
+                             με ποσότητα+τιμή κοβόταν στη μέση — «Πίττα κοτόπου». Τώρα το όνομα έχει
+                             όλο το πλάτος από κάτω και τυλίγεται αν χρειαστεί. -->
                         <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="20,11">
-                            <DockPanel>
-                                <Button DockPanel.Dock="Left" Content="←" FontSize="18" Style="{StaticResource GlyphButton}"
-                                        Command="{Binding CloseCommand}" Margin="0,0,12,0"/>
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding UnitPriceLabel}" FontSize="19" FontWeight="ExtraBold"
-                                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="12,0,0,0"/>
-                                <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12"
-                                        Background="{DynamicResource Surface}" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="−" Width="30" Height="32" Style="{StaticResource GlyphButton}" FontSize="17"
-                                                Command="{Binding DecQtyCommand}"/>
-                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1,0" Width="34">
-                                            <TextBlock Text="{Binding Quantity}" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                        <Button Content="+" Width="30" Height="32" Style="{StaticResource GlyphButton}" FontSize="17"
-                                                Foreground="{DynamicResource Accent}" Command="{Binding IncQtyCommand}"/>
-                                    </StackPanel>
-                                </Border>
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0">
+                                    <Button DockPanel.Dock="Left" Content="←" FontSize="18" Style="{StaticResource GlyphButton}"
+                                            Command="{Binding CloseCommand}" Margin="0,0,12,0"/>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding UnitPriceLabel}" FontSize="19" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Rectangle Width="8" Height="8" Fill="{DynamicResource Accent}" VerticalAlignment="Center"/>
                                         <TextBlock Text="{Binding CategoryLabel}" FontSize="10.5" FontWeight="ExtraBold"
-                                                   Foreground="{DynamicResource Accent700}" Margin="8,0,0,0"/>
+                                                   Foreground="{DynamicResource Accent700}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock Text="{Binding ProductName}" FontSize="25" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                </StackPanel>
-                            </DockPanel>
+                                </DockPanel>
+
+                                <DockPanel Grid.Row="1" Margin="0,7,0,0">
+                                    <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12"
+                                            Background="{DynamicResource Surface}" VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="−" Width="30" Height="32" Style="{StaticResource GlyphButton}" FontSize="17"
+                                                    Command="{Binding DecQtyCommand}"/>
+                                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1,0" Width="34">
+                                                <TextBlock Text="{Binding Quantity}" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <Button Content="+" Width="30" Height="32" Style="{StaticResource GlyphButton}" FontSize="17"
+                                                    Foreground="{DynamicResource Accent}" Command="{Binding IncQtyCommand}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="{Binding ProductName}" FontSize="22" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </Grid>
                         </Border>
 
                         <!-- bread + sketo -->
@@ -208,55 +218,13 @@
                             <!-- Χωρίς σταθερή ετικέτα «ΨΩΜΙ»: μία από τις ίδιες τις επιλογές λέγεται
                                  «Ψωμί», οπότε η ετικέτα δίπλα τους μπέρδευε (φαινόταν σαν να είναι
                                  επιλεγμένο το «Ψωμί»). Τα κουμπιά λένε ήδη μόνα τους τι είναι. -->
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Padding="14,7" Margin="8,0,0,0"
-                                        Command="{Binding ToggleDoublePitaCommand}">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowDoublePitaOption}" Value="False">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="14" Height="14" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
-                                                VerticalAlignment="Center" Margin="0,0,7,0">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="Transparent"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsDoublePita}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource Ink}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-                                        <TextBlock Text="{Binding DoublePitaOptionLabel}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
-                                    </StackPanel>
-                                </Button>
-                                <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Padding="14,7"
-                                        Command="{Binding ToggleSketoCommand}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border Width="14" Height="14" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
-                                                VerticalAlignment="Center" Margin="0,0,7,0">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="Transparent"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSketo}" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource Ink}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-                                        <TextBlock Text="ΣΚΕΤΟ" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
-                                    </StackPanel>
-                                </Button>
-                                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" HorizontalAlignment="Left">
+                            <!-- WrapPanel και όχι DockPanel: στη στενή στήλη τα ΣΚΕΤΟ/ΔΙΠΛΗ ΠΙΤΑ
+                                 στρίμωχναν τις επιλογές ψωμιού και έκοβαν την τελευταία («Ψωμί») —
+                                 έλειπε δηλαδή μια κανονική επιλογή χωρίς να φαίνεται πουθενά. Τώρα
+                                 ό,τι δεν χωράει πέφτει σε δεύτερη σειρά αντί να κρύβεται. -->
+                            <WrapPanel>
+                                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12"
+                                        Margin="0,0,8,6">
                                     <ItemsControl ItemsSource="{Binding Breads}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -285,7 +253,54 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </Border>
-                            </DockPanel>
+                                <Button Padding="14,7" Margin="0,0,8,6"
+                                        Command="{Binding ToggleDoublePitaCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowDoublePitaOption}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="14" Height="14" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
+                                                VerticalAlignment="Center" Margin="0,0,7,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDoublePita}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource Ink}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                        <TextBlock Text="{Binding DoublePitaOptionLabel}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource FlatButton}" Padding="14,7" Margin="0,0,8,6"
+                                        Command="{Binding ToggleSketoCommand}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Width="14" Height="14" BorderBrush="{DynamicResource Neutral400}" BorderThickness="1"
+                                                VerticalAlignment="Center" Margin="0,0,7,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSketo}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource Ink}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                        <TextBlock Text="ΣΚΕΤΟ" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Neutral700}"/>
+                                    </StackPanel>
+                                </Button>
+                            </WrapPanel>
                         </Border>
 
                         <!-- included ingredients -->
@@ -472,7 +487,7 @@
         </ContentControl>
 
         <!-- ================= Ticket ================= -->
-        <Border Grid.Column="2" Background="{DynamicResource Surface}"
+        <Border Grid.Column="3" Background="{DynamicResource Surface}"
                 BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0">
             <Grid>
                 <Grid.RowDefinitions>

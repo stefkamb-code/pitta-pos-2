@@ -12,6 +12,13 @@ public partial class ProductsViewModel : ObservableObject
 {
     private int _customLineSeq = 1;
 
+    /// <summary>
+    /// Το WPF χτυπάει το MouseDoubleClick ΠΡΙΝ από το Click του δεύτερου πατήματος. Χωρίς αυτή τη
+    /// σημαία, το Click που ακολουθεί ξανάνοιγε αμέσως τα υλικά του προϊόντος που μόλις είχε μπει
+    /// «κατευθείαν» στο δελτίο με διπλό κλικ.
+    /// </summary>
+    private bool _suppressNextTap;
+
     public ProductsViewModel()
     {
         Categories = [];
@@ -48,6 +55,16 @@ public partial class ProductsViewModel : ObservableObject
     private CustomizerViewModel? _customizer;
 
     public bool IsTileGrid => Customizer is null;
+
+    /// <summary>Κρατάει σημαδεμένη τη σειρά της λίστας που αντιστοιχεί στα υλικά που είναι ανοιχτά
+    /// δίπλα. Η λίστα των προϊόντων μένει ορατή όσο δουλεύεις τον customizer, οπότε χωρίς αυτό δεν
+    /// θα φαινόταν ποιο προϊόν πειράζεις.</summary>
+    partial void OnCustomizerChanged(CustomizerViewModel? value)
+    {
+        var openId = value?.Product.Id;
+        foreach (var tile in Tiles)
+            tile.IsOpen = openId is not null && tile.Product.Id == openId;
+    }
 
     [ObservableProperty]
     private int _orderNumber = 1044;
@@ -319,13 +336,15 @@ public partial class ProductsViewModel : ObservableObject
         RefreshTileQuantities();
     }
 
+    /// <summary>
+    /// Το πλήθος δίπλα στο προϊόν μετράει ΟΛΕΣ τις γραμμές του στο δελτίο, όχι μόνο την απλή. Τώρα που
+    /// κάθε πίττα περνάει από τον customizer, δύο ίδιες πίττες με διαφορετικά υλικά πιάνουν ξεχωριστές
+    /// γραμμές — ο ταμίας όμως θέλει να βλέπει «3» στο κοτόπουλο, όχι τίποτα.
+    /// </summary>
     private void RefreshTileQuantities()
     {
         foreach (var tile in Tiles)
-        {
-            var line = Cart.FirstOrDefault(l => l.Key == "p" + tile.Product.Id);
-            tile.Quantity = line?.Quantity ?? 0;
-        }
+            tile.Quantity = Cart.Where(l => l.ProductId == tile.Product.Id).Sum(l => l.Quantity);
     }
 
     [RelayCommand]
@@ -335,6 +354,7 @@ public partial class ProductsViewModel : ObservableObject
             c.IsActive = c == item;
         ActiveCategory = item;
         Customizer = null;
+        _suppressNextTap = false; // ασφάλεια: να μη μείνει «κρεμασμένη» και φαγωθεί το πρώτο πάτημα
 
         Tiles.Clear();
         foreach (var p in item.Category.Products)
@@ -344,10 +364,27 @@ public partial class ProductsViewModel : ObservableObject
         OnPropertyChanged(nameof(ProductCountLabel));
     }
 
-    /// <summary>Tap σε tile: προσθήκη ή αύξηση της απλής γραμμής.</summary>
+    /// <summary>
+    /// Tap σε προϊόν της λίστας. Αν σηκώνει προσαρμογή (πίττες, τυλιχτά κ.λπ.) ανοίγουν τα υλικά του
+    /// στη διπλανή στήλη και η λίστα μένει στη θέση της — ο ταμίας διαλέγει και πατάει ΠΡΟΣΘΗΚΗ.
+    /// Τα υπόλοιπα (ποτά, γλυκά) πάνε κατευθείαν στο δελτίο: δεν έχουν τίποτα να διαλέξει κανείς,
+    /// ένα ενδιάμεσο παράθυρο θα ήταν μόνο ένα παραπάνω πάτημα.
+    /// </summary>
     [RelayCommand]
     private void TapProduct(ProductTileViewModel tile)
     {
+        if (_suppressNextTap)
+        {
+            _suppressNextTap = false;
+            return;
+        }
+
+        if (tile.Customizable)
+        {
+            OpenCustomizer(tile);
+            return;
+        }
+
         var key = "p" + tile.Product.Id;
         var existing = Cart.FirstOrDefault(l => l.Key == key);
         if (existing is not null)
@@ -356,23 +393,43 @@ public partial class ProductsViewModel : ObservableObject
             return;
         }
 
-        // Customizable προϊόντα παίρνουν προεπιλεγμένη προσαρμογή ώστε το ✎ να δουλεύει και σε απλά tap.
-        // Το όνομα πρέπει να δείχνει ό,τι θα έβγαινε αν είχε ανοίξει κανείς τον customizer και είχε
-        // πατήσει ΠΡΟΣΘΗΚΗ χωρίς να αλλάξει τίποτα — ίδια λογική κατηγορίας με το CustomizerViewModel.Add.
-        var defaultCustomization = tile.Customizable ? new LineCustomization() : null;
-        var category = ActiveCategoryName;
-        var name = defaultCustomization is null || !MenuStore.Instance.HasBreadChoice(category)
-            ? tile.Product.Name
-            : MenuStore.Instance.FuseBreadIntoName(category)
-                ? MenuSeed.ComposeCustomizedName(tile.Product.Name, defaultCustomization.Bread)
-                : tile.Product.Name;
-        var line = new CartLineViewModel(this, key, tile.Product.Id, name, tile.Price)
+        Cart.Add(new CartLineViewModel(this, key, tile.Product.Id, tile.Product.Name, tile.Price)
         {
             BasePrice = tile.Price,
-            Customization = defaultCustomization,
-        };
-        Cart.Add(line);
+        });
         OnCartChanged();
+    }
+
+    /// <summary>
+    /// Διπλό κλικ σε φαγητό: μπαίνει στο δελτίο ΑΜΕΣΩΣ, ακριβώς όπως θα έμπαινε με το κουμπί
+    /// ΠΡΟΣΘΗΚΗ — δηλαδή με ό,τι έχει ήδη διαλεγεί δίπλα (ψωμί, υλικά, έξτρα, ποσότητα). Αν δεν έχει
+    /// πειραχτεί τίποτα, μπαίνει με τα προεπιλεγμένα του: αυτό είναι και η συνηθισμένη περίπτωση,
+    /// ο πελάτης που δεν ζητάει καμία αλλαγή.
+    ///
+    /// Τα υλικά ΔΕΝ κλείνουν — μένουν όπως είναι, ώστε ένα δεύτερο διπλό κλικ να βάλει άλλο ένα
+    /// ολόιδιο χωρίς να ξαναδιαλέξει κανείς τα ίδια έξτρα.
+    /// </summary>
+    [RelayCommand]
+    private void QuickAddProduct(ProductTileViewModel tile)
+    {
+        // Το δεύτερο από τα δύο κλικ δεν πρέπει να ξαναχτυπήσει το φαγητό.
+        _suppressNextTap = true;
+
+        // Απλό προϊόν (ποτό, γλυκό): το πρώτο κλικ το έβαλε ήδη στο δελτίο — διπλό κλικ πάνω του
+        // σημαίνει ένα τεμάχιο, όχι δύο.
+        if (!tile.Customizable)
+            return;
+
+        // Κανονικά το πρώτο από τα δύο κλικ έχει ήδη αφήσει ανοιχτά τα υλικά αυτού του φαγητού. Αν
+        // όμως δίπλα υπήρχε διόρθωση γραμμής του δελτίου (από το ✎), ανοίγουμε καθαρά υλικά — αλλιώς
+        // το διπλό κλικ θα άλλαζε την παλιά γραμμή αντί να προσθέσει καινούργια.
+        if (Customizer is not { IsEditingExistingLine: false } open || open.Product.Id != tile.Product.Id)
+        {
+            open = new CustomizerViewModel(this, tile.Product, ActiveCategory?.Category.Name ?? "");
+            Customizer = open;
+        }
+
+        open.AddKeepingOpen();
     }
 
     /// <summary>Κλικ στο badge ποσότητας του tile: αφαίρεση ενός.</summary>
@@ -380,8 +437,16 @@ public partial class ProductsViewModel : ObservableObject
     private void DecrementProduct(ProductTileViewModel tile) => DecrementLineByKey("p" + tile.Product.Id);
 
     [RelayCommand]
-    private void OpenCustomizer(ProductTileViewModel tile) =>
+    private void OpenCustomizer(ProductTileViewModel tile)
+    {
+        // Αν είναι ήδη ανοιχτά τα υλικά ΑΥΤΟΥ του φαγητού, δεν ξαναχτίζονται από την αρχή: ένα δεύτερο
+        // πάτημα στην ίδια σειρά θα έσβηνε ό,τι έχει ήδη διαλέξει ο ταμίας (π.χ. + γκούντα) — και το
+        // πρώτο από τα δύο κλικ του διπλού κλικ είναι ακριβώς ένα τέτοιο πάτημα.
+        if (Customizer is { IsEditingExistingLine: false } open && open.Product.Id == tile.Product.Id)
+            return;
+
         Customizer = new CustomizerViewModel(this, tile.Product, ActiveCategory?.Category.Name ?? "");
+    }
 
     [RelayCommand]
     private void EditLine(CartLineViewModel line)
@@ -403,7 +468,8 @@ public partial class ProductsViewModel : ObservableObject
     /// την κατηγορία — βλ. MenuSeed.HasBreadChoice/FuseBreadIntoName).</summary>
     public void CommitCustomizedLine(CartLineViewModel? editingLine, Product product,
         LineCustomization customization, int quantity, decimal unitPrice, int discountPct,
-        bool noCharge, string name, string descLine1, string descLine2)
+        bool noCharge, string name, string descLine1, string descLine2,
+        bool keepCustomizerOpen = false)
     {
         var line = editingLine;
         if (line is null)
@@ -424,7 +490,10 @@ public partial class ProductsViewModel : ObservableObject
         line.DescLine1 = descLine1;
         line.DescLine2 = descLine2;
 
-        Customizer = null;
+        // Το διπλό κλικ στη λίστα προσθέτει χωρίς να κλείσει τίποτα: ο ταμίας κρατάει μπροστά του τα
+        // υλικά που μόλις διάλεξε και μπορεί να ξαναπατήσει για δεύτερο ολόιδιο.
+        if (!keepCustomizerOpen)
+            Customizer = null;
         OnCartChanged();
     }
 

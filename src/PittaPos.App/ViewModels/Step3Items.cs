@@ -14,7 +14,7 @@ public partial class CategoryItemViewModel(MenuCategory category) : ObservableOb
     private bool _isActive;
 }
 
-/// <summary>Tile προϊόντος στο κεντρικό πλέγμα. Η τιμή έρχεται ήδη λυμένη (μαγαζιού ή διανομής).</summary>
+/// <summary>Προϊόν στην κάθετη λίστα της κατηγορίας. Η τιμή έρχεται ήδη λυμένη (μαγαζιού ή διανομής).</summary>
 public partial class ProductTileViewModel(Product product, bool customizable, decimal price) : ObservableObject
 {
     public Product Product { get; } = product;
@@ -22,18 +22,61 @@ public partial class ProductTileViewModel(Product product, bool customizable, de
     public decimal Price { get; } = price;
 
     public string Name => Product.Name;
+
+    /// <summary>
+    /// Το όνομα όπως μπαίνει στη λίστα. Όταν ανοίγουν τα υλικά δίπλα, η λίστα στενεύει και τα μακριά
+    /// ονόματα έσπαγαν σε δεύτερη σειρά — οι σειρές έβγαιναν άνισες και χανόταν ο ρυθμός του ματιού.
+    /// Γι' αυτό κονταίνουν οι ενδιάμεσες λέξεις: «Πίττα μπιφτέκι λαχανικών» → «Πίττα μπιφτ. λαχανικών».
+    /// </summary>
+    public string ShortName => Shorten(Product.Name);
+
+    /// <summary>Ολόκληρο το όνομα (και η περιγραφή, αν υπάρχει) στο tooltip — τίποτα δεν χάνεται
+    /// επειδή κόπηκε στη λίστα.</summary>
+    public string ListToolTip =>
+        string.Join("\n", new[] { Name, Product.Description }
+            .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    /// <summary>
+    /// Κονταίνει λέξεις μέχρι να χωρέσει το όνομα σε μία σειρά. Η πρώτη λέξη μένει ακέραιη (είναι
+    /// σχεδόν πάντα το είδος — «Πίττα», «Μερίδα») και η τελευταία επίσης (είναι αυτή που ξεχωρίζει
+    /// το προϊόν από τα διπλανά του), οπότε κόβονται μόνο οι ενδιάμεσες.
+    /// </summary>
+    private static string Shorten(string name, int maxChars = 22)
+    {
+        if (name.Length <= maxChars)
+            return name;
+
+        var words = name.Split(' ');
+        for (var i = 1; i < words.Length - 1 && string.Join(" ", words).Length > maxChars; i++)
+        {
+            if (words[i].Length > 6)
+                words[i] = words[i][..5] + ".";
+        }
+
+        var shortened = string.Join(" ", words);
+        // Μονολεκτικά ή ήδη κοντά ονόματα που παραμένουν μεγάλα: καλύτερα αποσιωπητικά παρά δεύτερη
+        // σειρά — το πλήρες όνομα φαίνεται ούτως ή άλλως στο tooltip.
+        return shortened.Length <= maxChars ? shortened : shortened[..(maxChars - 1)] + "…";
+    }
+
     public string NameEn => Product.NameEn ?? "";
     public bool ShowEn => !string.IsNullOrEmpty(Product.NameEn);
     /// <summary>null όταν δεν υπάρχει περιγραφή, ώστε να μην εμφανίζεται κενό tooltip.</summary>
     public string? Description => string.IsNullOrEmpty(Product.Description) ? null : Product.Description;
     public string PriceLabel => Order.FormatPrice(Price);
 
-    /// <summary>Ποσότητα της απλής (μη-customized) γραμμής στο καλάθι — badge στο tile.</summary>
+    /// <summary>Πόσα τεμάχια αυτού του προϊόντος έχουν μπει στο δελτίο — badge στη σειρά.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasQty))]
     private int _quantity;
 
     public bool HasQty => Quantity > 0;
+
+    /// <summary>Το προϊόν του οποίου τα υλικά είναι ανοιχτά αυτή τη στιγμή στη διπλανή στήλη. Η λίστα
+    /// δεν φεύγει πια από την οθόνη όταν ανοίγει ο customizer, οπότε χρειάζεται σημάδι για να φαίνεται
+    /// με ποια σειρά αντιστοιχεί ό,τι βλέπεις δίπλα.</summary>
+    [ObservableProperty]
+    private bool _isOpen;
 }
 
 /// <summary>Επιλογή ψωμιού στο segmented control του customizer.</summary>
