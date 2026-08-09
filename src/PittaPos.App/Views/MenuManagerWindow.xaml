@@ -276,11 +276,6 @@
                     <TextBlock Text="Κενή τιμή εφαρμογών = ισχύει παντού η κανονική τιμή" FontSize="11"
                                Foreground="{DynamicResource Neutral500}" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="Περιγραφή" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                    <TextBox Style="{StaticResource PosTextBox}" Height="70" TextWrapping="Wrap" AcceptsReturn="True"
-                             VerticalContentAlignment="Top" Padding="8,6" Margin="0,0,0,12"
-                             Text="{Binding ProductDescription, UpdateSourceTrigger=PropertyChanged}"/>
-
                     <CheckBox Content="Ανοίγει επιλογές υλικών (ψωμί / έξτρα / χωρίς)" FontSize="12.5"
                               Foreground="{DynamicResource Ink}" Margin="0,0,0,12"
                               IsChecked="{Binding ProductCustomizable}"/>

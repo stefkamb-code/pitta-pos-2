@@ -96,7 +96,6 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty] private string _productName = "";
     [ObservableProperty] private string _productPrice = "";
     [ObservableProperty] private string _productDeliveryPrice = "";
-    [ObservableProperty] private string _productDescription = "";
     /// <summary>Κενό = τυπώνεται ό,τι λέει και το μενού (βλ. Product.PrintName).</summary>
     [ObservableProperty] private string _productPrintName = "";
 
@@ -232,7 +231,6 @@ public partial class MenuManagerViewModel : ObservableObject
         ProductName = value?.Name ?? "";
         ProductPrice = value is null ? "" : value.Price.ToString("0.00", Greek);
         ProductDeliveryPrice = value?.DeliveryPrice?.ToString("0.00", Greek) ?? "";
-        ProductDescription = value?.Description ?? "";
         ProductPrintName = value?.PrintName ?? "";
         ProductCustomizable = value?.Customizable ?? false;
         // Νέο προϊόν: προεπιλογή η κατηγορία που κοιτάει ήδη ο χρήστης. Υπάρχον: αυτή που το έχει.
@@ -483,7 +481,6 @@ public partial class MenuManagerViewModel : ObservableObject
             deliveryPrice = dp;
         }
 
-        var description = ProductDescription.Trim();
         var printName = ProductPrintName.Trim();
         // Αν είναι όλα τσεκαρισμένα μένει null («όλα») αντί για ρητή λίστα — έτσι ένα μελλοντικό νέο
         // έξτρα στο MenuSeed.Extras εμφανίζεται αυτόματα σε προϊόντα που δεν έχουν περιοριστεί σκόπιμα.
@@ -502,7 +499,6 @@ public partial class MenuManagerViewModel : ObservableObject
                 Name = ProductName.Trim(),
                 Price = price,
                 DeliveryPrice = deliveryPrice,
-                Description = description.Length > 0 ? description : null,
                 PrintName = printName.Length > 0 ? printName : null,
                 Customizable = ProductCustomizable,
                 ExtraNames = extraNames,
@@ -518,7 +514,6 @@ public partial class MenuManagerViewModel : ObservableObject
             SelectedProduct.Name = ProductName.Trim();
             SelectedProduct.Price = price;
             SelectedProduct.DeliveryPrice = deliveryPrice;
-            SelectedProduct.Description = description.Length > 0 ? description : null;
             SelectedProduct.PrintName = printName.Length > 0 ? printName : null;
             SelectedProduct.Customizable = ProductCustomizable;
             SelectedProduct.ExtraNames = extraNames;

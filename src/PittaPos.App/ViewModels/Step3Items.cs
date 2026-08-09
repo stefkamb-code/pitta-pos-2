@@ -30,11 +30,9 @@ public partial class ProductTileViewModel(Product product, bool customizable, de
     /// </summary>
     public string ShortName => Shorten(Product.Name);
 
-    /// <summary>Ολόκληρο το όνομα (και η περιγραφή, αν υπάρχει) στο tooltip — τίποτα δεν χάνεται
-    /// επειδή κόπηκε στη λίστα.</summary>
-    public string ListToolTip =>
-        string.Join("\n", new[] { Name, Product.Description }
-            .Where(s => !string.IsNullOrWhiteSpace(s)));
+    /// <summary>Ολόκληρο το όνομα στο tooltip — τίποτα δεν χάνεται επειδή κόπηκε στη λίστα.
+    /// Η περιγραφή δεν δείχνεται πια πουθενά: το μαγαζί δεν τη χρειάζεται και γέμιζε την οθόνη.</summary>
+    public string ListToolTip => Name;
 
     /// <summary>
     /// Κονταίνει λέξεις μέχρι να χωρέσει το όνομα σε μία σειρά. Η πρώτη λέξη μένει ακέραιη (είναι
