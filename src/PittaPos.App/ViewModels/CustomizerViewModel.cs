@@ -74,9 +74,12 @@ public partial class CustomizerViewModel : ObservableObject
     /// (MenuStore.DoublePitaPrices), διαφορετική για ΤΥΛΙΧΤΑ και ΚΛΑΣΙΚΑ ΜΙΝΙ.</summary>
     public decimal DoublePitaPrice => MenuStore.Instance.DoublePitaPriceFor(CategoryLabel);
 
+    /// <summary>Η ετικέτα του κουμπιού στην οθόνη. Γράφεται πεζά-κεφαλαία («Διπλή Πίττα») επειδή είναι
+    /// επιλογή που διαβάζει ο ταμίας, όχι τίτλος. Το όνομα που τυπώνεται στην απόδειξη μένει κεφαλαίο
+    /// («ΔΙΠΛΗ ΠΙΤΑ», βλ. MenuSeed.DoublePitaLabel) — εκεί ξεχωρίζει μέσα στη γραμμή.</summary>
     public string DoublePitaOptionLabel => DoublePitaPrice > 0
-        ? "ΔΙΠΛΗ ΠΙΤΑ (+" + Order.FormatPrice(DoublePitaPrice) + ")"
-        : "ΔΙΠΛΗ ΠΙΤΑ";
+        ? "Διπλή Πίττα (+" + Order.FormatPrice(DoublePitaPrice) + ")"
+        : "Διπλή Πίττα";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TotalLabel))]
