@@ -341,18 +341,9 @@
             </Border.Style>
             <Grid>
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Image Source="pack://application:,,,/Assets/logo.png" Width="340" Margin="0,0,0,22"
+                <Image Source="pack://application:,,,/Assets/logo.png" Width="340" Margin="0,0,0,64"
                        RenderOptions.BitmapScalingMode="HighQuality"
                        Visibility="{Binding ShowOrderTypeCards, Converter={StaticResource BoolToVis}}"/>
-                <!-- Σήμανση καταστήματος: τα δύο ταμεία είναι κατά τα άλλα ολόιδια στην όψη, οπότε
-                     μπαίνει εδώ κόκκινη με έντονα γράμματα για να φαίνεται με μια ματιά σε ποιο
-                     μαγαζί χτυπιέται η παραγγελία. Το κείμενο ορίζεται στο Services/AppIdentity.cs. -->
-                <Border Background="{DynamicResource Accent}" Padding="22,7" Margin="0,0,0,42"
-                        HorizontalAlignment="Center"
-                        Visibility="{Binding ShowOrderTypeCards, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{x:Static services:AppIdentity.StoreBadge}"
-                               FontSize="30" FontWeight="ExtraBold" Foreground="White"/>
-                </Border>
                 <ItemsControl ItemsSource="{Binding OrderTypeOptions}" HorizontalAlignment="Center"
                               Visibility="{Binding ShowOrderTypeCards, Converter={StaticResource BoolToVis}}">
                     <ItemsControl.ItemsPanel>
