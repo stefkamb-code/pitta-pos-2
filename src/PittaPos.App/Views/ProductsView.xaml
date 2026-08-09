@@ -13,13 +13,30 @@
              γκρι περίγραμμα — γι' αυτό έμοιαζε παλιά, σαν πίνακας με πλαίσια. Τώρα είναι λευκή πάνω
              στο γκρι φόντο, χωρίς περίγραμμα, με απαλή σκιά που της δίνει βάθος. Το περίγραμμα
              κρατιέται διαφανές και ανάβει κόκκινο μόνο στο φαγητό που έχει ανοιχτά τα υλικά του. -->
+        <!-- Δικό της template ώστε να ελέγχουμε το στρογγύλεμα: το κοινό ElevatedButtonTemplate είναι
+             κλειδωμένο στα 10, εδώ θέλουμε πιο μαλακή γωνία που «διαβάζεται» σαν σύγχρονη κάρτα. -->
+        <ControlTemplate x:Key="ProductCardTemplate" TargetType="Button">
+            <Grid>
+                <Border Background="{TemplateBinding Background}" CornerRadius="14"
+                        Effect="{StaticResource SoftShadowSmall}"/>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="14" Padding="{TemplateBinding Padding}">
+                    <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
+        </ControlTemplate>
+
         <Style x:Key="ProductCard" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-            <Setter Property="Template" Value="{StaticResource ElevatedButtonTemplate}"/>
+            <Setter Property="Template" Value="{StaticResource ProductCardTemplate}"/>
             <Setter Property="Background" Value="{DynamicResource Surface}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="2"/>
-            <Setter Property="Margin" Value="0,0,0,9"/>
-            <Setter Property="Padding" Value="17,12"/>
+            <!-- Σφιχτά: η κάρτα δεν χρειάζεται να «αναπνέει» τόσο σε ταμείο που θέλει να βλέπει όσο
+                 περισσότερα φαγητά γίνεται με μια ματιά. Το βάθος το δίνει η σκιά, όχι τα κενά. -->
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="Padding" Value="15,7"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -60,14 +77,18 @@
                                     CommandParameter="{Binding}"
                                     HorizontalAlignment="Stretch" Padding="14,9">
                                 <Button.Style>
+                                    <!-- Η ενεργή κατηγορία γίνεται γεμάτο κόκκινο «χαπάκι» με λευκά
+                                         γράμματα, αντί για απαλό ροζ με γκρίζα. Είναι η πιο ξεκάθαρη
+                                         ένδειξη «εδώ βρίσκεσαι» και δίνει στην οθόνη έναν σύγχρονο
+                                         τόνο, ίδιο με τα κουμπιά δράσης. -->
                                     <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                        <Setter Property="BorderThickness" Value="3,0,0,0"/>
-                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
                                         <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Margin" Value="8,2,8,2"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                                                <Setter Property="Background" Value="{DynamicResource Accent}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -78,7 +99,7 @@
                                             <Setter Property="Foreground" Value="{DynamicResource Neutral700}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource Accent800}"/>
+                                                    <Setter Property="Foreground" Value="White"/>
                                                     <Setter Property="FontWeight" Value="ExtraBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -115,7 +136,7 @@
             <!-- Λίγος αέρας στο τέλος: χωρίς αυτόν η τελευταία σειρά κολλούσε στο κάτω χείλος και
                  φαινόταν κομμένη στη μέση, σαν να λείπει προϊόν. -->
             <!-- Περιθώριο γύρω-γύρω ώστε οι σκιές των καρτών να μην κόβονται στα χείλη -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="14,12,12,16">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="11,9,9,12">
                 <!-- Χωρίς ItemsPanel: το προεπιλεγμένο StackPanel του ItemsControl στοιβάζει ήδη
                      κάθετα, μια σειρά ανά φαγητό. -->
                 <ItemsControl ItemsSource="{Binding Tiles}" VerticalAlignment="Top">
@@ -131,9 +152,14 @@
                                          λίστα έβγαινε συμπαγής μαύρη μάζα και δεν ξεχώριζε τίποτα.
                                          Η τιμή πάει σε γκρι — τη διαβάζεις όταν τη γυρέψεις, δεν
                                          διεκδικεί το μάτι από το όνομα του φαγητού. -->
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="14.5"
-                                               FontWeight="SemiBold" Foreground="{DynamicResource Neutral600}"
-                                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                    <!-- Η τιμή σε δικό της «ταμπελάκι»: ξεχωρίζει από το όνομα χωρίς να
+                                         χρειάζεται έντονα γράμματα, και η στήλη των τιμών διαβάζεται
+                                         σαν στήλη — το μάτι τη βρίσκει αμέσως σε κάθε κάρτα. -->
+                                    <Border DockPanel.Dock="Right" CornerRadius="8" Padding="8,3" Margin="10,0,0,0"
+                                            VerticalAlignment="Center" Background="{DynamicResource Bg}">
+                                        <TextBlock Text="{Binding PriceLabel}" FontSize="13.5"
+                                                   FontWeight="Bold" Foreground="{DynamicResource Neutral700}"/>
+                                    </Border>
                                     <Border DockPanel.Dock="Right" Width="26" Height="26" Margin="12,0,0,0"
                                             Background="{DynamicResource Accent}" CornerRadius="6"
                                             VerticalAlignment="Center"
