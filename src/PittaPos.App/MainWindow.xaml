@@ -116,9 +116,11 @@
                 </StackPanel>
                 <TextBlock DockPanel.Dock="Right" x:Name="ClockText" FontSize="14.5" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center"/>
+                <!-- VerticalAlignment="Center" όπως ΣΤΑΤΙΣΤΙΚΑ/ΙΣΤΟΡΙΚΟ: χωρίς αυτό το DockPanel το
+                     τέντωνε σε όλο το ύψος της κεφαλίδας και έβγαινε ψηλότερο από τα διπλανά του. -->
                 <Button DockPanel.Dock="Right" FontSize="12.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,8" Margin="0,0,14,0"
-                        Click="OpenLiveOrders_Click">
+                        VerticalAlignment="Center" Click="OpenLiveOrders_Click">
                     <!-- Η κουκκίδα και το σήμα κρατιούνται χαμηλότερα από το ύψος του κειμένου, ώστε
                          το κουμπί να βγαίνει ακριβώς ίδιο σε ύψος με τα ΣΤΑΤΙΣΤΙΚΑ/ΙΣΤΟΡΙΚΟ δίπλα του
                          (ίδιο FontSize και Padding έχουν ήδη· το σήμα των 20px ήταν που το φούσκωνε). -->
