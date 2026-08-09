@@ -255,6 +255,9 @@ public partial class MenuManagerViewModel : ObservableObject
         var value = SelectedProduct;
         ExtraToggles.Clear();
         ExtraCatalogRows.Clear();
+        // Μαζί και τα βασικά υλικά: χωρίς αυτό χτίζονταν μόνο όταν πρόσθετε κανείς υλικό, οπότε
+        // ανοίγοντας ένα προϊόν η λίστα φαινόταν άδεια σαν να μην είχε κανένα.
+        RebuildIngredientToggles();
         foreach (var extra in _store.Extras)
         {
             ExtraToggles.Add(new ExtraToggleViewModel
