@@ -7,6 +7,43 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:UpperCaseGreekConverter x:Key="UpperCase"/>
+
+        <!-- Σειρά φαγητού: επίπεδη, χωρίς κουτί.
+             Το FlatButton έδινε σε κάθε σειρά στρογγυλεμένο πλαίσιο με περίγραμμα — δεκαοκτώ κουτάκια
+             στη σειρά, που «θορυβούσαν» και κόντραραν το ίδιο το ύφος της εφαρμογής (επίπεδο, μηδέν
+             στρογγύλεμα). Εδώ μένει μόνο μια λεπτή γραμμή ανάμεσα στις σειρές· η επιλεγμένη ξεχωρίζει
+             με κόκκινη μπάρα και απαλό φόντο, και το πέρασμα του ποντικιού με ένα ελαφρύ σκίαγμα. -->
+        <Style x:Key="ProductRow" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="18,11"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="root" Background="{TemplateBinding Background}">
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- Η μπάρα μπαίνει πάνω από τη γραμμή, κολλητά στο αριστερό χείλος -->
+                            <Border x:Name="bar" Width="4" HorizontalAlignment="Left" Background="Transparent"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="root" Property="Background" Value="{DynamicResource Surface}"/>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                <Setter TargetName="root" Property="Background" Value="{DynamicResource Accent100}"/>
+                                <Setter TargetName="bar" Property="Background" Value="{DynamicResource Accent}"/>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -33,20 +70,39 @@
                 <ItemsControl ItemsSource="{Binding Categories}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:CategoryItemViewModel}">
+                            <!-- Ίδια λογική με τις σειρές των φαγητών: επίπεδο, χωρίς στρογγυλεμένο
+                                 κουτί γύρω από την ενεργή κατηγορία — μόνο κόκκινη μπάρα και απαλό
+                                 φόντο, ώστε η στήλη να διαβάζεται σαν λίστα και όχι σαν 17 κουμπιά. -->
                             <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
-                                    HorizontalAlignment="Stretch" Padding="14,9">
+                                    HorizontalAlignment="Stretch" Padding="15,10">
                                 <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                        <Setter Property="BorderThickness" Value="3,0,0,0"/>
-                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                    <Style TargetType="Button">
+                                        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
                                         <Setter Property="Background" Value="Transparent"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid x:Name="root" Background="{TemplateBinding Background}">
+                                                        <Border Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <Border x:Name="bar" Width="3" HorizontalAlignment="Left" Background="Transparent"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="root" Property="Background" Value="{DynamicResource Bg}"/>
+                                                        </Trigger>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter TargetName="root" Property="Background" Value="{DynamicResource Accent100}"/>
+                                                            <Setter TargetName="bar" Property="Background" Value="{DynamicResource Accent}"/>
+                                                        </DataTrigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
                                     </Style>
                                 </Button.Style>
                                 <TextBlock Text="{Binding Name}" FontSize="13">
@@ -100,23 +156,8 @@
                             <Button Command="{Binding DataContext.TapProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding}"
                                     MouseDoubleClick="ProductRow_MouseDoubleClick"
-                                    Padding="15,9" HorizontalAlignment="Stretch"
-                                    ToolTip="{Binding ListToolTip}"
-                                    HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                        <!-- Η κάτω γραμμή χωρίζει τις σειρές· η αριστερή μπάρα ανάβει
-                                             κόκκινη στο φαγητό που έχει ανοιχτά τα υλικά του δίπλα. -->
-                                        <Setter Property="BorderThickness" Value="4,0,0,2"/>
-                                        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsOpen}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
+                                    Style="{StaticResource ProductRow}"
+                                    ToolTip="{Binding ListToolTip}">
                                 <DockPanel LastChildFill="True">
                                     <!-- Πιο ελαφριά γράμματα, όπως στη μακέτα: με ExtraBold παντού η
                                          λίστα έβγαινε συμπαγής μαύρη μάζα και δεν ξεχώριζε τίποτα.
