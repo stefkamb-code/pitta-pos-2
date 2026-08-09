@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Windows;
-using System.Windows.Media;
 using PittaPos.App.ViewModels;
 
 namespace PittaPos.App.Views;
@@ -9,53 +7,15 @@ public partial class LiveOrdersWindow : Window
 {
     private readonly LiveOrdersViewModel _vm = new();
 
-    /// <summary>Παλέτα «νύχτας» — μόνο για αυτό το παράθυρο, όταν είναι ενεργή η βραδινή βάρδια.</summary>
-    private static readonly Dictionary<string, string> NightPalette = new()
-    {
-        ["Bg"] = "#141a2e",
-        ["Ink"] = "#e8eaf6",
-        ["Divider"] = "#39406b",
-        ["Neutral500"] = "#7b82ad",
-        ["Neutral600"] = "#9fa5cc",
-        ["Neutral700"] = "#c3c7e3",
-        ["Accent100"] = "#26305a",
-    };
-
+    // Η βραδινή βάρδια ΔΕΝ αλλάζει πια τα χρώματα αυτού του παραθύρου. Υπήρχε σκούρα «παλέτα
+    // νύχτας» που μαύριζε ολόκληρο τον πίνακα παραγγελιών· στο μαγαζί ήταν πιο δύσκολο να διαβαστεί
+    // και δεν πρόσφερε τίποτα — η βάρδια συνεχίζει να μετράει κανονικά στις αναφορές και στα
+    // στατιστικά, απλώς δεν φαίνεται στα χρώματα.
     public LiveOrdersWindow()
     {
         InitializeComponent();
         DataContext = _vm;
-        _vm.PropertyChanged += Vm_PropertyChanged;
-        ApplyShiftColors();
-        Closed += (_, _) =>
-        {
-            _vm.PropertyChanged -= Vm_PropertyChanged;
-            _vm.Shutdown();
-        };
-    }
-
-    private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(LiveOrdersViewModel.IsEveningShift))
-            ApplyShiftColors();
-    }
-
-    private void ApplyShiftColors()
-    {
-        if (_vm.IsEveningShift)
-        {
-            foreach (var (key, hex) in NightPalette)
-            {
-                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-                brush.Freeze();
-                Resources[key] = brush;
-            }
-        }
-        else
-        {
-            foreach (var key in NightPalette.Keys)
-                Resources.Remove(key);
-        }
+        Closed += (_, _) => _vm.Shutdown();
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
