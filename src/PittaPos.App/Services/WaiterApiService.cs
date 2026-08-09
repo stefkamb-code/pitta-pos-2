@@ -440,7 +440,9 @@ public static class WaiterApiService
 
     private static CustomizerOptionsDto GetCustomizerOptions() => new(
         MenuSeed.BreadOptions,
-        MenuSeed.IncludedIngredients,
+        // Ο κοινός κατάλογος υλικών (όχι πια σταθερός στον κώδικα). Το κινητό δείχνει ακόμα τον κοινό
+        // για όλα τα προϊόντα — τα ανά προϊόν υλικά χρειάζονται αλλαγή και στο πρωτόκολλο.
+        MenuStore.Instance.Ingredients,
         MenuStore.Instance.Extras.Select(e => new ExtraOptionDto(e.Name, e.Price)).ToList(),
         MenuStore.Instance.Categories.Where(c => MenuStore.Instance.SupportsDoublePita(c.Name))
             .ToDictionary(c => c.Name, c => MenuStore.Instance.DoublePitaPriceFor(c.Name)));

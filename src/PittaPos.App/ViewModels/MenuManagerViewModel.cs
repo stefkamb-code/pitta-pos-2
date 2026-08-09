@@ -109,6 +109,13 @@ public partial class MenuManagerViewModel : ObservableObject
     /// το προϊόν. Ξαναφτιάχνεται σε κάθε επιλογή προϊόντος και όποτε αλλάζει ο κοινός κατάλογος.</summary>
     public ObservableCollection<ExtraToggleViewModel> ExtraToggles { get; } = [];
 
+    /// <summary>Ένα κουτάκι ανά υλικό του κοινού καταλόγου — ποια έχει ΜΕΣΑ αυτό το προϊόν, δηλαδή
+    /// ποια θα μπορεί να «βγάλει» ο πελάτης. Ξεχωριστό από τα έξτρα: τα υλικά είναι ήδη μέσα και
+    /// αφαιρούνται, τα έξτρα προστίθενται.</summary>
+    public ObservableCollection<ExtraToggleViewModel> IngredientToggles { get; } = [];
+
+    [ObservableProperty] private string _newIngredientName = "";
+
     /// <summary>Γενική λίστα διαχείρισης του κοινού καταλόγου έξτρα — όνομα/τιμή/διαγραφή, ανεξάρτητα
     /// από ποιο προϊόν είναι επιλεγμένο.</summary>
     public ObservableCollection<ExtraCatalogRowViewModel> ExtraCatalogRows { get; } = [];
@@ -131,6 +138,55 @@ public partial class MenuManagerViewModel : ObservableObject
     /// διπλή πίτα χωρίς καμία επιλογή ψωμιού, οπότε αν την κλείδωνε το ψωμί δεν θα μπορούσε καν να
     /// ξεπατηθεί από την οθόνη.</summary>
     public bool CategoryFuseBreadEnabled => HasCategory && CategoryHasBread;
+
+    /// <summary>Ξαναχτίζει τα κουτάκια υλικών: όλα όσα υπάρχουν στον κοινό κατάλογο, τσεκαρισμένα
+    /// όσα έχει το προϊόν. Προϊόν χωρίς δική του λίστα θεωρείται ότι τα έχει όλα — έτσι δουλεύει
+    /// ακριβώς όπως πριν, χωρίς να χρειαστεί να ξαναρυθμιστεί κανένα από τα 124.</summary>
+    private void RebuildIngredientToggles()
+    {
+        IngredientToggles.Clear();
+        var own = SelectedProduct?.Ingredients;
+        foreach (var name in _store.Ingredients)
+        {
+            IngredientToggles.Add(new ExtraToggleViewModel
+            {
+                Name = name,
+                PriceLabel = "",
+                IsChecked = own is null || own.Contains(name),
+            });
+        }
+    }
+
+    /// <summary>Προσθήκη νέου υλικού στον κοινό κατάλογο — μπαίνει αμέσως τσεκαρισμένο στο προϊόν
+    /// που δουλεύεις, γιατί γι' αυτό το έγραψες.</summary>
+    [RelayCommand]
+    private void AddIngredient()
+    {
+        var name = NewIngredientName.Trim();
+        if (name.Length == 0 || _store.Ingredients.Contains(name))
+            return;
+
+        _store.AddIngredient(name);
+        NewIngredientName = "";
+        RebuildIngredientToggles();
+        var added = IngredientToggles.FirstOrDefault(t => t.Name == name);
+        if (added is not null)
+            added.IsChecked = true;
+        Flash("✓ Προστέθηκε το υλικό");
+    }
+
+    [RelayCommand]
+    private void RemoveIngredient(ExtraToggleViewModel ingredient)
+    {
+        var answer = MessageBox.Show(
+            "Διαγραφή του υλικού «" + ingredient.Name + "» από τον κατάλογο και από όλα τα προϊόντα;",
+            "Διαγραφή υλικού", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+            return;
+        _store.RemoveIngredient(ingredient.Name);
+        RebuildIngredientToggles();
+        Flash("✓ Διαγράφηκε");
+    }
 
     private bool _loadingCategoryFlags;
 
@@ -433,6 +489,10 @@ public partial class MenuManagerViewModel : ObservableObject
         // έξτρα στο MenuSeed.Extras εμφανίζεται αυτόματα σε προϊόντα που δεν έχουν περιοριστεί σκόπιμα.
         var checkedExtras = ExtraToggles.Where(t => t.IsChecked).Select(t => t.Name).ToList();
         var extraNames = checkedExtras.Count == ExtraToggles.Count ? null : checkedExtras;
+        // Ίδια λογική με τα έξτρα: όλα τσεκαρισμένα -> null («όλα του καταλόγου»), ώστε ένα μελλοντικό
+        // νέο υλικό να εμφανίζεται αυτόματα σε προϊόντα που δεν περιορίστηκαν σκόπιμα.
+        var checkedIngredients = IngredientToggles.Where(t => t.IsChecked).Select(t => t.Name).ToList();
+        var ingredients = checkedIngredients.Count == IngredientToggles.Count ? null : checkedIngredients;
 
         if (SelectedProduct is null)
         {

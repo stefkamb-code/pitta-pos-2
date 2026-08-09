@@ -168,6 +168,10 @@
                     <StackPanel Visibility="{Binding ShowCategoryEditor, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding CategoryFormTitle}" FontSize="11" FontWeight="ExtraBold"
                                Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                    <!-- Αυτό ΜΕΤΟΝΟΜΑΖΕΙ την κατηγορία — δεν είναι η επιλογή κατηγορίας του προϊόντος,
+                         που βρίσκεται πιο κάτω στη φόρμα. Χωρίς ετικέτα τα δύο μπερδεύονταν. -->
+                    <TextBlock Text="Όνομα κατηγορίας (μετονομασία)" FontSize="11"
+                               Foreground="{DynamicResource Neutral500}" Margin="0,0,0,4"/>
                     <TextBox Style="{StaticResource PosTextBox}" Height="42" FontSize="14"
                              Text="{Binding CategoryName, UpdateSourceTrigger=PropertyChanged}"/>
                     <Grid Margin="0,10,0,0">
@@ -283,6 +287,44 @@
 
                     <StackPanel Visibility="{Binding ProductCustomizable, Converter={StaticResource BoolToVis}}"
                                 Margin="0,0,0,18">
+                        <!-- Τα ΒΑΣΙΚΑ υλικά: ό,τι έχει ήδη μέσα το προϊόν και μπορεί να ζητηθεί «χωρίς».
+                             Μέχρι τώρα ήταν σταθερή λίστα για όλα τα προϊόντα, γραμμένη στον κώδικα —
+                             η ομελέτα έδειχνε «χωρίς κρεμμύδι» ακόμα κι αν δεν είχε. -->
+                        <TextBlock Text="Βασικά υλικά που έχει μέσα το προϊόν" FontSize="12"
+                                   Foreground="{DynamicResource Neutral700}" Margin="0,0,0,6"/>
+                        <ItemsControl ItemsSource="{Binding IngredientToggles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,8">
+                                        <CheckBox Content="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
+                                                  IsChecked="{Binding IsChecked}" VerticalAlignment="Center"/>
+                                        <Button Content="×" Style="{StaticResource GlyphButton}" FontSize="12" Width="20" Height="20"
+                                                Margin="4,0,0,0" ToolTip="Διαγραφή από τον κατάλογο υλικών"
+                                                Foreground="{DynamicResource Neutral500}"
+                                                Command="{Binding DataContext.RemoveIngredientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Grid Margin="0,4,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource PosTextBox}" Height="36" FontSize="12.5"
+                                     Text="{Binding NewIngredientName, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="2" Content="+ ΥΛΙΚΟ" Style="{StaticResource FlatButton}"
+                                    Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="12,0"
+                                    Command="{Binding AddIngredientCommand}"/>
+                        </Grid>
+
                         <TextBlock Text="Έξτρα που επιτρέπονται σε αυτό το προϊόν" FontSize="12"
                                    Foreground="{DynamicResource Neutral700}" Margin="0,0,0,6"/>
                         <ItemsControl ItemsSource="{Binding ExtraToggles}">

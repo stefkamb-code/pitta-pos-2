@@ -27,12 +27,18 @@ public class MenuStore
     /// ΤΥΛΙΧΤΑ και ΚΛΑΣΙΚΑ ΜΙΝΙ έχουν διαφορετική χρέωση. Επεξεργάσιμο από τη Διαχείριση Καταλόγου.</summary>
     public Dictionary<string, decimal> DoublePitaPrices { get; private set; } = [];
 
+    /// <summary>Κοινός κατάλογος βασικών υλικών — ό,τι μπορεί να «βγει» από ένα προϊόν. Κάθε προϊόν
+    /// διαλέγει ποια από αυτά έχει (βλ. Product.Ingredients)· ξεκινά από το MenuSeed και μετά ζει
+    /// ολόκληρος μέσα στο menu.json, όπως και τα έξτρα.</summary>
+    public List<string> Ingredients { get; private set; } = [];
+
     /// <summary>Μορφή αποθήκευσης στο δίσκο — μαζί κατηγορίες, κοινά έξτρα και χρέωση διπλής πίτας.</summary>
     private sealed class MenuData
     {
         public List<MenuCategory> Categories { get; set; } = [];
         public List<ExtraItem> Extras { get; set; } = [];
         public Dictionary<string, decimal> DoublePitaPrices { get; set; } = [];
+        public List<string> Ingredients { get; set; } = [];
     }
 
     /// <summary>Σηκώνεται σε κάθε αποθήκευση — τα ανοιχτά παράθυρα ξαναχτίζουν το μενού τους.</summary>
@@ -313,6 +319,13 @@ public class MenuStore
             }).ToList(),
         }).ToList();
 
+    private static List<string> SeedIngredientsCopy() => [.. MenuSeed.IncludedIngredients];
+
+    /// <summary>Τα υλικά που ισχύουν για ένα προϊόν: τα δικά του αν έχει δηλώσει, αλλιώς ο κοινός
+    /// κατάλογος — έτσι όσα προϊόντα δεν ρυθμίστηκαν ποτέ δουλεύουν ακριβώς όπως πριν.</summary>
+    public IReadOnlyList<string> IngredientsFor(Product product) =>
+        product.Ingredients is { Count: > 0 } own ? own : Ingredients;
+
     private static List<ExtraItem> SeedExtrasCopy() =>
         MenuSeed.Extras.Select(e => new ExtraItem { Name = e.Name, Price = e.Price }).ToList();
 
@@ -359,7 +372,7 @@ public class MenuStore
 
         try
         {
-            var data = new MenuData { Categories = Categories, Extras = Extras, DoublePitaPrices = DoublePitaPrices };
+            var data = new MenuData { Categories = Categories, Extras = Extras, DoublePitaPrices = DoublePitaPrices, Ingredients = Ingredients };
             AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(data, JsonOpts));
         }
         catch (Exception)
@@ -375,6 +388,25 @@ public class MenuStore
     public void ReplaceAll(MenuSyncDto dto)
     {
         ApplySyncDto(dto);
+        Save();
+    }
+
+    /// <summary>Προσθήκη υλικού στον κοινό κατάλογο.</summary>
+    public void AddIngredient(string name)
+    {
+        if (Ingredients.Contains(name))
+            return;
+        Ingredients.Add(name);
+        Save();
+    }
+
+    /// <summary>Διαγραφή υλικού — βγαίνει και από κάθε προϊόν που το είχε ρητά δηλωμένο, ώστε να μη
+    /// μείνει «ορφανό» όνομα που θα εμφανιζόταν στον customizer χωρίς να υπάρχει πια.</summary>
+    public void RemoveIngredient(string name)
+    {
+        Ingredients.Remove(name);
+        foreach (var product in Categories.SelectMany(c => c.Products))
+            product.Ingredients?.Remove(name);
         Save();
     }
 

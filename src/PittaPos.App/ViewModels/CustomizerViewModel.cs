@@ -29,8 +29,10 @@ public partial class CustomizerViewModel : ObservableObject
             ? new ObservableCollection<BreadOptionViewModel>(
                 MenuSeed.BreadOptions.Select(b => new BreadOptionViewModel(this, b)))
             : [];
+        // Τα υλικά ΤΟΥ προϊόντος, αν έχει δηλώσει δικά του από τη Διαχείριση Καταλόγου — αλλιώς ο
+        // κοινός κατάλογος, όπως δούλευε πάντα. Πριν ήταν μία σταθερή λίστα για όλα τα προϊόντα.
         Ingredients = new ObservableCollection<IngredientViewModel>(
-            MenuSeed.IncludedIngredients.Select(n => new IngredientViewModel(this, n)));
+            MenuStore.Instance.IngredientsFor(product).Select(n => new IngredientViewModel(this, n)));
         // null ExtraNames = όλα επιτρεπτά (βλ. MenuManagerViewModel) — μόνο τα ρητά περιορισμένα προϊόντα
         // βλέπουν υποσύνολο του (επεξεργάσιμου, βλ. MenuStore.Extras) κοινού καταλόγου έξτρα.
         var catalogExtras = MenuStore.Instance.Extras;
