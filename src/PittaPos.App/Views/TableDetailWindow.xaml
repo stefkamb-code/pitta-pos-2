@@ -1,0 +1,200 @@
+<Window x:Class="PittaPos.App.Views.TableDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        Title="ΤΡΑΠΕΖΙ" Height="720" Width="480"
+        MinWidth="420" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <TextBlock DockPanel.Dock="Left" Text="{Binding TitleLabel}" FontWeight="ExtraBold" FontSize="16"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <!-- rounds / lines -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="18,16">
+                <TextBlock Text="Δεν έχει παραγγελθεί τίποτα ακόμα" FontSize="13" Foreground="{DynamicResource Neutral500}"
+                           HorizontalAlignment="Center" Margin="0,24"
+                           Visibility="{Binding NoRounds, Converter={StaticResource BoolToVis}}"/>
+                <ItemsControl ItemsSource="{Binding Rounds}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:TableRoundViewModel}">
+                            <StackPanel Margin="0,0,0,18">
+                                <DockPanel Margin="0,0,0,8">
+                                    <Button DockPanel.Dock="Right" Content="✕" FontSize="9" Width="20" Height="20" Padding="0"
+                                            Style="{StaticResource GlyphButton}"
+                                            ToolTip="Ακύρωση γύρου (διαγραφή)" Click="CancelRound_Click"/>
+                                    <TextBlock Text="{Binding TimeLabel}" FontSize="11.5"
+                                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                </DockPanel>
+                                <Border Background="{DynamicResource Accent100}" Padding="10,7" Margin="0,0,0,8"
+                                        Visibility="{Binding HasNote, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding Note}" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource Accent700}"/>
+                                </Border>
+                                <ItemsControl ItemsSource="{Binding Lines}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:TableLineViewModel}">
+                                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1">
+                                            <StackPanel>
+                                                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                        Padding="14,10"
+                                                        Command="{Binding DataContext.SelectLineCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                            <Setter Property="BorderThickness" Value="0"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSettled}" Value="True">
+                                                                    <Setter Property="Background" Value="Transparent"/>
+                                                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                                                    <Setter Property="Foreground" Value="White"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel>
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Text="{Binding RevenueLabel}" FontSize="13.5"
+                                                                       FontWeight="SemiBold">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSettled}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Neutral500}"/>
+                                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                <Setter Property="Foreground" Value="White"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding QtyNameLabel}" FontSize="13.5">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSettled}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Neutral500}"/>
+                                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                <Setter Property="Foreground" Value="White"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Details}" FontSize="10.5" TextWrapping="Wrap"
+                                                                   Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Neutral500}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                            <Setter Property="Foreground" Value="White"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="✓ πληρώθηκε ξεχωριστά" FontSize="10.5" FontWeight="ExtraBold"
+                                                                   Foreground="{DynamicResource Accent700}" Margin="0,2,0,0"
+                                                                   Visibility="{Binding IsSettled, Converter={StaticResource BoolToVis}}"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- footer: είτε μπάρα ενεργειών πολλαπλής επιλογής, είτε οι κανονικές ενέργειες τραπεζιού -->
+        <Border Grid.Row="2" BorderBrush="{DynamicResource Divider}" BorderThickness="0,2,0,0" Padding="18,16">
+            <Grid>
+                <!-- Ν προϊόντα επιλεγμένα -->
+                <StackPanel Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+                    <DockPanel Margin="0,0,0,14">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedTotalLabel}" FontSize="22"
+                                   FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                        <TextBlock FontSize="15" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" VerticalAlignment="Bottom">
+                            <Run Text="{Binding SelectedCount, Mode=OneWay}"/><Run Text=" ΕΠΙΛΕΓΜΕΝΑ"/>
+                        </TextBlock>
+                    </DockPanel>
+                    <!-- Χωριστά μετρητά/κάρτα ώστε να καταγράφεται ΠΩΣ πληρώθηκε το κάθε προϊόν — μπαίνει
+                         στον διαχωρισμό της αναφοράς ημέρας (βλ. TablePaymentsService). -->
+                    <UniformGrid Columns="2" Margin="0,0,0,10">
+                        <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource PrimaryButton}"
+                                Height="46" FontSize="13.5" HorizontalContentAlignment="Center"
+                                Margin="0,0,5,0" Command="{Binding SettleSelectedCashCommand}"/>
+                        <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource PrimaryButton}"
+                                Height="46" FontSize="13.5" HorizontalContentAlignment="Center"
+                                Margin="5,0,0,0" Command="{Binding SettleSelectedCardCommand}"/>
+                    </UniformGrid>
+                    <Button Content="✕ ΑΚΥΡΩΣΗ (ΔΙΑΓΡΑΦΗ)" Style="{StaticResource FlatButton}"
+                            Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                            Foreground="{DynamicResource Accent700}" BorderBrush="{DynamicResource Accent}"
+                            Margin="0,0,0,10" Click="CancelSelected_Click"/>
+                </StackPanel>
+
+                <!-- κανονικές ενέργειες τραπεζιού -->
+                <StackPanel Visibility="{Binding NoSelection, Converter={StaticResource BoolToVis}}">
+                    <DockPanel Margin="0,0,0,14">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding OutstandingTotalLabel}" FontSize="22"
+                                   FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                        <TextBlock Text="ΟΦΕΙΛΟΜΕΝΟ" FontSize="15" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                                   VerticalAlignment="Bottom"/>
+                    </DockPanel>
+                    <Button Content="+ ΠΡΟΣΘΗΚΗ" Style="{StaticResource PrimaryButton}"
+                            Height="46" FontSize="14" HorizontalContentAlignment="Center"
+                            Margin="0,0,0,10" Command="{Binding RequestNewRoundCommand}"/>
+                    <!-- Κλείσιμο τραπεζιού με τρόπο πληρωμής: ό,τι έχει μείνει ανεξόφλητο θεωρείται ότι
+                         πληρώθηκε τώρα, με αυτόν τον τρόπο. -->
+                    <TextBlock Text="ΠΛΗΡΩΜΗ ΥΠΟΛΟΙΠΟΥ ΚΑΙ ΚΛΕΙΣΙΜΟ" FontSize="11" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Neutral600}" Margin="0,4,0,6"/>
+                    <UniformGrid Columns="2">
+                        <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource FlatButton}"
+                                Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                                Margin="0,0,5,0" Command="{Binding CloseTableCashCommand}"/>
+                        <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource FlatButton}"
+                                Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                                Margin="5,0,0,0" Command="{Binding CloseTableCardCommand}"/>
+                    </UniformGrid>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

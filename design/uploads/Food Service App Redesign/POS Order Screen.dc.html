@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/modernist-73a22cdc-dee9-4d7e-9a3f-0c6831927ce0/styles.css">
+<style>
+body{margin:0;background:#cecac5;font-family:"Archivo",system-ui,sans-serif;color:#201e1d}
+.dv-turn{padding:48px 52px 40px;border-bottom:1px solid rgba(0,0,0,.10);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+.dv-tid{font:800 10px "Archivo",monospace;padding:4px 8px;background:#ec3013;color:#fff;text-decoration:none;letter-spacing:.04em}
+.dv-tname{font:800 13px/1.2 "Archivo",sans-serif;color:#201e1d;letter-spacing:.02em}
+.dv-sub{font:400 13px/1.6 "Archivo",sans-serif;color:rgba(0,0,0,.62);max-width:70ch;margin:0 0 30px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+.dv-oid{font:800 10.5px "Archivo",monospace;padding:3px 7px;background:rgba(0,0,0,.09);color:#201e1d;text-decoration:none;letter-spacing:.03em}
+.dv-opt:target .dv-oid{background:#ec3013;color:#fff}
+.dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 12px/1.35 "Archivo",sans-serif;color:rgba(0,0,0,.6);max-width:1280px}
+.dv-olabel b{font-weight:800;color:#201e1d}
+.dv-next{margin:30px 0 0;font:13px/1.6 "Archivo",sans-serif;color:rgba(0,0,0,.6)}
+.dv-next a{color:#ec3013;text-decoration:none;font-weight:800}
+.scr{width:1280px;height:800px;display:flex;flex-direction:column;background:var(--color-bg);border:2px solid var(--color-divider);box-shadow:0 18px 50px rgba(45,43,43,.30);overflow:hidden}
+.scr *{box-sizing:border-box}
+.kbd{display:inline-flex;min-width:20px;height:20px;padding:0 5px;align-items:center;justify-content:center;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums;flex:none}
+.plist::-webkit-scrollbar,.tk::-webkit-scrollbar{width:8px}
+.plist::-webkit-scrollbar-thumb,.tk::-webkit-scrollbar-thumb{background:var(--color-neutral-400)}
+</style>
+</helmet>
+
+<section class="dv-turn" style="background:#f3f2f2">
+  <div class="dv-thd"><span class="dv-tid" style="background:#201e1d">BRIEF</span><span class="dv-tname">Πίττα του Παππού — POS remake · order-taking screen</span></div>
+  <p class="dv-sub">The screen employees stare at all day is the product-selection screen, so that's where the direction matters most — I'm exploring it first. All three keep the same bones as a familiar POS (order-type at top, product list in the middle, running ticket on the right) so staff aren't relearning anything, and all three wear the Modernist look: flat, red-on-white, 2&#8239;px rules, no rounded corners, flush-left labels, Archivo. Bilingual EL/EN toggle top-right; no product photos (text + price, faster to scan). They differ only in how you <b>add a product fast</b>. Pick one and I'll build the full flow — order type → customer lookup → products → delivery type → print — in that direction.</p>
+</section>
+
+<section class="dv-turn" id="t2">
+  <div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Product customization — pick a pita, choose ingredients right away</span></div>
+  <p class="dv-sub">Tapping a product opens its ingredients immediately, like your current screen but readable: <b>included</b> ingredients start on and you tap to drop them ("χωρίς κρεμμύδι"), <b>extras</b> add with one tap and step up to double (Διπλό / ×2), plus bread type (Ελληνική / Αραβική / Ψωμί), Σκέτο, per-item note, discount and Χωρίς Χρέωση. Same real ingredient list you already use. Two placements below — build either onto whichever product screen you pick from turn <a class="dv-oid" href="#t1">1</a>.</p>
+  <div class="dv-opts">
+
+    <!-- ===== 2a — INLINE CUSTOMIZER ===== -->
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a><span><b>Full inline customizer.</b> The product list is replaced by the whole ingredient panel — everything visible at once, closest to your current screen's density. Best for staff who customize most orders.</span></div>
+      <div class="scr">
+        <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+          <div style="display:flex;align-items:center;gap:9px"><span style="width:13px;height:13px;background:var(--color-accent)"></span><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);margin-left:6px"><span style="padding:6px 12px;font-size:11.5px;font-weight:800;background:var(--color-accent);color:var(--color-bg)">ΔΙΑΝΟΜΗ</span><span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΠΑΡΑΛΑΒΗ</span><span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΤΡΑΠΕΖΙ</span></div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:14px"><span style="font-size:12px;color:var(--color-neutral-700)">Μαρία Παπαδοπούλου · Λ. Βουλιαγμένης 142</span><div style="display:inline-flex;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800"><span style="padding:4px 8px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:4px 8px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span></div></div>
+        </div>
+        <div style="display:flex;flex:1;min-height:0">
+          <!-- rail -->
+          <div style="width:170px;flex:none;border-right:2px solid var(--color-divider);overflow:hidden;background:var(--color-surface)">
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΣΟΥΒΛΑΚΙΑ</div>
+            <div style="padding:8px 14px;border-left:3px solid var(--color-accent);background:var(--color-accent-100);font-size:13px;font-weight:800;color:var(--color-accent-800)">ΠΙΤΤΕΣ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΜΕΡΙΔΕΣ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">BURGERS</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΣΑΛΑΤΕΣ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΟΡΕΚΤΙΚΑ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΑΝΑΨΥΚΤΙΚΑ</div>
+          </div>
+          <!-- customizer -->
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+            <!-- head -->
+            <div style="flex:none;display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:2px solid var(--color-divider)">
+              <span style="font-size:18px;color:var(--color-neutral-600);cursor:pointer">←</span>
+              <div style="flex:1"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--color-accent-700)">ΠΙΤΤΕΣ · WRAPS</span></div><div style="font-size:25px;font-weight:800;line-height:1.0;letter-spacing:-.025em">Πίττα Γύρος Χοιρινό</div></div>
+              <div style="display:flex;align-items:center;border:1px solid var(--color-divider);height:34px;background:var(--color-surface)"><span style="width:30px;text-align:center;font-size:17px;color:var(--color-neutral-600)">−</span><span style="width:34px;text-align:center;font-weight:800;line-height:34px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span><span style="width:30px;text-align:center;font-size:17px;color:var(--color-accent)">+</span></div>
+              <span style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;width:64px;text-align:right">€3,20</span>
+            </div>
+            <!-- bread + skéto row -->
+            <div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--color-divider)">
+              <span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--color-neutral-600)">ΨΩΜΙ</span>
+              <div style="display:inline-flex;border:1px solid var(--color-divider)"><span style="padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--color-neutral-700)">Ελληνική</span><span style="padding:7px 13px;font-size:12.5px;font-weight:600;background:var(--color-accent);color:var(--color-bg);border-left:1px solid var(--color-divider)">Αραβική</span><span style="padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">Ψωμί</span></div>
+              <span style="margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--color-divider);font-size:12.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer"><span style="width:14px;height:14px;border:1px solid var(--color-neutral-400)"></span>ΣΚΕΤΟ</span>
+            </div>
+            <!-- included -->
+            <div style="flex:none;padding:12px 20px 14px;border-bottom:1px solid var(--color-divider)">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px"><span style="width:8px;height:8px;background:var(--color-text)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.08em">ΥΛΙΚΑ</span><span style="font-size:11.5px;color:var(--color-neutral-600)">περιλαμβάνονται — τάπα για αφαίρεση</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer"><span style="width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px">✓</span>Ντομάτα</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer"><span style="width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px">✓</span>Μίγμα</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px dashed var(--color-neutral-400);background:var(--color-bg);font-size:13px;color:var(--color-neutral-500);text-decoration:line-through;cursor:pointer"><span style="width:14px;height:14px;border:1px solid var(--color-neutral-400)"></span>Κρεμμύδι</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer"><span style="width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px">✓</span>Αλάτι</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer"><span style="width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px">✓</span>Πιπέρι</span>
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer"><span style="width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px">✓</span>Κίτρινη σάλτσα</span>
+              </div>
+            </div>
+            <!-- extras -->
+            <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+              <div style="flex:none;display:flex;align-items:center;gap:10px;padding:11px 20px 9px">
+                <span style="display:inline-flex;align-items:center;gap:9px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.08em">ΕΞΤΡΑ</span></span>
+                <input class="input" placeholder="Αναζήτηση έξτρα…" style="height:32px;max-width:240px;margin-left:auto" />
+              </div>
+              <div style="flex:1;overflow:auto;padding:0 20px 12px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-accent);background:var(--color-accent-100)"><span style="flex:1;font-size:13.5px;font-weight:600;color:var(--color-accent-800)">Γκούντα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">€0,80</span><div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:24px"><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">−</span><span style="width:28px;text-align:center;font-weight:800;line-height:24px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">2×</span><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">+</span></div></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-accent);background:var(--color-accent-100)"><span style="flex:1;font-size:13.5px;font-weight:600;color:var(--color-accent-800)">Μπέικον</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">€0,80</span><div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:24px"><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">−</span><span style="width:28px;text-align:center;font-weight:800;line-height:24px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">1×</span><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">+</span></div></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-accent);background:var(--color-accent-100)"><span style="flex:1;font-size:13.5px;font-weight:600;color:var(--color-accent-800)">Τζατζίκι</span><span style="font-size:12px;color:var(--color-accent-700)">δωρεάν</span><div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:24px"><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">−</span><span style="width:28px;text-align:center;font-weight:800;line-height:24px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">1×</span><span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px">+</span></div></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Αυγό</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,70</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Γραβιέρα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,80</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Ζαμπόν</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,80</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Φέτα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€1,00</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Μανιτάρια</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€1,20</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Πατάτες</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Μαγιονέζα</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Μαρούλι</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                  <div style="display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--color-divider);background:var(--color-bg);cursor:pointer"><span style="width:16px;height:16px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:13px">Λουκάνικο</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€2,20</span></div>
+                </div>
+              </div>
+            </div>
+            <!-- footer note + actions -->
+            <div style="flex:none;border-top:2px solid var(--color-divider);padding:12px 20px;display:flex;align-items:center;gap:12px">
+              <input class="input" placeholder="Παρατηρήσεις για το είδος…" style="flex:1;height:40px" />
+              <span style="display:inline-flex;align-items:center;gap:8px;padding:0 14px;height:40px;border:1px solid var(--color-divider);font-size:12.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer;white-space:nowrap"><span style="width:13px;height:13px;border:1px solid var(--color-neutral-400)"></span>Χωρίς χρέωση</span>
+              <div style="display:inline-flex;align-items:center;border:1px solid var(--color-divider);height:40px"><span style="padding:0 12px;font-size:11px;font-weight:800;letter-spacing:.05em;line-height:40px;color:var(--color-neutral-600)">ΕΚΠΤ.</span><span style="padding:0 13px;font-size:14px;font-weight:800;line-height:40px;border-left:1px solid var(--color-divider);font-variant-numeric:tabular-nums">0%</span></div>
+              <button class="btn btn-primary" style="height:48px;padding:0 20px;justify-content:space-between;gap:18px;min-width:220px">ΠΡΟΣΘΗΚΗ<span style="font-variant-numeric:tabular-nums;font-size:17px">€5,60</span></button>
+            </div>
+          </div>
+          <!-- ticket -->
+          <div style="width:340px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+            <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider);display:flex;align-items:baseline;justify-content:space-between"><h3 style="font-size:16px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #1043</h3><span style="font-size:11px;color:var(--color-neutral-600)">2 είδη</span></div>
+            <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+              <div style="padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;gap:9px;align-items:baseline"><span style="font-weight:800;color:var(--color-accent);width:22px;font-variant-numeric:tabular-nums">1×</span><div style="flex:1"><div style="font-size:14px;font-weight:800">Πίττα Γύρος Χοιρινό</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€5,60</span></div>
+                <div style="margin:5px 0 0 31px;font-size:11.5px;line-height:1.55;color:var(--color-neutral-600)">Αραβική πίττα</div>
+                <div style="margin:1px 0 0 31px;font-size:11.5px;line-height:1.55;color:var(--color-accent-700)">χωρίς κρεμμύδι · + Γκούντα ×2 · + Μπέικον · + Τζατζίκι</div>
+              </div>
+              <div style="padding:12px 0;border-bottom:1px solid var(--color-divider)"><div style="display:flex;gap:9px;align-items:baseline"><span style="font-weight:800;color:var(--color-accent);width:22px;font-variant-numeric:tabular-nums">1×</span><div style="flex:1"><div style="font-size:14px;font-weight:800">Πίττα Club Κοτόπουλο</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div></div>
+            </div>
+            <div style="flex:none;padding:12px 16px;border-top:2px solid var(--color-divider)">
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Υποσύνολο</span><span style="font-variant-numeric:tabular-nums">€9,80</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:9px;border-top:2px solid var(--color-divider);margin-top:6px"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:23px;font-weight:800;font-variant-numeric:tabular-nums">€9,80</span></div>
+            </div>
+            <div style="flex:none;padding:0 16px 16px"><button class="btn btn-primary btn-block" style="justify-content:space-between;padding:13px 14px;font-size:14px">ΣΥΝΕΧΕΙΑ · ΔΙΑΝΟΜΗ<span>→</span></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2b — QUICK POPOVER ===== -->
+    <div class="dv-opt" id="2b">
+      <div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a><span><b>Quick popover.</b> The list stays put; a compact card drops on the tapped item — included chips + popular extras for the 80% of simple orders, with "Όλα τα έξτρα →" to open the full <a class="dv-oid" href="#2a">2a</a> panel when needed. Fewest taps for a plain pita.</span></div>
+      <div class="scr">
+        <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+          <div style="display:flex;align-items:center;gap:9px"><span style="width:13px;height:13px;background:var(--color-accent)"></span><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);margin-left:6px"><span style="padding:6px 12px;font-size:11.5px;font-weight:800;background:var(--color-accent);color:var(--color-bg)">ΔΙΑΝΟΜΗ</span><span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΠΑΡΑΛΑΒΗ</span><span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΤΡΑΠΕΖΙ</span></div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:14px"><span style="font-size:12px;color:var(--color-neutral-700)">Μαρία Παπαδοπούλου · Λ. Βουλιαγμένης 142</span><div style="display:inline-flex;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800"><span style="padding:4px 8px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:4px 8px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span></div></div>
+        </div>
+        <div style="display:flex;flex:1;min-height:0">
+          <div style="width:170px;flex:none;border-right:2px solid var(--color-divider);background:var(--color-surface)">
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΣΟΥΒΛΑΚΙΑ</div>
+            <div style="padding:8px 14px;border-left:3px solid var(--color-accent);background:var(--color-accent-100);font-size:13px;font-weight:800;color:var(--color-accent-800)">ΠΙΤΤΕΣ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΜΕΡΙΔΕΣ</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">BURGERS</div>
+            <div style="padding:8px 14px;border-left:3px solid transparent;font-size:13px;color:var(--color-neutral-700)">ΣΑΛΑΤΕΣ</div>
+          </div>
+          <!-- list with popover -->
+          <div style="flex:1;min-width:0;position:relative">
+            <div style="filter:none">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:2px solid var(--color-divider)"><h3 style="font-size:18px;margin:0">ΠΙΤΤΕΣ</h3></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);background:var(--color-accent-100);outline:2px solid var(--color-accent);outline-offset:-2px"><div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Γύρος Χοιρινό</div></div><span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums">€3,20</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);opacity:.5"><div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Γύρος Κοτόπουλο</div></div><span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums">€3,30</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);opacity:.5"><div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Κεμπάπ</div></div><span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums">€3,50</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);opacity:.5"><div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Μπιφτέκι</div></div><span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums">€3,40</span></div>
+            </div>
+            <!-- popover -->
+            <div style="position:absolute;top:56px;left:24px;width:398px;background:var(--color-bg);border:2px solid var(--color-text);box-shadow:0 16px 40px rgba(45,43,43,.28)">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:2px solid var(--color-divider)"><div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Γύρος Χοιρινό</div></div><div style="display:flex;align-items:center;border:1px solid var(--color-divider);height:30px"><span style="width:26px;text-align:center;color:var(--color-neutral-600);line-height:30px">−</span><span style="width:28px;text-align:center;font-weight:800;line-height:30px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span><span style="width:26px;text-align:center;color:var(--color-accent);line-height:30px">+</span></div></div>
+              <div style="padding:11px 14px;border-bottom:1px solid var(--color-divider)"><div style="display:inline-flex;border:1px solid var(--color-divider)"><span style="padding:6px 11px;font-size:12px;font-weight:800;color:var(--color-neutral-700)">Ελληνική</span><span style="padding:6px 11px;font-size:12px;font-weight:800;background:var(--color-accent);color:var(--color-bg);border-left:1px solid var(--color-divider)">Αραβική</span><span style="padding:6px 11px;font-size:12px;font-weight:800;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">Ψωμί</span></div></div>
+              <div style="padding:11px 14px;border-bottom:1px solid var(--color-divider)">
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--color-neutral-600);margin-bottom:8px">ΥΛΙΚΑ · τάπα για αφαίρεση</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px;font-weight:800">Ντομάτα</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px;font-weight:800">Μίγμα</span>
+                  <span style="padding:5px 10px;border:1px dashed var(--color-neutral-400);font-size:12px;color:var(--color-neutral-500);text-decoration:line-through">Κρεμμύδι</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px;font-weight:800">Πιπέρι</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px;font-weight:800">Κίτρινη</span>
+                </div>
+              </div>
+              <div style="padding:11px 14px;border-bottom:1px solid var(--color-divider)">
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--color-neutral-600);margin-bottom:8px">ΔΗΜΟΦΙΛΗ ΕΞΤΡΑ</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <span style="padding:5px 10px;border:1px solid var(--color-accent);background:var(--color-accent-100);font-size:12px;font-weight:800;color:var(--color-accent-800)">Γκούντα ×2 · €1,60</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-accent);background:var(--color-accent-100);font-size:12px;font-weight:800;color:var(--color-accent-800)">Μπέικον · €0,80</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px">Αυγό €0,70</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px">Φέτα €1,00</span>
+                  <span style="padding:5px 10px;border:1px solid var(--color-divider);font-size:12px;color:var(--color-accent-700)">Όλα τα έξτρα →</span>
+                </div>
+              </div>
+              <div style="padding:11px 14px;display:flex;gap:8px"><button class="btn btn-secondary" style="justify-content:flex-start;font-size:12px">Σημείωση</button><button class="btn btn-primary" style="flex:1;justify-content:space-between;padding:0 14px;font-size:13px">Προσθήκη<span style="font-variant-numeric:tabular-nums">€5,60</span></button></div>
+            </div>
+          </div>
+          <div style="width:340px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+            <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider)"><h3 style="font-size:16px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #1043</h3></div>
+            <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+              <div style="padding:12px 0;border-bottom:1px solid var(--color-divider)"><div style="display:flex;gap:9px;align-items:baseline"><span style="font-weight:800;color:var(--color-accent);width:22px;font-variant-numeric:tabular-nums">1×</span><div style="flex:1"><div style="font-size:14px;font-weight:800">Πίττα Club Κοτόπουλο</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div></div>
+            </div>
+            <div style="flex:none;padding:12px 16px;border-top:2px solid var(--color-divider);display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:23px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div>
+            <div style="flex:none;padding:0 16px 16px"><button class="btn btn-primary btn-block" style="justify-content:space-between;padding:13px 14px;font-size:14px">ΣΥΝΕΧΕΙΑ · ΔΙΑΝΟΜΗ<span>→</span></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2c — FULL-BLEED REDESIGN ===== -->
+    <div class="dv-opt" id="2c">
+      <div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a><span><b>Redesign — full-bleed build step.</b> The whole window becomes the product build: two roomy panes (base &amp; ingredients · extras) and a single sticky action bar. More air, bigger type, one clear task. Back arrow returns to the list.</span></div>
+      <div class="scr">
+        <!-- header band -->
+        <div style="flex:none;display:flex;align-items:center;gap:18px;padding:20px 30px;border-bottom:2px solid var(--color-divider)">
+          <span style="font-size:22px;color:var(--color-neutral-500);cursor:pointer;line-height:1">←</span>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:10.5px;font-weight:800;letter-spacing:.14em;color:var(--color-accent-700)">ΠΙΤΤΕΣ · WRAPS</span></div>
+            <div style="font-size:30px;font-weight:800;line-height:.98;letter-spacing:-.03em">Πίττα Γύρος Χοιρινό</div>
+          </div>
+          <div style="text-align:right"><div style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--color-neutral-500);margin-bottom:3px">ΤΙΜΗ ΜΟΝΑΔΟΣ</div><div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">€3,20</div></div>
+          <div style="display:flex;align-items:center;border:1px solid var(--color-divider);height:44px;margin-left:6px"><span style="width:40px;text-align:center;font-size:20px;color:var(--color-neutral-600);line-height:44px;cursor:pointer">−</span><span style="width:44px;text-align:center;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:44px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span><span style="width:40px;text-align:center;font-size:20px;color:var(--color-accent);line-height:44px;cursor:pointer">+</span></div>
+        </div>
+        <!-- body -->
+        <div style="display:flex;flex:1;min-height:0">
+          <!-- left: base + included -->
+          <div style="width:392px;flex:none;border-right:2px solid var(--color-divider);overflow:auto;padding:22px 26px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px"><span style="width:8px;height:8px;background:var(--color-text)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.1em">ΨΩΜΙ</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--color-divider);margin-bottom:26px">
+              <span style="padding:13px 0;text-align:center;font-size:13.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer">Ελληνική</span>
+              <span style="padding:13px 0;text-align:center;font-size:13.5px;font-weight:800;background:var(--color-accent);color:var(--color-bg);border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">Αραβική</span>
+              <span style="padding:13px 0;text-align:center;font-size:13.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer">Ψωμί</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;background:var(--color-text)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.1em">ΥΛΙΚΑ</span></div><span style="font-size:11.5px;font-weight:600;color:var(--color-accent-700);cursor:pointer">Σκέτο</span></div>
+            <div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="width:20px;height:20px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:11px;flex:none">✓</span><span style="flex:1;font-size:14.5px;font-weight:600">Ντομάτα</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="width:20px;height:20px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:11px;flex:none">✓</span><span style="flex:1;font-size:14.5px;font-weight:600">Μίγμα</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="width:20px;height:20px;border:1px solid var(--color-neutral-400);flex:none"></span><span style="flex:1;font-size:14.5px;color:var(--color-neutral-500);text-decoration:line-through">Κρεμμύδι</span><span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--color-accent-700)">ΧΩΡΙΣ</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="width:20px;height:20px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:11px;flex:none">✓</span><span style="flex:1;font-size:14.5px;font-weight:600">Αλάτι</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="width:20px;height:20px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:11px;flex:none">✓</span><span style="flex:1;font-size:14.5px;font-weight:600">Πιπέρι</span></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0"><span style="width:20px;height:20px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:11px;flex:none">✓</span><span style="flex:1;font-size:14.5px;font-weight:600">Κίτρινη σάλτσα</span></div>
+            </div>
+          </div>
+          <!-- right: extras -->
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="flex:none;display:flex;align-items:center;gap:14px;padding:20px 28px 12px"><div style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.1em">ΕΞΤΡΑ</span></div><input class="input" placeholder="Αναζήτηση έξτρα…" style="height:36px;max-width:280px;margin-left:auto" /></div>
+            <div style="flex:1;overflow:auto;padding:0 28px 16px">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px">
+                <div style="display:flex;flex-direction:column;gap:10px;padding:13px 14px;border:1px solid var(--color-accent);background:var(--color-accent-100)"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px;font-weight:600;color:var(--color-accent-800)">Γκούντα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">€0,80</span></div><div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:28px"><span style="flex:1;text-align:center;color:var(--color-accent);line-height:28px">−</span><span style="flex:1;text-align:center;font-weight:800;line-height:28px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">2×</span><span style="flex:1;text-align:center;color:var(--color-accent);line-height:28px">+</span></div></div>
+                <div style="display:flex;flex-direction:column;gap:10px;padding:13px 14px;border:1px solid var(--color-accent);background:var(--color-accent-100)"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:14px;font-weight:600;color:var(--color-accent-800)">Μπέικον</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-accent-700)">€0,80</span></div><div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:28px"><span style="flex:1;text-align:center;color:var(--color-accent);line-height:28px">−</span><span style="flex:1;text-align:center;font-weight:800;line-height:28px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">1×</span><span style="flex:1;text-align:center;color:var(--color-accent);line-height:28px">+</span></div></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Αυγό</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,70</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Γραβιέρα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,80</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Ζαμπόν</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€0,80</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Φέτα</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€1,00</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Μανιτάρια</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€1,20</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Τζατζίκι</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Πατάτες</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Μαγιονέζα</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Μαρούλι</span><span style="font-size:12px;color:var(--color-neutral-500)">δωρεάν</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border:1px solid var(--color-divider);min-height:52px"><span style="font-size:14px;font-weight:600">Λουκάνικο</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:var(--color-neutral-600)">€2,20</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- action bar -->
+        <div style="flex:none;border-top:2px solid var(--color-divider);padding:16px 30px;display:flex;align-items:center;gap:14px">
+          <input class="input" placeholder="Παρατηρήσεις για το είδος…" style="flex:1;height:46px;font-size:14px" />
+          <span style="display:inline-flex;align-items:center;gap:9px;padding:0 16px;height:46px;border:1px solid var(--color-divider);font-size:13px;font-weight:600;color:var(--color-neutral-700);cursor:pointer;white-space:nowrap"><span style="width:14px;height:14px;border:1px solid var(--color-neutral-400)"></span>Χωρίς χρέωση</span>
+          <div style="display:inline-flex;align-items:center;border:1px solid var(--color-divider);height:46px"><span style="padding:0 13px;font-size:11px;font-weight:800;letter-spacing:.06em;line-height:46px;color:var(--color-neutral-600)">ΕΚΠΤ.</span><span style="padding:0 14px;font-size:15px;font-weight:800;line-height:46px;border-left:1px solid var(--color-divider);font-variant-numeric:tabular-nums">0%</span></div>
+          <button class="btn btn-primary" style="height:54px;padding:0 24px;justify-content:space-between;gap:22px;min-width:260px;font-size:15px">ΠΡΟΣΘΗΚΗ ΣΤΗΝ ΠΑΡΑΓΓΕΛΙΑ<span style="font-variant-numeric:tabular-nums;font-size:19px">€5,60</span></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "use <a class="dv-oid" href="#2a">2a</a> on the <a class="dv-oid" href="#1a">1a</a> list" · "make the extras searchable / grouped by type" · "show a Σκέτο (plain) state" · "now build the full flow" · "add price editing per item like the old Τιμή Μονάδος field"</p>
+</section>
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Three directions for the product screen</span></div>
+  <div class="dv-opts">
+
+    <!-- ============ 1a — CLASSIC LIST ============ -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a><span><b>Classic list.</b> Closest to what they use now — category rail, scannable price list, live ticket. Zero relearning. Click or arrow-keys + Enter to add.</span></div>
+      <div class="scr">
+        <!-- top bar -->
+        <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+          <div style="display:flex;align-items:center;gap:9px"><span style="width:13px;height:13px;background:var(--color-accent)"></span><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);margin-left:6px">
+            <span style="padding:6px 12px;font-size:11.5px;font-weight:800;background:var(--color-accent);color:var(--color-bg)">ΔΙΑΝΟΜΗ</span>
+            <span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΠΑΡΑΛΑΒΗ</span>
+            <span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΤΡΑΠΕΖΙ</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+            <div style="display:inline-flex;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800">
+              <span style="padding:4px 8px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:4px 8px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span>
+            </div>
+            <span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">20:14</span>
+          </div>
+        </div>
+        <!-- context / steps -->
+        <div style="display:flex;align-items:center;gap:0;height:42px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none;font-size:11px;font-weight:800;letter-spacing:.05em">
+          <span style="color:var(--color-neutral-500)">1&#8201;ΤΥΠΟΣ</span><span style="margin:0 10px;color:var(--color-neutral-400)">▸</span>
+          <span style="color:var(--color-neutral-500)">2&#8201;ΠΕΛΑΤΗΣ</span><span style="margin:0 10px;color:var(--color-neutral-400)">▸</span>
+          <span style="color:var(--color-accent);border-bottom:2px solid var(--color-accent);padding:11px 0">3&#8201;ΠΡΟΪΟΝΤΑ</span><span style="margin:0 10px;color:var(--color-neutral-400)">▸</span>
+          <span style="color:var(--color-neutral-500)">4&#8201;ΔΙΑΝΟΜΗ</span><span style="margin:0 10px;color:var(--color-neutral-400)">▸</span>
+          <span style="color:var(--color-neutral-500)">5&#8201;ΕΚΤΥΠΩΣΗ</span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:400;letter-spacing:0">
+            <span style="font-size:12px;color:var(--color-neutral-600)">Μαρία Παπαδοπούλου · 210 748 2210</span>
+            <span style="font-size:12px;font-weight:800">Λ. Βουλιαγμένης 142</span>
+          </div>
+        </div>
+        <!-- main -->
+        <div style="display:flex;flex:1;min-height:0">
+          <!-- rail -->
+          <div style="width:190px;flex:none;border-right:2px solid var(--color-divider);overflow:auto;background:var(--color-surface)">
+            <div style="padding:8px 16px;border-left:3px solid var(--color-neutral-500)">
+              <div style="font-size:13px;color:var(--color-neutral-700)">ΣΟΥΒΛΑΚΙΑ</div><div style="font-size:10px;color:var(--color-neutral-500)">Skewers</div>
+            </div>
+            <div style="padding:8px 16px;border-left:3px solid var(--color-accent);background:var(--color-accent-100)">
+              <div style="font-size:13px;font-weight:800;color:var(--color-accent-800)">ΠΙΤΤΕΣ</div><div style="font-size:10px;color:var(--color-accent-700)">Wraps</div>
+            </div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΜΕΡΙΔΕΣ</div><div style="font-size:10px;color:var(--color-neutral-500)">Platters</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">BURGERS</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΣΑΛΑΤΕΣ</div><div style="font-size:10px;color:var(--color-neutral-500)">Salads</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΟΡΕΚΤΙΚΑ</div><div style="font-size:10px;color:var(--color-neutral-500)">Sides</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΑΝΑΨΥΚΤΙΚΑ</div><div style="font-size:10px;color:var(--color-neutral-500)">Drinks</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΓΛΥΚΑ</div></div>
+            <div style="padding:8px 16px;border-left:3px solid transparent"><div style="font-size:13px;color:var(--color-neutral-700)">ΣΑΛΤΣΕΣ</div><div style="font-size:10px;color:var(--color-neutral-500)">Sauces</div></div>
+          </div>
+          <!-- product list -->
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:12px 20px 10px;border-bottom:2px solid var(--color-divider);flex:none">
+              <h3 style="font-size:19px;margin:0">ΠΙΤΤΕΣ</h3><span style="font-size:12px;color:var(--color-neutral-600)">8 προϊόντα</span>
+            </div>
+            <div class="plist" style="flex:1;overflow:auto">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Γύρος Χοιρινό</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Pork gyros wrap</div></div>
+                <span style="width:24px;height:24px;background:var(--color-accent);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;flex:none">2</span>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,20</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Γύρος Κοτόπουλο</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Chicken gyros wrap</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,30</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Κεμπάπ</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Kebab wrap</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,50</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Μπιφτέκι</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Beef patty wrap</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,40</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer;background:var(--color-accent-100);outline:2px solid var(--color-accent);outline-offset:-2px">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Club Κοτόπουλο</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Chicken club · με πατάτες</div></div>
+                <span style="width:24px;height:24px;background:var(--color-accent);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;flex:none">1</span>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€4,20</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Λουκάνικο</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Sausage wrap</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,30</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Χαλλούμι</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Halloumi · vegetarian</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€3,60</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--color-divider);cursor:pointer" onmouseover="this.style.background='var(--color-accent-100)'" onmouseout="this.style.background=''">
+                <div style="flex:1"><div style="font-size:15px;font-weight:800">Πίττα Special Παππού</div><div style="font-size:11.5px;color:var(--color-neutral-600)">Grandpa&#39;s special</div></div>
+                <span style="font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;width:56px;text-align:right">€4,50</span>
+              </div>
+            </div>
+            <div style="flex:none;padding:9px 20px;border-top:2px solid var(--color-divider);font-size:11px;color:var(--color-neutral-600);display:flex;gap:16px">
+              <span><span class="kbd">↑↓</span> επιλογή</span><span><span class="kbd">↵</span> προσθήκη</span><span><span class="kbd">/</span> αναζήτηση</span>
+            </div>
+          </div>
+          <!-- ticket -->
+          <div style="width:384px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+            <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider);display:flex;align-items:baseline;justify-content:space-between">
+              <h3 style="font-size:17px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #1043</h3><span style="font-size:11px;color:var(--color-neutral-600)">4 είδη</span>
+            </div>
+            <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+              <!-- item -->
+              <div style="display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:28px;background:var(--color-bg)">
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-neutral-600)">−</span>
+                  <span style="width:26px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:26px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">2</span>
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-accent)">+</span>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:800">Πίττα Γύρος Χοιρινό</div>
+                  <div style="font-size:11.5px;color:var(--color-accent-700);margin-top:2px">✎ χωρίς κρεμμύδι, extra τζατζίκι</div>
+                </div>
+                <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€6,40</span>
+              </div>
+              <div style="display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:28px;background:var(--color-bg)">
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-neutral-600)">−</span>
+                  <span style="width:26px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:26px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span>
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-accent)">+</span>
+                </div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Πίττα Club Κοτόπουλο</div></div>
+                <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span>
+              </div>
+              <div style="display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:28px;background:var(--color-bg)">
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-neutral-600)">−</span>
+                  <span style="width:26px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:26px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span>
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-accent)">+</span>
+                </div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Μερίδα Χοιρινό</div><div style="margin-top:3px"><span class="tag tag-accent" style="font-weight:800">ΔΩΡΕΑΝ</span></div></div>
+                <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-neutral-500);text-decoration:line-through">€7,50</span>
+              </div>
+              <div style="display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:28px;background:var(--color-bg)">
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-neutral-600)">−</span>
+                  <span style="width:26px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:26px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">3</span>
+                  <span style="width:24px;text-align:center;font-size:15px;color:var(--color-accent)">+</span>
+                </div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Καλαμάκι Χοιρινό</div><div style="margin-top:3px"><span class="tag tag-outline">−10%</span></div></div>
+                <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€3,51</span>
+              </div>
+            </div>
+            <!-- quick actions -->
+            <div style="flex:none;display:flex;gap:0;border-top:2px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+              <span style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:800;border-right:1px solid var(--color-divider);color:var(--color-neutral-700)"><span class="kbd">F2</span> ΣΗΜΕΙΩΣΗ</span>
+              <span style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:800;border-right:1px solid var(--color-divider);color:var(--color-neutral-700)"><span class="kbd">F3</span> ΕΚΠΤΩΣΗ</span>
+              <span style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:800;color:var(--color-neutral-700)"><span class="kbd">F4</span> ΔΩΡΕΑΝ</span>
+            </div>
+            <!-- totals -->
+            <div style="flex:none;padding:12px 16px">
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Υποσύνολο</span><span style="font-variant-numeric:tabular-nums">€21,61</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Έκπτωση</span><span style="font-variant-numeric:tabular-nums;color:var(--color-accent-700)">−€0,39</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:9px;border-top:2px solid var(--color-divider);margin-top:6px"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">€21,22</span></div>
+            </div>
+            <div style="flex:none;padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">
+              <button class="btn btn-primary btn-block" style="justify-content:space-between;padding:13px 14px;font-size:14px">ΣΥΝΕΧΕΙΑ · ΤΡΟΠΟΣ ΔΙΑΝΟΜΗΣ<span>→</span></button>
+              <div style="display:flex;gap:8px"><button class="btn btn-secondary" style="flex:1;justify-content:flex-start">Αποθήκευση</button><button class="btn btn-secondary" style="flex:1;justify-content:flex-start;color:var(--color-accent)">Ακύρωση</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1b — KEYBOARD-FIRST ============ -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a><span><b>Keyboard-first.</b> A command bar drives everything: type <code>«3 γυρος χοιρ»</code> and hit Enter — quantity + fuzzy match in one line. Quick-grid items carry number keys. Fewest keystrokes per order.</span></div>
+      <div class="scr">
+        <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+          <div style="display:flex;align-items:center;gap:9px"><span style="width:13px;height:13px;background:var(--color-accent)"></span><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);margin-left:6px">
+            <span style="padding:6px 12px;font-size:11.5px;font-weight:800;background:var(--color-accent);color:var(--color-bg)">ΔΙΑΝΟΜΗ</span>
+            <span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΠΑΡΑΛΑΒΗ</span>
+            <span style="padding:6px 12px;font-size:11.5px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΤΡΑΠΕΖΙ</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--color-neutral-700)">Μαρία Παπαδοπούλου · Λ. Βουλιαγμένης 142</span>
+            <div style="display:inline-flex;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800"><span style="padding:4px 8px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:4px 8px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span></div>
+          </div>
+        </div>
+        <div style="display:flex;flex:1;min-height:0">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <!-- command bar -->
+            <div style="flex:none;padding:16px 20px;border-bottom:2px solid var(--color-divider)">
+              <div style="display:flex;align-items:center;gap:12px;height:56px;border:2px solid var(--color-accent);background:var(--color-bg);padding:0 16px">
+                <span style="color:var(--color-accent);font-size:20px;font-weight:800">▸</span>
+                <span style="font-size:20px;font-weight:800">3 γυρος χοιρ</span>
+                <span style="width:2px;height:26px;background:var(--color-accent);animation:none"></span>
+                <span style="margin-left:auto;font-size:12px;color:var(--color-neutral-600)">ποσότητα + όνομα, μετά <span class="kbd">↵</span></span>
+              </div>
+              <!-- autocomplete -->
+              <div style="border:2px solid var(--color-divider);border-top:0;background:var(--color-surface)">
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--color-accent);color:var(--color-bg)"><span style="font-weight:800;width:22px">3×</span><span style="flex:1;font-weight:800;font-size:14px">Πίττα Γύρος Χοιρινό</span><span style="font-variant-numeric:tabular-nums;font-weight:800">€9,60</span><span class="kbd" style="border-color:rgba(255,255,255,.6);color:#fff">↵</span></div>
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--color-divider)"><span style="font-weight:800;width:22px;color:var(--color-neutral-500)">3×</span><span style="flex:1;font-size:14px">Μερίδα Γύρος Χοιρινό</span><span style="font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">€22,50</span></div>
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 16px"><span style="font-weight:800;width:22px;color:var(--color-neutral-500)">3×</span><span style="flex:1;font-size:14px">Καλαμάκι Χοιρινό</span><span style="font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">€3,90</span></div>
+              </div>
+            </div>
+            <!-- quick grid -->
+            <div style="flex:1;overflow:auto;padding:16px 20px">
+              <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--color-neutral-600);margin-bottom:10px">ΓΡΗΓΟΡΗ ΠΡΟΣΘΗΚΗ · πάτα το νούμερο</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">1</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€3,20</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Πίττα Γύρος Χοιρινό</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">2</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€3,30</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Πίττα Γύρος Κοτόπουλο</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">3</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Πίττα Club Κοτόπουλο</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">4</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€3,50</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Πίττα Κεμπάπ</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">5</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€1,30</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Καλαμάκι Χοιρινό</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">6</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€7,50</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Μερίδα Χοιρινό</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">7</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€5,90</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Hamburger Special</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">8</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€2,00</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Πατάτες Τηγανητές</div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:11px 12px;display:flex;flex-direction:column;gap:8px;min-height:78px"><div style="display:flex;justify-content:space-between"><span class="kbd" style="border-color:var(--color-accent);color:var(--color-accent)">9</span><span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums">€1,00</span></div><div style="font-size:14px;font-weight:800;line-height:1.2">Coca-Cola 330ml</div></div>
+              </div>
+            </div>
+            <div style="flex:none;padding:9px 20px;border-top:2px solid var(--color-divider);font-size:11px;color:var(--color-neutral-600);display:flex;gap:16px;flex-wrap:wrap">
+              <span><span class="kbd">F1</span> κατηγορίες</span><span><span class="kbd">Tab</span> σημείωση</span><span><span class="kbd">F3</span> έκπτωση</span><span><span class="kbd">F4</span> δωρεάν</span><span><span class="kbd">F9</span> εκτύπωση</span>
+            </div>
+          </div>
+          <!-- ticket (compact reuse) -->
+          <div style="width:384px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+            <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider);display:flex;align-items:baseline;justify-content:space-between"><h3 style="font-size:17px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #1043</h3><span style="font-size:11px;color:var(--color-neutral-600)">3 είδη</span></div>
+            <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+              <div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-accent);width:24px">2×</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Πίττα Γύρος Χοιρινό</div><div style="font-size:11.5px;color:var(--color-accent-700);margin-top:2px">✎ χωρίς κρεμμύδι</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€6,40</span></div>
+              <div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-accent);width:24px">1×</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Πίττα Club Κοτόπουλο</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div>
+              <div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--color-divider)"><span style="font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-accent);width:24px">3×</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Καλαμάκι Χοιρινό</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€3,90</span></div>
+            </div>
+            <div style="flex:none;padding:12px 16px;border-top:2px solid var(--color-divider)">
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Υποσύνολο</span><span style="font-variant-numeric:tabular-nums">€14,50</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:9px;border-top:2px solid var(--color-divider);margin-top:6px"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">€14,50</span></div>
+            </div>
+            <div style="flex:none;padding:0 16px 16px"><button class="btn btn-primary btn-block" style="justify-content:space-between;padding:13px 14px;font-size:14px"><span><span class="kbd" style="border-color:rgba(255,255,255,.6);color:#fff;margin-right:8px">F9</span>ΣΥΝΕΧΕΙΑ · ΔΙΑΝΟΜΗ</span><span>→</span></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1c — TILE GRID (touch) ============ -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a><span><b>Tile grid.</b> Big tap targets (≥&#8239;56&#8239;px) for touchscreens — category rail, product tiles, one tap to add. Same ticket. Best if they run touch terminals.</span></div>
+      <div class="scr">
+        <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+          <div style="display:flex;align-items:center;gap:9px"><span style="width:13px;height:13px;background:var(--color-accent)"></span><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);margin-left:6px">
+            <span style="padding:8px 14px;font-size:12px;font-weight:800;background:var(--color-accent);color:var(--color-bg)">ΔΙΑΝΟΜΗ</span>
+            <span style="padding:8px 14px;font-size:12px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΠΑΡΑΛΑΒΗ</span>
+            <span style="padding:8px 14px;font-size:12px;color:var(--color-neutral-700);border-left:1px solid var(--color-divider)">ΤΡΑΠΕΖΙ</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+            <span style="font-size:12px;color:var(--color-neutral-700)">Μαρία Παπαδοπούλου · Λ. Βουλιαγμένης 142</span>
+            <div style="display:inline-flex;border:1px solid var(--color-divider);font-size:11px;font-weight:800"><span style="padding:5px 9px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:5px 9px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span></div>
+          </div>
+        </div>
+        <div style="display:flex;flex:1;min-height:0">
+          <div style="width:150px;flex:none;border-right:2px solid var(--color-divider);overflow:auto;background:var(--color-surface)">
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΣΟΥΒΛΑΚΙΑ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;background:var(--color-accent);color:var(--color-bg);border-bottom:1px solid var(--color-divider)">ΠΙΤΤΕΣ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΜΕΡΙΔΕΣ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">BURGERS</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΣΑΛΑΤΕΣ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΟΡΕΚΤΙΚΑ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΑΝΑΨΥΚΤΙΚΑ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΓΛΥΚΑ</div>
+            <div style="padding:14px 14px;font-size:13px;font-weight:800;color:var(--color-neutral-700);border-bottom:1px solid var(--color-divider)">ΣΑΛΤΣΕΣ</div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:baseline;gap:10px;padding:12px 20px;border-bottom:2px solid var(--color-divider);flex:none"><h3 style="font-size:19px;margin:0">ΠΙΤΤΕΣ</h3><span style="font-size:12px;color:var(--color-neutral-600)">8 προϊόντα · Wraps</span></div>
+            <div style="flex:1;overflow:auto;padding:16px 20px">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                <div style="border:2px solid var(--color-accent);background:var(--color-accent-100);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Γύρος Χοιρινό</div><div style="display:flex;justify-content:space-between;align-items:flex-end"><span style="width:26px;height:26px;background:var(--color-accent);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center">2</span><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,20</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Γύρος Κοτόπουλο</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,30</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Κεμπάπ</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,50</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Μπιφτέκι</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,40</span></div></div>
+                <div style="border:2px solid var(--color-accent);background:var(--color-accent-100);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Club Κοτόπουλο</div><div style="display:flex;justify-content:space-between;align-items:flex-end"><span style="width:26px;height:26px;background:var(--color-accent);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center">1</span><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Λουκάνικο</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,30</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Χαλλούμι</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,60</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Special Παππού</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€4,50</span></div></div>
+                <div style="border:1px solid var(--color-divider);background:var(--color-bg);padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between"><div style="font-size:15px;font-weight:800;line-height:1.2">Πίττα Μπιφτέκι Λαχανικών</div><div style="text-align:right"><span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums">€3,50</span></div></div>
+              </div>
+            </div>
+          </div>
+          <div style="width:384px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+            <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider);display:flex;align-items:baseline;justify-content:space-between"><h3 style="font-size:17px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #1043</h3><span style="font-size:11px;color:var(--color-neutral-600)">3 είδη</span></div>
+            <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+              <div style="display:flex;gap:11px;padding:14px 0;border-bottom:1px solid var(--color-divider);align-items:center">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:34px;background:var(--color-bg)"><span style="width:30px;text-align:center;font-size:18px;color:var(--color-neutral-600)">−</span><span style="width:30px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:34px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">2</span><span style="width:30px;text-align:center;font-size:18px;color:var(--color-accent)">+</span></div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Πίττα Γύρος Χοιρινό</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€6,40</span>
+              </div>
+              <div style="display:flex;gap:11px;padding:14px 0;border-bottom:1px solid var(--color-divider);align-items:center">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:34px;background:var(--color-bg)"><span style="width:30px;text-align:center;font-size:18px;color:var(--color-neutral-600)">−</span><span style="width:30px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:34px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span><span style="width:30px;text-align:center;font-size:18px;color:var(--color-accent)">+</span></div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Πίττα Club Κοτόπουλο</div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">€4,20</span>
+              </div>
+              <div style="display:flex;gap:11px;padding:14px 0;border-bottom:1px solid var(--color-divider);align-items:center">
+                <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:34px;background:var(--color-bg)"><span style="width:30px;text-align:center;font-size:18px;color:var(--color-neutral-600)">−</span><span style="width:30px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;line-height:34px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">1</span><span style="width:30px;text-align:center;font-size:18px;color:var(--color-accent)">+</span></div>
+                <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">Μερίδα Χοιρινό</div><div style="margin-top:3px"><span class="tag tag-accent" style="font-weight:800">ΔΩΡΕΑΝ</span></div></div><span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-neutral-500);text-decoration:line-through">€7,50</span>
+              </div>
+            </div>
+            <div style="flex:none;display:flex;border-top:2px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+              <span style="flex:1;text-align:center;padding:11px 4px;font-size:12px;font-weight:800;border-right:1px solid var(--color-divider);color:var(--color-neutral-700)">ΣΗΜΕΙΩΣΗ</span>
+              <span style="flex:1;text-align:center;padding:11px 4px;font-size:12px;font-weight:800;border-right:1px solid var(--color-divider);color:var(--color-neutral-700)">ΕΚΠΤΩΣΗ</span>
+              <span style="flex:1;text-align:center;padding:11px 4px;font-size:12px;font-weight:800;color:var(--color-neutral-700)">ΔΩΡΕΑΝ</span>
+            </div>
+            <div style="flex:none;padding:12px 16px">
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Υποσύνολο</span><span style="font-variant-numeric:tabular-nums">€10,60</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:9px;border-top:2px solid var(--color-divider);margin-top:6px"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:24px;font-weight:800;font-variant-numeric:tabular-nums">€10,60</span></div>
+            </div>
+            <div style="flex:none;padding:0 16px 16px"><button class="btn btn-primary btn-block" style="justify-content:space-between;padding:15px 14px;font-size:14px">ΣΥΝΕΧΕΙΑ · ΔΙΑΝΟΜΗ<span>→</span></button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "build the full flow in <a class="dv-oid" href="#1a">1a</a>" · "show the order-type + customer-lookup screens" · "combine <a class="dv-oid" href="#1b">1b</a>'s command bar with <a class="dv-oid" href="#1c">1c</a>'s tiles" · "how does the delivery-type step (e-food / Wolt / BOX) look?"</p>
+</section>
+
+</x-dc>
+</body>
+</html>

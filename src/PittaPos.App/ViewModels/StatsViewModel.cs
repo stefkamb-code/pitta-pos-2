@@ -1,0 +1,487 @@
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using LiveChartsCore;
+using LiveChartsCore.Measure;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using PittaPos.App.Services;
+using PittaPos.Core.Models;
+using SkiaSharp;
+
+namespace PittaPos.App.ViewModels;
+
+/// <summary>Ποια καρτέλα δείχνει το παράθυρο Στατιστικών.</summary>
+public enum StatsMainTab { Overview, Chart }
+
+/// <summary>Παραλλαγή προϊόντος (ψωμί/έξτρα/χωρίς) στον πίνακα στατιστικών.</summary>
+public class ProductVariantStatViewModel
+{
+    public required int Quantity { get; init; }
+    public required string Details { get; init; }
+    public required decimal Revenue { get; init; }
+
+    public string QuantityLabel => "× " + Quantity;
+    public string DetailsLabel => Details.Length > 0 ? Details : "κανονική";
+    public string RevenueLabel => Order.FormatPrice(Revenue);
+}
+
+/// <summary>Γραμμή προϊόντος στον πίνακα στατιστικών.</summary>
+public class ProductStatViewModel
+{
+    public required int Rank { get; init; }
+    public required string Name { get; init; }
+    public required int Quantity { get; init; }
+    public required decimal Revenue { get; init; }
+    /// <summary>Μερίδιο στον συνολικό τζίρο (0–100).</summary>
+    public required double SharePct { get; init; }
+    /// <summary>Ανάλυση σε παραλλαγές — κενή όταν όλες οι πωλήσεις ήταν χωρίς προσαρμογές.</summary>
+    public required IReadOnlyList<ProductVariantStatViewModel> Variants { get; init; }
+
+    public string RankLabel => Rank + ".";
+    public string QuantityLabel => "× " + Quantity;
+    public string RevenueLabel => Order.FormatPrice(Revenue);
+    public string ShareLabel => SharePct.ToString("0.#") + "%";
+    public bool HasVariants => Variants.Count > 0;
+}
+
+/// <summary>Κάρτα τζίρου ανά κανάλι — εμφανίζεται πάντα, και με μηδενικό τζίρο. Πρωί/βράδυ πάντα μαζί, σταθερά.</summary>
+public class ChannelRevenueViewModel
+{
+    public required string Name { get; init; }
+    public required System.Windows.Media.Brush Brush { get; init; }
+    public required int OrderCount { get; init; }
+    public required decimal Revenue { get; init; }
+    public required decimal MorningRevenue { get; init; }
+    public required decimal EveningRevenue { get; init; }
+
+    public string RevenueLabel => Order.FormatPrice(Revenue);
+    public string CountLabel => OrderCount + (OrderCount == 1 ? " παραγγελία" : " παραγγελίες");
+    public string MorningRevenueLabel => "Πρωί " + Order.FormatPrice(MorningRevenue);
+    public string EveningRevenueLabel => "Βράδυ " + Order.FormatPrice(EveningRevenue);
+}
+
+/// <summary>Στατιστικά ημέρας — τροφοδοτείται ζωντανά από το SalesStatsService.</summary>
+public partial class StatsViewModel : ObservableObject
+{
+    private readonly SalesStatsService _stats = SalesStatsService.Instance;
+
+    private readonly DispatcherTimer _clock;
+
+    public StatsViewModel()
+    {
+        _stats.Changed += Refresh;
+        ThemeManager.Changed += RefreshChart;
+        Refresh();
+
+        _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clock.Tick += (_, _) => OnPropertyChanged(nameof(NowLabel));
+        _clock.Start();
+    }
+
+    /// <summary>Αποσύνδεση από τα services όταν κλείσει το παράθυρο.</summary>
+    public void Detach()
+    {
+        _stats.Changed -= Refresh;
+        ThemeManager.Changed -= RefreshChart;
+        _clock.Stop();
+    }
+
+    // ---- Καρτέλα «ΔΙΑΓΡΑΜΜΑ»: πωλήσεις ανά ώρα/ημέρα/μήνα, με επιλογή ημερομηνίας ----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOverviewTab))]
+    [NotifyPropertyChangedFor(nameof(ShowChartTab))]
+    private StatsMainTab _mainTab = StatsMainTab.Overview;
+
+    public bool ShowOverviewTab => MainTab == StatsMainTab.Overview;
+    public bool ShowChartTab => MainTab == StatsMainTab.Chart;
+
+    [RelayCommand] private void SelectOverviewTab() => MainTab = StatsMainTab.Overview;
+
+    [RelayCommand]
+    private void SelectChartTab()
+    {
+        MainTab = StatsMainTab.Chart;
+        RefreshChart();
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsHourGranularity))]
+    [NotifyPropertyChangedFor(nameof(IsDayGranularity))]
+    [NotifyPropertyChangedFor(nameof(IsMonthGranularity))]
+    [NotifyPropertyChangedFor(nameof(IsYearGranularity))]
+    [NotifyPropertyChangedFor(nameof(IsCustomGranularity))]
+    [NotifyPropertyChangedFor(nameof(ShowAnchorPicker))]
+    [NotifyPropertyChangedFor(nameof(ShowRangePicker))]
+    [NotifyPropertyChangedFor(nameof(CanCompare))]
+    private ChartGranularity _granularity = ChartGranularity.Hour;
+
+    public bool IsHourGranularity => Granularity == ChartGranularity.Hour;
+    public bool IsDayGranularity => Granularity == ChartGranularity.Day;
+    public bool IsMonthGranularity => Granularity == ChartGranularity.Month;
+    public bool IsYearGranularity => Granularity == ChartGranularity.Year;
+    public bool IsCustomGranularity => Granularity == ChartGranularity.Custom;
+
+    /// <summary>Ένα κουτί ημερομηνίας + βελάκια (ΩΡΑ/ΗΜΕΡΑ/ΜΗΝΑΣ/ΧΡΟΝΟΣ) ή δύο κουτιά Από/Έως (ΠΡΟΣΑΡΜΟΣΜΕΝΟ).</summary>
+    public bool ShowAnchorPicker => !IsCustomGranularity;
+    public bool ShowRangePicker => IsCustomGranularity;
+
+    /// <summary>Η σύγκριση με πέρσι δεν έχει νόημα στη ΧΡΟΝΟΣ (ήδη δείχνει ολόκληρη δεκαετία μαζί).</summary>
+    public bool CanCompare => !IsYearGranularity;
+
+    partial void OnGranularityChanged(ChartGranularity value) => RefreshChart();
+
+    [RelayCommand] private void SelectHourGranularity() => Granularity = ChartGranularity.Hour;
+    [RelayCommand] private void SelectDayGranularity() => Granularity = ChartGranularity.Day;
+    [RelayCommand] private void SelectMonthGranularity() => Granularity = ChartGranularity.Month;
+    [RelayCommand] private void SelectYearGranularity() => Granularity = ChartGranularity.Year;
+    [RelayCommand] private void SelectCustomGranularity() => Granularity = ChartGranularity.Custom;
+
+    /// <summary>Σύγκριση με την ίδια περίοδο πέρσι — δεύτερη σειρά μπλε, δίπλα στην κόκκινη τρέχουσα.</summary>
+    [ObservableProperty]
+    private bool _compareEnabled;
+
+    partial void OnCompareEnabledChanged(bool value) => RefreshChart();
+
+    [RelayCommand] private void ToggleCompare() => CompareEnabled = !CompareEnabled;
+
+    /// <summary>Μέρα (ώρα), μήνας (ημέρα), έτος (μήνας) ή δεκαετία (χρόνος) που δείχνει το διάγραμμα — επιλέγεται και από ημερολόγιο.</summary>
+    [ObservableProperty]
+    private DateTime _chartAnchor = DateTime.Now;
+
+    partial void OnChartAnchorChanged(DateTime value) => RefreshChart();
+
+    /// <summary>Εύρος «ΠΡΟΣΑΡΜΟΣΜΕΝΟ» — ελεύθερη επιλογή Από/Έως από ημερολόγιο, μία μπάρα ανά ημέρα.</summary>
+    [ObservableProperty]
+    private DateTime _customFromDate = DateTime.Now.AddDays(-6);
+
+    [ObservableProperty]
+    private DateTime _customToDate = DateTime.Now;
+
+    partial void OnCustomFromDateChanged(DateTime value) => RefreshChart();
+    partial void OnCustomToDateChanged(DateTime value) => RefreshChart();
+
+    [RelayCommand]
+    private void ChartPrev()
+    {
+        if (Granularity == ChartGranularity.Custom)
+        {
+            var span = (CustomToDate.Date - CustomFromDate.Date).Days + 1;
+            CustomFromDate = CustomFromDate.AddDays(-span);
+            CustomToDate = CustomToDate.AddDays(-span);
+            return;
+        }
+        ChartAnchor = Granularity switch
+        {
+            ChartGranularity.Hour => ChartAnchor.AddDays(-1),
+            ChartGranularity.Day => ChartAnchor.AddMonths(-1),
+            ChartGranularity.Month => ChartAnchor.AddYears(-1),
+            _ => ChartAnchor.AddYears(-10),
+        };
+    }
+
+    [RelayCommand]
+    private void ChartNext()
+    {
+        if (Granularity == ChartGranularity.Custom)
+        {
+            var span = (CustomToDate.Date - CustomFromDate.Date).Days + 1;
+            CustomFromDate = CustomFromDate.AddDays(span);
+            CustomToDate = CustomToDate.AddDays(span);
+            return;
+        }
+        ChartAnchor = Granularity switch
+        {
+            ChartGranularity.Hour => ChartAnchor.AddDays(1),
+            ChartGranularity.Day => ChartAnchor.AddMonths(1),
+            ChartGranularity.Month => ChartAnchor.AddYears(1),
+            _ => ChartAnchor.AddYears(10),
+        };
+    }
+
+    [RelayCommand]
+    private void ChartToday()
+    {
+        ChartAnchor = DateTime.Now;
+        CustomFromDate = DateTime.Now.AddDays(-6);
+        CustomToDate = DateTime.Now;
+    }
+
+    public ISeries[] Series { get; private set; } = [];
+    public Axis[] XAxes { get; private set; } = [];
+    public Axis[] YAxes { get; private set; } = [];
+    public string ChartAnchorLabel { get; private set; } = "";
+    public string ChartTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public bool ChartNoData { get; private set; } = true;
+    public bool ChartHasData => !ChartNoData;
+
+    /// <summary>Διαβάζει χρώμα από το ενεργό θέμα (ώστε να δείχνει σωστά και στο μαύρο).</summary>
+    private static SKColor ThemeColor(string key, byte fallbackR, byte fallbackG, byte fallbackB)
+    {
+        if (System.Windows.Application.Current?.Resources[key] is System.Windows.Media.SolidColorBrush brush)
+        {
+            var c = brush.Color;
+            return new SKColor(c.R, c.G, c.B);
+        }
+        return new SKColor(fallbackR, fallbackG, fallbackB);
+    }
+
+    private void RefreshChart()
+    {
+        var data = Granularity == ChartGranularity.Custom
+            ? SalesChartService.BuildRange(CustomFromDate, CustomToDate)
+            : SalesChartService.Build(Granularity, ChartAnchor);
+        var values = data.Select(d => (double)d.Revenue).ToArray();
+        var labels = data.Select(d => d.Label).ToArray();
+
+        var accent = ThemeColor("Accent", 0xec, 0x30, 0x13);
+        var accentLight = accent.WithAlpha(90);
+        var ink = ThemeColor("Neutral600", 0x6b, 0x66, 0x63);
+        var gridLine = ThemeColor("Divider", 0xe3, 0xe1, 0xe0).WithAlpha(160);
+        var isComparing = CompareEnabled && CanCompare;
+
+        var currentSeries = new ColumnSeries<double>
+        {
+            // «Φέτος» έχει νόημα μόνο δίπλα σε «Πέρσι» — αλλιώς (π.χ. ΧΡΟΝΟΣ με πολλά έτη μαζί) μπερδεύει.
+            Name = isComparing ? "Φέτος" : "Τζίρος",
+            Values = values,
+            Rx = 6,
+            Ry = 6,
+            MaxBarWidth = 42,
+            // Ανοιχτό στην κορυφή, γεμάτο accent στη βάση — πιο ζωντανό από ενιαίο χρώμα.
+            Fill = new LinearGradientPaint(accentLight, accent, new SKPoint(0.5f, 0), new SKPoint(0.5f, 1)),
+            YToolTipLabelFormatter = point => Order.FormatPrice((decimal)point.Model),
+            XToolTipLabelFormatter = point => labels.Length > point.Index ? labels[point.Index] : "",
+            AnimationsSpeed = TimeSpan.FromMilliseconds(500),
+        };
+
+        // Γραμμή πάνω από τις κορυφές των φετινών μπαρών, με κόκκινες τελείες σε κάθε σημείο.
+        var trendLine = new LineSeries<double>
+        {
+            Name = "Τάση",
+            Values = values,
+            Fill = null,
+            Stroke = new SolidColorPaint(accent) { StrokeThickness = 2 },
+            GeometryFill = new SolidColorPaint(accent),
+            GeometryStroke = new SolidColorPaint(SKColors.White) { StrokeThickness = 1.5f },
+            GeometrySize = 9,
+            LineSmoothness = 0.4,
+            YToolTipLabelFormatter = point => Order.FormatPrice((decimal)point.Model),
+            XToolTipLabelFormatter = point => labels.Length > point.Index ? labels[point.Index] : "",
+            AnimationsSpeed = TimeSpan.FromMilliseconds(500),
+        };
+
+        if (isComparing)
+        {
+            var compareValues = (Granularity == ChartGranularity.Custom
+                    ? SalesChartService.BuildRangeCompareValues(CustomFromDate, CustomToDate)
+                    : SalesChartService.BuildCompareValues(Granularity, ChartAnchor))
+                .Select(r => (double)r)
+                .ToArray();
+            // Ίδιο μήκος με τη φετινή σειρά, ώστε να ταιριάζουν θέση-με-θέση στο ίδιο διάγραμμα.
+            if (compareValues.Length != values.Length)
+                Array.Resize(ref compareValues, values.Length);
+
+            var blue = new SKColor(0x2f, 0x6f, 0xed);
+            var blueLight = blue.WithAlpha(90);
+            var compareSeries = new ColumnSeries<double>
+            {
+                Name = "Πέρσι",
+                Values = compareValues,
+                Rx = 6,
+                Ry = 6,
+                MaxBarWidth = 42,
+                Fill = new LinearGradientPaint(blueLight, blue, new SKPoint(0.5f, 0), new SKPoint(0.5f, 1)),
+                YToolTipLabelFormatter = point => Order.FormatPrice((decimal)point.Model),
+                XToolTipLabelFormatter = point => labels.Length > point.Index ? labels[point.Index] : "",
+                AnimationsSpeed = TimeSpan.FromMilliseconds(500),
+            };
+            Series = [currentSeries, compareSeries, trendLine];
+        }
+        else
+        {
+            Series = [currentSeries, trendLine];
+        }
+
+        XAxes =
+        [
+            new Axis
+            {
+                Labels = labels,
+                TextSize = 11,
+                // Πολλές μπάρες (π.χ. μεγάλο ΠΡΟΣΑΡΜΟΣΜΕΝΟ διάστημα) — γυρίζει τις ετικέτες για να μη μπερδεύονται.
+                LabelsRotation = labels.Length > 15 ? 60 : 0,
+                LabelsPaint = new SolidColorPaint(ink),
+                SeparatorsPaint = null,
+            },
+        ];
+
+        YAxes =
+        [
+            new Axis
+            {
+                Labeler = value => Order.FormatPrice((decimal)value),
+                MinLimit = 0,
+                TextSize = 11,
+                LabelsPaint = new SolidColorPaint(ink),
+                SeparatorsPaint = new SolidColorPaint(gridLine) { StrokeThickness = 1 },
+            },
+        ];
+
+        var total = data.Sum(d => d.Revenue);
+        ChartTotalLabel = Order.FormatPrice(total);
+        ChartNoData = total == 0;
+
+        ChartAnchorLabel = Granularity switch
+        {
+            ChartGranularity.Hour => ChartAnchor.ToString("dddd d MMMM yyyy", Greek),
+            ChartGranularity.Day => ChartAnchor.ToString("MMMM yyyy", Greek),
+            ChartGranularity.Month => ChartAnchor.ToString("yyyy", Greek),
+            _ => SalesChartService.DecadeStart(ChartAnchor) + "–" + (SalesChartService.DecadeStart(ChartAnchor) + 9),
+        };
+
+        OnPropertyChanged(nameof(Series));
+        OnPropertyChanged(nameof(XAxes));
+        OnPropertyChanged(nameof(YAxes));
+        OnPropertyChanged(nameof(ChartTotalLabel));
+        OnPropertyChanged(nameof(ChartNoData));
+        OnPropertyChanged(nameof(ChartHasData));
+        OnPropertyChanged(nameof(ChartAnchorLabel));
+        OnPropertyChanged(nameof(ChartLegendPosition));
+    }
+
+    /// <summary>Λεζάντα (Φέτος/Πέρσι) μόνο όταν είναι ενεργή η σύγκριση — μία σειρά δεν τη χρειάζεται.</summary>
+    public LegendPosition ChartLegendPosition => CompareEnabled && CanCompare ? LegendPosition.Top : LegendPosition.Hidden;
+
+    private static readonly System.Globalization.CultureInfo Greek =
+        System.Globalization.CultureInfo.GetCultureInfo("el-GR");
+
+    /// <summary>Ζωντανή μέρα + ώρα στο header.</summary>
+    public string NowLabel => DateTime.Now.ToString("dddd d MMMM yyyy · HH:mm:ss", Greek);
+
+    public string RevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string AvgOrderLabel { get; private set; } = Order.FormatPrice(0);
+
+    public string MorningRevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string MorningCountLabel { get; private set; } = "0 παραγγελίες";
+    public string EveningRevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string EveningCountLabel { get; private set; } = "0 παραγγελίες";
+    public string TotalRevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string TotalCountLabel { get; private set; } = "0 παραγγελίες";
+
+    public IReadOnlyList<ProductStatViewModel> ProductStats { get; private set; } = [];
+    public IReadOnlyList<ChannelRevenueViewModel> ChannelRevenues { get; private set; } = [];
+
+    public bool NoData { get; private set; } = true;
+    public bool HasData => !NoData;
+
+    private void Refresh()
+    {
+        var orders = _stats.Orders.ToList();
+
+        var revenue = orders.Sum(o => o.Total);
+        RevenueLabel = Order.FormatPrice(revenue);
+        AvgOrderLabel = Order.FormatPrice(orders.Count == 0 ? 0 : revenue / orders.Count);
+
+        ProductStats = orders
+            .SelectMany(o => o.Lines)
+            .GroupBy(l => l.Name)
+            .Select(g => (
+                Name: g.Key,
+                Quantity: g.Sum(l => l.Quantity),
+                Revenue: g.Sum(l => l.Revenue),
+                Variants: g.GroupBy(l => l.Details)
+                    .Select(v => (Details: v.Key, Quantity: v.Sum(l => l.Quantity), Revenue: v.Sum(l => l.Revenue)))
+                    .OrderByDescending(v => v.Quantity)
+                    .ToList()))
+            .OrderByDescending(p => p.Quantity)
+            .ThenByDescending(p => p.Revenue)
+            .Select((p, i) => new ProductStatViewModel
+            {
+                Rank = i + 1,
+                Name = p.Name,
+                Quantity = p.Quantity,
+                Revenue = p.Revenue,
+                SharePct = revenue == 0 ? 0 : (double)(p.Revenue / revenue * 100),
+                // Ανάλυση μόνο όταν υπάρχει κάποια προσαρμογή — αλλιώς η γραμμή αρκεί
+                Variants = p.Variants.Any(v => v.Details.Length > 0)
+                    ? p.Variants.Select(v => new ProductVariantStatViewModel
+                    {
+                        Quantity = v.Quantity,
+                        Details = v.Details,
+                        Revenue = v.Revenue,
+                    }).ToList()
+                    : [],
+            })
+            .ToList();
+
+        ChannelRevenues = BuildChannelRevenues(orders);
+
+        var morning = orders.Where(o => !o.IsEveningShift).ToList();
+        var evening = orders.Where(o => o.IsEveningShift).ToList();
+        MorningRevenueLabel = Order.FormatPrice(morning.Sum(o => o.Total));
+        MorningCountLabel = CountLabel(morning.Count);
+        EveningRevenueLabel = Order.FormatPrice(evening.Sum(o => o.Total));
+        EveningCountLabel = CountLabel(evening.Count);
+        TotalRevenueLabel = RevenueLabel;
+        TotalCountLabel = CountLabel(orders.Count);
+
+        NoData = orders.Count == 0;
+
+        OnPropertyChanged(nameof(RevenueLabel));
+        OnPropertyChanged(nameof(AvgOrderLabel));
+        OnPropertyChanged(nameof(ProductStats));
+        OnPropertyChanged(nameof(ChannelRevenues));
+        OnPropertyChanged(nameof(NoData));
+        OnPropertyChanged(nameof(HasData));
+        OnPropertyChanged(nameof(MorningRevenueLabel));
+        OnPropertyChanged(nameof(MorningCountLabel));
+        OnPropertyChanged(nameof(EveningRevenueLabel));
+        OnPropertyChanged(nameof(EveningCountLabel));
+        OnPropertyChanged(nameof(TotalRevenueLabel));
+        OnPropertyChanged(nameof(TotalCountLabel));
+
+        // Το διάγραμμα ξαναδιαβάζει αρχεία ιστορικού (ακριβό για ΜΗΝΑΣ/ΧΡΟΝΟΣ) — μόνο όταν
+        // είναι ορατό, ώστε μια νέα παραγγελία στην κίνηση να μην ξανασαρώνει αρχεία άδικα.
+        if (MainTab == StatsMainTab.Chart)
+            RefreshChart();
+    }
+
+    private static string CountLabel(int count) => count + (count == 1 ? " παραγγελία" : " παραγγελίες");
+
+    /// <summary>Σταθερή σειρά καναλιών όπως στο ταμείο — πάντα και τα έξι, και με μηδέν. Πρωί/βράδυ πάντα μαζί.</summary>
+    private static List<ChannelRevenueViewModel> BuildChannelRevenues(List<CompletedOrder> orders)
+    {
+        // Από το ενεργό θέμα, ώστε να φαίνεται σωστά και στο μαύρο
+        var ink = System.Windows.Application.Current.Resources["Ink"] as System.Windows.Media.Brush
+            ?? System.Windows.Media.Brushes.Black;
+
+        (string Name, System.Windows.Media.Brush Brush, Func<CompletedOrder, bool> Match)[] channels =
+        [
+            ("ΔΙΑΝΟΜΗ", ink, o => o.Type == OrderType.Delivery),
+            ("ΟΡΘΙΟ", ink, o => o.Type == OrderType.Pickup),
+            ("ΤΡΑΠΕΖΙ", ink, o => o.Type == OrderType.Table),
+            ("e-food", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xd3, 0x2f, 0x2f)),
+                o => o.Channel == "e-food"),
+            ("Wolt", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x15, 0x65, 0xc0)),
+                o => o.Channel == "Wolt"),
+            ("BOX", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xb8, 0x86, 0x0b)),
+                o => o.Channel == "BOX"),
+        ];
+
+        return channels.Select(c =>
+        {
+            var matched = orders.Where(c.Match).ToList();
+            return new ChannelRevenueViewModel
+            {
+                Name = c.Name,
+                Brush = c.Brush,
+                OrderCount = matched.Count,
+                Revenue = matched.Sum(o => o.Total),
+                MorningRevenue = matched.Where(o => !o.IsEveningShift).Sum(o => o.Total),
+                EveningRevenue = matched.Where(o => o.IsEveningShift).Sum(o => o.Total),
+            };
+        }).ToList();
+    }
+}

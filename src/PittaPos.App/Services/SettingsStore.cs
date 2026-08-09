@@ -1,0 +1,413 @@
+﻿using System.IO;
+using System.Text.Json;
+using PittaPos.Core.Data;
+
+namespace PittaPos.App.Services;
+
+/// <summary>Ένας ονομαστικός κωδικός ακύρωσης — κενό Name/Pin σημαίνει αδειανή, ανενεργή θέση.</summary>
+public class StaffPin
+{
+    public string Name { get; set; } = "";
+    public string Pin { get; set; } = "";
+}
+
+public class AppSettings
+{
+    /// <summary>"light" ή "dark".</summary>
+    public string Theme { get; set; } = "light";
+    /// <summary>"el" ή "en".</summary>
+    public string Language { get; set; } = "el";
+    /// <summary>Κωδικός για κλειδωμένα πεδία (Στατιστικά/Ιστορικό/Κατάλογος).</summary>
+    public string Pin { get; set; } = "1992";
+    /// <summary>Πόσα τραπέζια δείχνει το Βήμα 1 όταν επιλέγεται «ΤΡΑΠΕΖΙ».</summary>
+    public int TableCount { get; set; } = MenuSeed.TableCount;
+    /// <summary>Τρέχουσα βάρδια — χειροκίνητος διακόπτης, ποτέ αυτόματος (για να μην μπερδεύεται).</summary>
+    public bool IsEveningShift { get; set; }
+    /// <summary>Όνομα εκτυπωτή (Windows print queue) για σιωπηλή αυτόματη εκτύπωση — κενό = ανενεργή.</summary>
+    public string PrinterName { get; set; } = "";
+
+    /// <summary>Διεύθυνση καταστήματος — σημείο εκκίνησης/επιστροφής της προτεινόμενης διαδρομής
+    /// στον Χάρτη Διανομής (βλ. DeliveryRouteService). Κενό = δεν δείχνεται σημείο καταστήματος.</summary>
+    public string ShopAddress { get; set; } = "";
+
+    /// <summary>Κλειδί Google Maps API (Geocoding + Places + Directions + Maps JavaScript) — κενό =
+    /// ο Χάρτης Διανομής/autocomplete διεύθυνσης δουλεύει με το δωρεάν OpenStreetMap/Nominatim/OSRM.</summary>
+    public string GoogleMapsApiKey { get; set; } = "";
+
+    // ---- Δεύτερο ταμείο (βλ. RemoteSync) ----
+    /// <summary>"host" (κύριο ταμείο, όπως σήμερα — τοπικά δεδομένα) ή "client" (δεύτερο ταμείο, διαβάζει από το host).</summary>
+    public string NetworkMode { get; set; } = "host";
+    /// <summary>Τοπική IP του κύριου ταμείου στο δίκτυο του μαγαζιού — μόνο όταν NetworkMode == "client".</summary>
+    public string HostAddress { get; set; } = "";
+
+    // ---- Αναγνώριση κλήσεων μέσω AMI του Grandstream UCM (βλ. AmiClientService) ----
+    /// <summary>IP του τηλεφωνικού κέντρου (UCM) — κενό = ανενεργή αναγνώριση κλήσεων.</summary>
+    public string UcmHost { get; set; } = "";
+    public int AmiPort { get; set; } = 5038;
+    public string AmiUsername { get; set; } = "";
+    public string AmiPassword { get; set; } = "";
+
+    // ---- Email αναφοράς κλεισίματος ημέρας ----
+    public string SmtpHost { get; set; } = "smtp.gmail.com";
+    public int SmtpPort { get; set; } = 587;
+    /// <summary>Λογαριασμός αποστολής (π.χ. το gmail του καταστήματος).</summary>
+    public string SmtpUser { get; set; } = "";
+    /// <summary>Κωδικός εφαρμογής (app password) του λογαριασμού αποστολής.</summary>
+    public string SmtpPassword { get; set; } = "";
+    /// <summary>Παραλήπτης της αναφοράς — κενό = ίδιο με τον λογαριασμό αποστολής.</summary>
+    public string ReportEmail { get; set; } = "";
+
+    /// <summary>4 ονομαστικοί κωδικοί ακύρωσης — ώστε το ιστορικό ακυρωμένων να δείχνει ποιος ακύρωσε.
+    /// Διαχειρίζονται μόνο από τον admin (βλ. SettingsWindow, πίσω από τον γενικό κωδικό).</summary>
+    public List<StaffPin> CancelStaffPins { get; set; } = [new(), new(), new(), new()];
+
+    // ---- Τι δείχνει η απόδειξη ----
+    public string ReceiptTitle { get; set; } = "ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ";
+    /// <summary>Στοιχεία καταστήματος κάτω από τον τίτλο (διεύθυνση/τηλ./ΑΦΜ) — πολλαπλές γραμμές.</summary>
+    public string ReceiptInfo { get; set; } = "";
+    /// <summary>Μήνυμα στο τέλος της απόδειξης.</summary>
+    public string ReceiptFooter { get; set; } = "Ευχαριστούμε!";
+    public bool ReceiptShowDateTime { get; set; } = true;
+    public bool ReceiptShowCustomer { get; set; } = true;
+    /// <summary>Λεπτομέρειες προϊόντων (ψωμί/έξτρα/χωρίς).</summary>
+    public bool ReceiptShowDetails { get; set; } = true;
+    // ---- Μεγέθη γραμματοσειράς απόδειξης — ανεξάρτητα ανά ενότητα (βλ. ReceiptWindow), όχι μία
+    // κοινή κλίμακα, ώστε π.χ. να μεγαλώνει ο τίτλος χωρίς να μεγαλώνουν οι γραμμές παραγγελίας. ----
+    public double ReceiptTitleFontSize { get; set; } = 15;
+    /// <summary>Γραμμές προϊόντων (όνομα/τιμή) — οι λεπτομέρειες (ψωμί/έξτρα) ακολουθούν σε μικρότερη αναλογία.</summary>
+    public double ReceiptItemsFontSize { get; set; } = 14;
+    /// <summary>Ποσό συνόλου — η ετικέτα «ΣΥΝΟΛΟ» ακολουθεί σε μικρότερη αναλογία.</summary>
+    public double ReceiptTotalFontSize { get; set; } = 16;
+    /// <summary>Λοιπά κείμενα: στοιχεία καταστήματος, αρ. παραγγελίας/ώρα, τύπος/πελάτης, υποσέλιδο.</summary>
+    public double ReceiptMetaFontSize { get; set; } = 13;
+}
+
+/// <summary>Ρυθμίσεις εφαρμογής — JSON στο %AppData%\PittaPos\settings.json.</summary>
+public class SettingsStore
+{
+    public static SettingsStore Instance { get; } = new();
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
+    private readonly string _path;
+
+    public AppSettings Settings { get; private set; } = new();
+
+    public bool IsDark => Settings.Theme == "dark";
+
+    /// <summary>Σηκώνεται όταν αλλάζουν ρυθμίσεις που χρειάζονται ζωντανή ανανέωση αλλού (π.χ. αριθμός τραπεζιών).</summary>
+    public event Action? Changed;
+
+    private SettingsStore()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
+        Directory.CreateDirectory(dir);
+        _path = Path.Combine(dir, "settings.json");
+        try
+        {
+            if (File.Exists(_path))
+                Settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+        }
+        catch (Exception)
+        {
+            Settings = new();
+        }
+
+        // Μετάβαση από τα παλιά (μικρότερα) προεπιλεγμένα μεγέθη γραμματοσειράς απόδειξης στα νέα — μόνο
+        // αν ο χρήστης δεν έχει ήδη αλλάξει το καθένα ξεχωριστά από τις προηγούμενες προεπιλογές (αν το
+        // έκανε, π.χ. το μεγάλωσε ακόμα παραπάνω μόνος του, δεν το πειράζουμε). Χρειάζεται γιατί το Save()
+        // γράφει ΟΛΗ την τρέχουσα τιμή στο δίσκο μόλις αλλάξει οτιδήποτε άλλο στις ρυθμίσεις — μια απλή
+        // αλλαγή στο default της κλάσης δεν φτάνει ποτέ σε ήδη αποθηκευμένα settings.json.
+        var migratedFontSize = false;
+        if (Settings.ReceiptTitleFontSize is 16 or 18) { Settings.ReceiptTitleFontSize = 15; migratedFontSize = true; }
+        // Το μέγεθος προϊόντων ΔΕΝ μεταναστεύει πια. Οι παλιές αυτόματες αυξήσεις (13→15→17→20→23→26)
+        // γίνονταν επειδή η ρύθμιση δεν έφτανε ποτέ στο χαρτί (βλ. ReceiptWindow.ItemText_Loaded) και
+        // νόμιζα ότι απλώς δεν ήταν αρκετά μεγάλη. Τώρα που εφαρμόζεται σωστά, οποιαδήποτε αυτόματη
+        // αλλαγή θα ακύρωνε την επιλογή του χρήστη σε κάθε εκκίνηση.
+        // (Όπως και το μέγεθος προϊόντων, το σύνολο δεν μεταναστεύει πια — αποφασίζει ο χρήστης.)
+        if (Settings.ReceiptMetaFontSize == 11) { Settings.ReceiptMetaFontSize = 13; migratedFontSize = true; }
+        if (migratedFontSize)
+            Save();
+
+        // Ο αριθμός τραπεζιών είναι το μόνο πεδίο ρυθμίσεων που έχει νόημα να ταιριάζει ανάμεσα στα δύο
+        // ταμεία (θέμα/γλώσσα/εκτυπωτής μένουν σκόπιμα τοπικά) — αλλιώς το δεύτερο ταμείο μπορεί να δείχνει
+        // λιγότερα τραπέζια από όσα υπάρχουν πραγματικά στο κύριο.
+        // Σημείωση: χρησιμοποιεί το ήδη φορτωμένο Settings.NetworkMode αντί για RemoteSync.IsClient —
+        // εκείνο περνάει από SettingsStore.Instance, που ΕΔΩ μέσα στον constructor δεν έχει ακόμα οριστεί
+        // (η στατική ανάθεση `Instance = new SettingsStore()` δεν έχει ολοκληρωθεί), θα γύριζε null.
+        if (Settings.NetworkMode == "client")
+        {
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(5), RefreshTableCountFromHostAsync);
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(5), RefreshSharedSettingsFromHostAsync);
+        }
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — ευθυγραμμίζει τον αριθμό τραπεζιών με το host.</summary>
+    private async Task RefreshTableCountFromHostAsync()
+    {
+        var count = await RemoteSync.GetAsync<int?>("/api/sync/table-count");
+        if (count is null || count == Settings.TableCount)
+            return;
+        Settings.TableCount = count.Value;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Όλες οι ρυθμίσεις καταστήματος που έχει νόημα να ταιριάζουν ανάμεσα στα δύο ταμεία —
+    /// βλ. SharedSettingsDto για ποια πεδία μπαίνουν/μένουν σκόπιμα εκτός (PrinterName/NetworkMode/
+    /// HostAddress).</summary>
+    public SharedSettingsDto BuildSharedSettingsDto() => new(
+        Settings.Theme, Settings.Language, Settings.Pin, Settings.IsEveningShift,
+        Settings.ShopAddress, Settings.GoogleMapsApiKey,
+        Settings.UcmHost, Settings.AmiPort, Settings.AmiUsername, Settings.AmiPassword,
+        Settings.SmtpHost, Settings.SmtpPort, Settings.SmtpUser, Settings.SmtpPassword, Settings.ReportEmail,
+        Settings.CancelStaffPins,
+        Settings.ReceiptTitle, Settings.ReceiptInfo, Settings.ReceiptFooter,
+        Settings.ReceiptShowDateTime, Settings.ReceiptShowCustomer, Settings.ReceiptShowDetails,
+        Settings.ReceiptTitleFontSize, Settings.ReceiptItemsFontSize, Settings.ReceiptTotalFontSize, Settings.ReceiptMetaFontSize);
+
+    /// <summary>Εφαρμόζει ένα SharedSettingsDto πάνω στις τοπικές ρυθμίσεις (host που δέχεται push από
+    /// client, ή client που τραβάει από host) — Save()/Changed μόνο αν κάτι πραγματικά άλλαξε, ώστε να μην
+    /// έχουμε άσκοπο I/O/UI refresh κάθε 5" στο polling του client όταν δεν άλλαξε τίποτα. Επιστρέφει αν
+    /// άλλαξε κάτι, για όποιον καλούντα θέλει να ξέρει (π.χ. δοκιμές).</summary>
+    public bool ApplySharedSettingsDto(SharedSettingsDto dto)
+    {
+        var before = JsonSerializer.Serialize(BuildSharedSettingsDto(), JsonOpts);
+        Settings.Theme = dto.Theme;
+        Settings.Language = dto.Language;
+        Settings.Pin = dto.Pin;
+        Settings.IsEveningShift = dto.IsEveningShift;
+        Settings.ShopAddress = dto.ShopAddress;
+        Settings.GoogleMapsApiKey = dto.GoogleMapsApiKey;
+        Settings.UcmHost = dto.UcmHost;
+        Settings.AmiPort = dto.AmiPort;
+        Settings.AmiUsername = dto.AmiUsername;
+        Settings.AmiPassword = dto.AmiPassword;
+        Settings.SmtpHost = dto.SmtpHost;
+        Settings.SmtpPort = dto.SmtpPort;
+        Settings.SmtpUser = dto.SmtpUser;
+        Settings.SmtpPassword = dto.SmtpPassword;
+        Settings.ReportEmail = dto.ReportEmail;
+        Settings.CancelStaffPins = dto.CancelStaffPins;
+        Settings.ReceiptTitle = dto.ReceiptTitle;
+        Settings.ReceiptInfo = dto.ReceiptInfo;
+        Settings.ReceiptFooter = dto.ReceiptFooter;
+        Settings.ReceiptShowDateTime = dto.ReceiptShowDateTime;
+        Settings.ReceiptShowCustomer = dto.ReceiptShowCustomer;
+        Settings.ReceiptShowDetails = dto.ReceiptShowDetails;
+        Settings.ReceiptTitleFontSize = dto.ReceiptTitleFontSize;
+        Settings.ReceiptItemsFontSize = dto.ReceiptItemsFontSize;
+        Settings.ReceiptTotalFontSize = dto.ReceiptTotalFontSize;
+        Settings.ReceiptMetaFontSize = dto.ReceiptMetaFontSize;
+        var after = JsonSerializer.Serialize(BuildSharedSettingsDto(), JsonOpts);
+        var changed = before != after;
+        if (changed)
+        {
+            Save();
+            Changed?.Invoke();
+        }
+        return changed;
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — τραβάει τις κοινές ρυθμίσεις από το host κάθε 5". Το host είναι
+    /// πάντα η αυθεντική πηγή· απλή τελευταία-νίκη λογική (όχι merge), αρκετό για ένα μικρό μαγαζί όπου
+    /// σπάνια αλλάζουν ρυθμίσεις ταυτόχρονα και από τα δύο ταμεία.</summary>
+    private async Task RefreshSharedSettingsFromHostAsync()
+    {
+        var dto = await RemoteSync.GetAsync<SharedSettingsDto>("/api/sync/settings");
+        if (dto is not null)
+            ApplySharedSettingsDto(dto);
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — μόλις αλλάξει κάτι τοπικά, το στέλνει και στο host (fire-and-
+    /// forget) ώστε να μην περιμένει το επόμενο 5" polling του host-ίδιου-του-εαυτού του (το host δεν
+    /// τραβάει τίποτα μόνο του — μόνο δέχεται). Στο host αυτό δεν κάνει τίποτα (IsClient == false).</summary>
+    private void PushSharedSettingsIfClient()
+    {
+        if (!RemoteSync.IsClient)
+            return;
+        _ = RemoteSync.PostAsync("/api/sync/settings", BuildSharedSettingsDto());
+    }
+
+    private void Save()
+    {
+        try
+        {
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(Settings, JsonOpts));
+        }
+        catch (Exception)
+        {
+            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+        }
+    }
+
+    public void SetTheme(string theme)
+    {
+        Settings.Theme = theme;
+        Save();
+        ThemeManager.Apply(IsDark);
+        PushSharedSettingsIfClient();
+    }
+
+    public void SetLanguage(string language)
+    {
+        Settings.Language = language;
+        Save();
+        PushSharedSettingsIfClient();
+    }
+
+    /// <summary>Ορίζει πόσα τραπέζια εμφανίζονται στο Βήμα 1 (ελάχιστο 1).</summary>
+    public void SetTableCount(int count)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncTableCountAsync(count);
+            return;
+        }
+        Settings.TableCount = Math.Max(1, count);
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — στέλνει τον νέο αριθμό στο host, μετά ξαναδιαβάζει την αληθινή τιμή.</summary>
+    private async Task SyncTableCountAsync(int count)
+    {
+        await RemoteSync.PostAsync("/api/sync/table-count", new { Count = Math.Max(1, count) });
+        await RefreshTableCountFromHostAsync();
+    }
+
+    /// <summary>Χειροκίνητη αλλαγή τρέχουσας βάρδιας — δεν αλλάζει ποτέ μόνη της.</summary>
+    public void SetShift(bool evening)
+    {
+        Settings.IsEveningShift = evening;
+        Save();
+        Changed?.Invoke();
+        PushSharedSettingsIfClient();
+    }
+
+    /// <summary>Ορίζει τον εκτυπωτή για σιωπηλή αυτόματη εκτύπωση.</summary>
+    public void SetPrinter(string name)
+    {
+        Settings.PrinterName = name;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Ορίζει αν αυτό το ταμείο είναι το κύριο (host, τοπικά δεδομένα — όπως πάντα) ή δεύτερο
+    /// ταμείο (client, διαβάζει/γράφει πάνω στο host). Χρειάζεται restart της εφαρμογής για να
+    /// πιάσει η αλλαγή, γιατί τα stores διαλέγουν λειτουργία στην αρχική τους φόρτωση.
+    /// </summary>
+    public void SetNetworkMode(string mode, string hostAddress)
+    {
+        Settings.NetworkMode = mode == "client" ? "client" : "host";
+        Settings.HostAddress = CleanHostAddress(hostAddress);
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Ανέκτηση μόνο της IP από ό,τι κι αν επικολλήσει ο χρήστης — π.χ. αν αντιγράψει τη
+    /// διεύθυνση του σερβιτόρου ("http://192.168.1.50:5190") αντί για την ψιλή IP που ζητά η οθόνη
+    /// δεύτερου ταμείου, δεν πρέπει να σπάσει το BaseUrl στο RemoteSync.</summary>
+    private static string CleanHostAddress(string hostAddress)
+    {
+        var s = hostAddress.Trim();
+        var schemeIdx = s.IndexOf("://", StringComparison.Ordinal);
+        if (schemeIdx >= 0)
+            s = s[(schemeIdx + 3)..];
+        s = s.TrimEnd('/');
+        var colonIdx = s.IndexOf(':');
+        if (colonIdx >= 0)
+            s = s[..colonIdx];
+        return s;
+    }
+
+    /// <summary>
+    /// Ρυθμίσεις σύνδεσης στο AMI του Grandstream UCM για αναγνώριση κλήσεων. Κενό UcmHost = ανενεργό.
+    /// Χρειάζεται restart της εφαρμογής για να πιάσει η αλλαγή (το AmiClientService συνδέεται μία
+    /// φορά στην εκκίνηση).
+    /// </summary>
+    public void SetShopAddress(string address)
+    {
+        Settings.ShopAddress = address.Trim();
+        Save();
+        PushSharedSettingsIfClient();
+    }
+
+    public void SetGoogleMapsApiKey(string key)
+    {
+        Settings.GoogleMapsApiKey = key.Trim();
+        Save();
+        PushSharedSettingsIfClient();
+    }
+
+    public void SetAmiConfig(string ucmHost, int amiPort, string username, string password)
+    {
+        Settings.UcmHost = ucmHost.Trim();
+        Settings.AmiPort = amiPort;
+        Settings.AmiUsername = username.Trim();
+        Settings.AmiPassword = password;
+        Save();
+        Changed?.Invoke();
+        PushSharedSettingsIfClient();
+    }
+
+    public void SetEmail(string host, int port, string user, string password, string reportEmail)
+    {
+        Settings.SmtpHost = host.Trim();
+        Settings.SmtpPort = port;
+        Settings.SmtpUser = user.Trim();
+        Settings.SmtpPassword = password;
+        Settings.ReportEmail = reportEmail.Trim();
+        Save();
+        PushSharedSettingsIfClient();
+    }
+
+    public void SetReceipt(string title, string info, string footer,
+        bool showDateTime, bool showCustomer, bool showDetails,
+        double titleFontSize, double itemsFontSize, double totalFontSize, double metaFontSize)
+    {
+        Settings.ReceiptTitle = title.Trim();
+        Settings.ReceiptInfo = info.Trim();
+        Settings.ReceiptFooter = footer.Trim();
+        Settings.ReceiptShowDateTime = showDateTime;
+        Settings.ReceiptShowCustomer = showCustomer;
+        Settings.ReceiptShowDetails = showDetails;
+        Settings.ReceiptTitleFontSize = Math.Clamp(titleFontSize, 8, 30);
+        Settings.ReceiptItemsFontSize = Math.Clamp(itemsFontSize, 8, 24);
+        Settings.ReceiptTotalFontSize = Math.Clamp(totalFontSize, 8, 32);
+        Settings.ReceiptMetaFontSize = Math.Clamp(metaFontSize, 6, 20);
+        Save();
+        PushSharedSettingsIfClient();
+    }
+
+    public bool VerifyPin(string pin) => pin == Settings.Pin;
+
+    /// <summary>Ορίζει νέο κωδικό (4 ψηφία). Επιστρέφει false αν δεν είναι έγκυρος.</summary>
+    public bool SetPin(string newPin)
+    {
+        if (newPin.Length != 4 || !newPin.All(char.IsDigit))
+            return false;
+        Settings.Pin = newPin;
+        Save();
+        PushSharedSettingsIfClient();
+        return true;
+    }
+
+    /// <summary>Όνομα που αντιστοιχεί σε δεδομένο κωδικό ακύρωσης — null αν δεν ταιριάζει καμία ενεργή θέση.
+    /// Ο γενικός κωδικός καταστήματος (admin, Κώστας) περνάει και εδώ, ώστε να μη χρειάζεται να θυμάται
+    /// δεύτερο κωδικό μόνο για ακυρώσεις.</summary>
+    public string? FindCancelStaffName(string pin)
+    {
+        if (pin.Length > 0 && pin == Settings.Pin)
+            return "ΚΩΣΤΑΣ";
+        return Settings.CancelStaffPins.FirstOrDefault(p => p.Pin.Length > 0 && p.Pin == pin)?.Name;
+    }
+
+    /// <summary>Αποθηκεύει τους 4 ονομαστικούς κωδικούς ακύρωσης (μόνο ο admin, βλ. SettingsWindow).</summary>
+    public void SetCancelStaffPins(List<StaffPin> pins)
+    {
+        Settings.CancelStaffPins = pins;
+        Save();
+        PushSharedSettingsIfClient();
+    }
+}

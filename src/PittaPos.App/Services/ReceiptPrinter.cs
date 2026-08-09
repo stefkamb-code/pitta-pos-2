@@ -1,0 +1,241 @@
+using System.Printing;
+using System.Windows;
+using System.Windows.Controls;
+using PittaPos.App.Views;
+
+namespace PittaPos.App.Services;
+
+/// <summary>
+/// Σιωπηλή εκτύπωση απόδειξης στον εκτυπωτή που έχει οριστεί στις Ρυθμίσεις, χωρίς dialog.
+/// Χρησιμοποιείται τόσο από το ταμείο (αυτόματα με κάθε ολοκλήρωση παραγγελίας) όσο και από τις
+/// παραγγελίες που στέλνει ο σερβιτόρος από το κινητό μέσω του <see cref="WaiterApiService"/>.
+/// </summary>
+public static class ReceiptPrinter
+{
+    public static void PrintOrder(CompletedOrder order)
+    {
+        var printerName = SettingsStore.Instance.Settings.PrinterName;
+        if (printerName.Length == 0)
+        {
+            Fail(order, "δεν έχει οριστεί εκτυπωτής στις Ρυθμίσεις");
+            return;
+        }
+
+        ReceiptWindow? receiptSource = null;
+        try
+        {
+            using var server = new LocalPrintServer();
+            var queue = server.GetPrintQueues().FirstOrDefault(q => q.FullName == printerName);
+            if (queue is null)
+            {
+                Fail(order, $"ο εκτυπωτής «{printerName}» δεν βρέθηκε στα Windows");
+                return;
+            }
+
+            // Έλεγχος κατάστασης πριν σταλεί οτιδήποτε στον driver — αν ο εκτυπωτής είναι σβηστός/
+            // αποσυνδεδεμένος, κάποιοι drivers κολλάνε για πολλή ώρα μέσα στο PrintVisual παρακάτω,
+            // παγώνοντας όλο το ταμείο (μονό UI thread). Καλύτερα να χάσουμε αυτή την απόδειξη.
+            queue.Refresh();
+            if (queue.IsOffline || queue.IsInError || queue.IsNotAvailable)
+            {
+                Fail(order, $"ο εκτυπωτής «{printerName}» δεν είναι διαθέσιμος " +
+                    $"(offline={queue.IsOffline}, σφάλμα={queue.IsInError}, μη διαθέσιμος={queue.IsNotAvailable})");
+                return;
+            }
+
+            // Ανοίγει εκτός οθόνης μόνο για να «τυπωθεί» — ΔΕΝ είναι το Ιστορικό, δεν εκθέτει καμία
+            // ενέργεια ασφαλείας ακόμα κι αν κατά λάθος γίνει ορατό (π.χ. Alt+Tab).
+            receiptSource = new ReceiptWindow(order)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -5000,
+                Top = -5000,
+                ShowInTaskbar = false,
+            };
+            receiptSource.Show();
+            receiptSource.UpdateLayout();
+
+            var ticket = queue.DefaultPrintTicket;
+            // Το ReceiptCard έχει σταθερό Width=420 στο XAML (βολικό για προεπισκόπηση στην οθόνη) — αλλά
+            // αν το πραγματικό ρολό του εκτυπωτή είναι στενότερο (π.χ. 80mm/58mm), το driver έκοβε σιωπηλά
+            // ό,τι ξεπερνούσε το πλάτος σελίδας αντί να τυλίξει (π.χ. «ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ» έκοβε στο «ΠΑΠ»),
+            // γιατί μόνο το ΜΕΤΑΔΕΔΟΜΕΝΟ πλάτος σελίδας (PageMediaSize) ενημερωνόταν παρακάτω, όχι το ίδιο
+            // το visual. Ξαναρυθμίζουμε πρώτα το πλάτος του visual στο πραγματικό πλάτος του driver, ΠΡΙΝ
+            // ξαναδιαβάσουμε ύψος/πλάτος για το PageMediaSize, ώστε το κείμενο να τυλίξει σωστά μέσα του.
+            if (ticket.PageMediaSize?.Width is { } printerWidth && printerWidth > 0)
+            {
+                var safeWidth = SafeWidth(queue, ticket, printerWidth);
+                receiptSource.ReceiptCard.Width = safeWidth;
+                receiptSource.ReceiptCard.Padding = PaddingFor(safeWidth, printerWidth - safeWidth);
+                receiptSource.UpdateLayout();
+            }
+            // Χωρίς αυτό, το PrintVisual χρησιμοποιεί το προεπιλεγμένο μήκος σελίδας του driver (συχνά
+            // ολόκληρο μήκος σελίδας/ρολού) — ο εκτυπωτής τροφοδοτεί/κόβει πολύ περισσότερο χαρτί απ' όσο
+            // πραγματικά τυπώθηκε. Κρατάμε το πλάτος του driver (ήδη σωστά ρυθμισμένο για το ρολό) αλλά
+            // περιορίζουμε το ύψος στο πραγματικό ύψος περιεχομένου της απόδειξης.
+            var width = ticket.PageMediaSize?.Width ?? receiptSource.ReceiptCard.ActualWidth;
+            ticket.PageMediaSize = new PageMediaSize(width, receiptSource.ReceiptCard.ActualHeight);
+
+            var dialog = new PrintDialog { PrintQueue = queue, PrintTicket = ticket };
+            dialog.PrintVisual(receiptSource.ReceiptCard, "Απόδειξη #" + order.OrderNumber);
+        }
+        catch (Exception ex)
+        {
+            // Αποτυχία εκτύπωσης δεν πρέπει να μπλοκάρει το ταμείο
+            Fail(order, ex.Message);
+        }
+        finally
+        {
+            receiptSource?.Close();
+        }
+    }
+
+    /// <summary>Κάθε απόδειξη που ΔΕΝ τυπώθηκε αφήνει ίχνος. Πριν, όλες οι αποτυχίες ήταν εντελώς
+    /// σιωπηλές: ο ταμίας νόμιζε ότι τυπώθηκε και δεν υπήρχε πουθενά τρόπος να διαπιστωθεί γιατί
+    /// «δεν βγήκε χαρτί» — ούτε καν ότι έγινε καν προσπάθεια.</summary>
+    /// <summary>
+    /// Περιθώρια ανάλογα με το ΠΡΑΓΜΑΤΙΚΟ πλάτος του χαρτιού, ώστε να δουλεύει σε κάθε εκτυπωτή χωρίς
+    /// χειροκίνητη ρύθμιση. Το σταθερό 24 του σχεδίου ήταν λογικό στις 420 μονάδες της οθόνης (~6%),
+    /// αλλά σε ρολό 80mm (272 μονάδες εκτυπώσιμες) έτρωγε το 18% του χαρτιού δεξιά-αριστερά — σε ρολό
+    /// 58mm ακόμα χειρότερα. Πάνω-κάτω μένει μικρότερο: εκεί είναι σκέτο χαμένο χαρτί σε κάθε απόδειξη.
+    /// </summary>
+    /// <param name="slack">Πόσο στενότερη είναι η απόδειξη από το εκτυπώσιμο πλάτος (το περιθώριο
+    /// ασφαλείας, βλ. SafeWidth). Επειδή η εκτύπωση ξεκινά από την αριστερή άκρη, ΟΛΟ αυτό το κενό
+    /// έπεφτε δεξιά και η απόδειξη φαινόταν μετατοπισμένη. Το μοιράζουμε στις δύο πλευρές δίνοντας
+    /// τη μισή διαφορά επιπλέον αριστερά και αφαιρώντας τη δεξιά — έτσι το κείμενο κάθεται κεντραρισμένο
+    /// στο χαρτί χωρίς να χρειάζεται μετατόπιση ολόκληρου του visual.</param>
+    private static Thickness PaddingFor(double printerWidth, double slack = 0)
+    {
+        var side = Math.Clamp(printerWidth * 0.04, 6, 24);
+        var shift = slack / 2;
+        return new Thickness(side + shift, side * 0.6, Math.Max(0, side - shift), side * 0.6);
+    }
+
+    /// <summary>
+    /// Το πλάτος που δίνουμε ΠΡΑΓΜΑΤΙΚΑ στην απόδειξη: το εκτυπώσιμο πλάτος του οδηγού, μείον ένα μικρό
+    /// περιθώριο ασφαλείας.
+    ///
+    /// Οι θερμικοί έχουν συχνά λίγα χιλιοστά στη δεξιά άκρη που δεν τυπώνουν αλλά ΔΕΝ τα δηλώνουν
+    /// (δοκιμασμένο: ο οδηγός έλεγε 272,1 σελίδα και 271,9 εκτυπώσιμα — πρακτικά τίποτα, κι όμως τα ποσά
+    /// στη δεξιά άκρη έβγαιναν κομμένα). Επειδή τα ποσά είναι στοιχισμένα ακριβώς εκεί, χάνονταν ψηφία.
+    /// Κόβοντας ~1,5mm εξασφαλίζεται ότι το τελευταίο ψηφίο τυπώνεται πάντα ολόκληρο.
+    /// </summary>
+    private static double SafeWidth(PrintQueue queue, PrintTicket ticket, double printerWidth)
+    {
+        var printable = printerWidth;
+        try
+        {
+            if (queue.GetPrintCapabilities(ticket).PageImageableArea is { } area && area.ExtentWidth > 0)
+                printable = Math.Min(printable, area.ExtentWidth);
+        }
+        catch (Exception)
+        {
+            // Οδηγός που δεν δίνει δυνατότητες — μένουμε στο πλάτος σελίδας
+        }
+        return Math.Max(printable * 0.5, printable - 6); // 6 μονάδες ≈ 1,6 mm
+    }
+
+    private static void Fail(CompletedOrder order, string reason) =>
+        AppLog.Write("printer", $"Δεν τυπώθηκε η απόδειξη #{order.OrderNumber} " +
+            $"({order.TypeLabel}, {order.TotalLabel}): {reason}");
+
+    /// <summary>Πιο πρόσφατη καταχωρημένη παραγγελία — χρησιμοποιείται από το wizard του ταμείου.</summary>
+    public static void PrintLatestOrder()
+    {
+        var order = SalesStatsService.Instance.Orders.OrderByDescending(o => o.PlacedAt).FirstOrDefault();
+        if (order is not null)
+            PrintOrder(order);
+    }
+
+    /// <summary>Σιωπηλή εκτύπωση της πλήρους αναφοράς ημέρας (Ζ-report, βλ. DayReportService.Build) στον
+    /// εκτυπωτή που έχει οριστεί στις Ρυθμίσεις. Καλείται από το DayReportService.CloseDay/PrintCurrentReport.</summary>
+    public static void PrintDayReport(string report) => PrintPlainText(report, "Αναφορά Ημέρας");
+
+    /// <summary>Σιωπηλή εκτύπωση της αναφοράς διανομέα (βλ. OrderBoardService.BuildDriverReport) στον
+    /// εκτυπωτή που έχει οριστεί στις Ρυθμίσεις.</summary>
+    public static void PrintDriverReport(string report) => PrintPlainText(report, "Αναφορά Διανομέα");
+
+    /// <summary>Τελευταίο ορατό preview-παράθυρο (όταν δεν έχει οριστεί εκτυπωτής) — κλείνει το προηγούμενο
+    /// πριν ανοίξει το επόμενο, αλλιώς επαναλαμβανόμενα κλικ σε «ΕΚΤΥΠΩΣΗ ΤΩΡΑ»/«ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ»
+    /// στοίβαζαν παράθυρα το ένα πάνω στο άλλο επ' άπειρον.</summary>
+    private static Views.DayReportWindow? _previewWindow;
+
+    /// <summary>Κοινός μηχανισμός εκτύπωσης μονόχωρου κειμένου (DayReportWindow) — ίδιος με το PrintOrder,
+    /// με μονόχωρο κείμενο αντί για κάρτα απόδειξης. Αν δεν έχει οριστεί ακόμα εκτυπωτής, δείχνει το
+    /// κείμενο σε ένα κανονικό (ορατό) παράθυρο αντί να μην κάνει τίποτα — έτσι δεν «χάνεται» χωρίς κανένα
+    /// αποτέλεσμα πριν ρυθμιστεί ο εκτυπωτής.</summary>
+    private static void PrintPlainText(string text, string title)
+    {
+        var printerName = SettingsStore.Instance.Settings.PrinterName;
+        if (printerName.Length == 0)
+        {
+            _previewWindow?.Close();
+            _previewWindow = new Views.DayReportWindow(text)
+            {
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ShowInTaskbar = true,
+                Title = title + " (προεπισκόπηση — δεν έχει οριστεί εκτυπωτής)",
+            };
+            _previewWindow.Show();
+            return;
+        }
+
+        Views.DayReportWindow? textSource = null;
+        try
+        {
+            using var server = new LocalPrintServer();
+            var queue = server.GetPrintQueues().FirstOrDefault(q => q.FullName == printerName);
+            if (queue is null)
+            {
+                AppLog.Write("printer", $"«{title}»: ο εκτυπωτής «{printerName}» δεν βρέθηκε στα Windows");
+                return;
+            }
+
+            queue.Refresh();
+            if (queue.IsOffline || queue.IsInError || queue.IsNotAvailable)
+            {
+                AppLog.Write("printer", $"«{title}»: ο εκτυπωτής «{printerName}» δεν είναι διαθέσιμος");
+                return;
+            }
+
+            textSource = new Views.DayReportWindow(text)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -5000,
+                Top = -5000,
+                ShowInTaskbar = false,
+            };
+            textSource.Show();
+            textSource.UpdateLayout();
+
+            var ticket = queue.DefaultPrintTicket;
+            // Ίδιο fix με το PrintOrder — ξαναρυθμίζουμε το πλάτος του visual στο πραγματικό πλάτος του
+            // driver πριν το τελικό layout, αλλιώς το κείμενο κόβεται στην άκρη αντί να τυλίξει.
+            if (ticket.PageMediaSize?.Width is { } printerWidth && printerWidth > 0)
+            {
+                var safeWidth = SafeWidth(queue, ticket, printerWidth);
+                var padding = PaddingFor(safeWidth, printerWidth - safeWidth);
+                textSource.ReportCard.Width = safeWidth;
+                textSource.ReportCard.Padding = padding;
+                // Η αναφορά είναι μονόχωρη με στοιχισμένες στήλες — αν δεν χωράει η πιο μακριά γραμμή
+                // στο χαρτί, αναδιπλώνεται και χαλάει όλη η στοίχιση. Προσαρμόζεται αυτόματα.
+                textSource.FitTextToWidth(safeWidth - padding.Left - padding.Right);
+                textSource.UpdateLayout();
+            }
+            var width = ticket.PageMediaSize?.Width ?? textSource.ReportCard.ActualWidth;
+            ticket.PageMediaSize = new PageMediaSize(width, textSource.ReportCard.ActualHeight);
+
+            var dialog = new PrintDialog { PrintQueue = queue, PrintTicket = ticket };
+            dialog.PrintVisual(textSource.ReportCard, title);
+        }
+        catch (Exception ex)
+        {
+            // Αποτυχία εκτύπωσης δεν πρέπει να μπλοκάρει το ταμείο
+            AppLog.Write("printer", $"Αποτυχία εκτύπωσης «{title}»: {ex.Message}");
+        }
+        finally
+        {
+            textSource?.Close();
+        }
+    }
+}

@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PittaPos.Core\PittaPos.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ενσωματωμένος Kestrel server (κινητό σερβιτόρου) μέσα στο WPF exe -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Ξεχωριστό όνομα exe από το πρώτο κατάστημα: δύο διαφορετικές συντομεύσεις στην Επιφάνεια,
+         δύο ξεχωριστές γραμμές στη Διαχείριση Εργασιών, και το taskkill πριν από build δεν κλείνει
+         κατά λάθος το ταμείο του άλλου μαγαζιού. Βλ. Services/AppIdentity.cs. -->
+    <AssemblyName>PittaPos2.App</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\logo.png" />
+    <!-- Η ετικέτα έκδοσης στην Αρχική διαβάζει αυτό το αρχείο απευθείας στο runtime (βλ. MainWindow.xaml.cs) —
+         ΔΕΝ ανεβαίνει αυτόματα σε κάθε build. Ανεβαίνει χειροκίνητα μόνο όταν κλείνουμε δουλειά, κάνουμε
+         git commit και ανανεώνουμε το PittaPOS-Setup.bat στην Επιφάνεια — έτσι ο αριθμός σημαίνει «αυτή
+         είναι η έκδοση που βγήκε», όχι «πόσες φορές έκανα build σήμερα». -->
+    <Content Include="version.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

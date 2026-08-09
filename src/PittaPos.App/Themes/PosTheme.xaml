@@ -1,0 +1,293 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Modernist tokens (design/_ds/.../styles.css) -->
+    <Color x:Key="ColorBg">#f3f2f2</Color>
+    <Color x:Key="ColorSurface">#eae9e9</Color>
+    <Color x:Key="ColorText">#201e1d</Color>
+    <Color x:Key="ColorAccent">#ec3013</Color>
+    <SolidColorBrush x:Key="Bg" Color="{StaticResource ColorBg}"/>
+    <SolidColorBrush x:Key="Surface" Color="{StaticResource ColorSurface}"/>
+    <SolidColorBrush x:Key="Ink" Color="{StaticResource ColorText}"/>
+    <!-- divider token: ink 40% over bg, softened for a gentler flat look -->
+    <SolidColorBrush x:Key="Divider" Color="#B3B0B0"/>
+    <SolidColorBrush x:Key="Accent" Color="{StaticResource ColorAccent}"/>
+    <SolidColorBrush x:Key="Accent100" Color="#fff2ef"/>
+    <SolidColorBrush x:Key="Accent600" Color="#dd2b0f"/>
+    <SolidColorBrush x:Key="Accent700" Color="#ae1800"/>
+    <SolidColorBrush x:Key="Accent800" Color="#7c1405"/>
+    <SolidColorBrush x:Key="Neutral300" Color="#d7d3d3"/>
+    <SolidColorBrush x:Key="Neutral400" Color="#bab6b6"/>
+    <SolidColorBrush x:Key="Neutral500" Color="#9b9797"/>
+    <SolidColorBrush x:Key="Neutral600" Color="#7d7979"/>
+    <SolidColorBrush x:Key="Neutral700" Color="#605d5d"/>
+    <!-- night tokens: βραδινή βάρδια -->
+    <SolidColorBrush x:Key="Night" Color="#2b3a67"/>
+    <SolidColorBrush x:Key="NightBg" Color="#eef0f7"/>
+
+    <!-- Archivo when installed, otherwise Segoe UI -->
+    <FontFamily x:Key="PosFont">Archivo, Segoe UI</FontFamily>
+
+    <!-- Flat button base: soft rounded corners, flush-left label, themed disabled state -->
+    <Style x:Key="FlatButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+        <Setter Property="Background" Value="{DynamicResource Bg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity" To="0.85" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Soft elevation shadow — used only on a decorative layer BEHIND text (never on text itself, to avoid blur) -->
+    <DropShadowEffect x:Key="SoftShadowSmall" Color="#1a1615" Opacity="0.18" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+
+    <!-- Same as FlatButton, but with a shadow layer behind the surface — the shadow never touches the ContentPresenter, so text stays crisp -->
+    <ControlTemplate x:Key="ElevatedButtonTemplate" TargetType="Button">
+        <Grid>
+            <Border Background="{TemplateBinding Background}" CornerRadius="10" Effect="{StaticResource SoftShadowSmall}"/>
+            <Border x:Name="bd"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="10"
+                    Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity" To="0.85" Duration="0:0:0.12"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="bd" Property="Opacity" Value="0.7"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.45"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- Solid accent primary action -->
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+        <Setter Property="Background" Value="{DynamicResource Accent}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="ExtraBold"/>
+        <Setter Property="Template" Value="{StaticResource ElevatedButtonTemplate}"/>
+    </Style>
+
+    <!-- Κάρτα επιλογής (τύπος παραγγελίας, πλατφόρμα, ώρα, τρόπος πληρωμής): accent όταν επιλεγμένη.
+         Ζει εδώ (όχι στο MainWindow.xaml) ώστε να την βλέπουν και embedded UserControls όπως το
+         ProductsView — ένα StaticResource δεν περιμένει να συνδεθεί το UserControl σε γονικό Window
+         πριν επιλυθεί, χρειάζεται να υπάρχει ήδη σε merged dictionary προσβάσιμη κατά το parse. -->
+    <Style x:Key="ChoiceCard" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="Template" Value="{StaticResource ElevatedButtonTemplate}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Small borderless stepper glyph (−/+/×/✎) -->
+    <Style x:Key="GlyphButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="4,0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource Neutral600}"/>
+    </Style>
+
+    <Style x:Key="PosTextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+        <Setter Property="Background" Value="{DynamicResource Bg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Flat editable dropdown (π.χ. επιλογή ορόφου) — ίδιο flat/rounded look με PosTextBox/FlatButton
+         αντί για το προεπιλεγμένο γκρι Windows chrome. -->
+    <Style x:Key="PosComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="bd" Background="Transparent" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PosComboBox" TargetType="ComboBox">
+        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+        <Setter Property="Background" Value="{DynamicResource Bg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,4"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="ItemContainerStyle" Value="{StaticResource PosComboBoxItem}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"/>
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="PART_EditableTextBox" Grid.Column="0"
+                                     IsReadOnly="{TemplateBinding IsReadOnly}"
+                                     Background="Transparent" BorderThickness="0"
+                                     Foreground="{TemplateBinding Foreground}"
+                                     VerticalContentAlignment="Center" Focusable="True" Visibility="Collapsed"/>
+                            <ContentPresenter x:Name="ContentSite" Grid.Column="0"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              VerticalAlignment="Center" IsHitTestVisible="False"/>
+                            <Path Grid.Column="1" Data="M0,0 L6,6 L12,0" Stroke="{DynamicResource Neutral600}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round" Width="12" Height="6" Margin="8,0,2,0"
+                                  VerticalAlignment="Center" IsHitTestVisible="False"/>
+                        </Grid>
+                        <ToggleButton x:Name="toggleButton" Background="Transparent"
+                                      IsChecked="{Binding Path=IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                      Focusable="False" ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="Transparent"/>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                            <Border Background="{DynamicResource Bg}" BorderBrush="{DynamicResource Divider}"
+                                    BorderThickness="1" CornerRadius="10" Margin="0,4,0,0" MaxHeight="220"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Effect="{StaticResource SoftShadowSmall}">
+                                <ScrollViewer Margin="4" SnapsToDevicePixels="True">
+                                    <ItemsPresenter/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SectionLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="ExtraBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,20 @@
+<Window x:Class="PittaPos.App.Views.DayReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Αναφορά Ημέρας" SizeToContent="WidthAndHeight"
+        ShowInTaskbar="False"
+        Background="White">
+    <!--
+        Offscreen-only, για σιωπηλή εκτύπωση της αναφοράς ημέρας (Ζ-report) στον θερμικό εκτυπωτή —
+        βλ. ReceiptPrinter.PrintDayReport. Μονόχωρη γραμματοσειρά ώστε η στοίχιση στηλών του
+        DayReportService.Build() (π.χ. ΑΝΑ ΠΡΟΪΟΝ) να βγαίνει σωστά στο χαρτί.
+    -->
+    <!-- Χωρίς εξομάλυνση άκρων, ίδιος λόγος με την απόδειξη (βλ. ReceiptWindow.xaml): ο θερμικός
+         εκτυπωτής δεν έχει γκρι, οπότε οι εξομαλυμένες άκρες βγαίνουν αχνές κουκκίδες. -->
+    <Border x:Name="ReportCard" Width="420" Padding="16" Background="White"
+            TextOptions.TextRenderingMode="Aliased" TextOptions.TextFormattingMode="Display"
+            RenderOptions.EdgeMode="Aliased">
+        <TextBlock x:Name="ReportText" FontFamily="Consolas" FontSize="14" Foreground="Black"
+                   TextWrapping="Wrap"/>
+    </Border>
+</Window>

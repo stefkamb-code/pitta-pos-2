@@ -1,0 +1,145 @@
+<Window x:Class="PittaPos.App.Views.NetworkSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ΔΙΚΤΥΟ" Height="640" Width="640"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
+                       Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock DockPanel.Dock="Left" Text="ΔΙΚΤΥΟ" FontWeight="ExtraBold" FontSize="14"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="30,26" MaxWidth="520" HorizontalAlignment="Left">
+
+                <!-- χάρτης διανομής -->
+                <TextBlock Text="ΧΑΡΤΗΣ ΔΙΑΝΟΜΗΣ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,10" MaxWidth="420">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="ShopAddressBox" Grid.Column="0" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    <Button Grid.Column="2" Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Padding="16,0"
+                            Style="{StaticResource PrimaryButton}" Click="ApplyShopAddress_Click"/>
+                </Grid>
+                <TextBlock Text="Η διεύθυνση του καταστήματος — σημείο εκκίνησης/επιστροφής της προτεινόμενης διαδρομής στον Χάρτη Διανομής (κουμπί 🗺 στις Ζωντανές Παραγγελίες → Διανομέας). Γράψε την όσο πιο πλήρη γίνεται (οδός, αριθμός, πόλη)."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,16"/>
+                <Grid Margin="0,0,0,10" MaxWidth="420">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="GoogleMapsKeyBox" Grid.Column="0" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    <Button Grid.Column="2" Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Padding="16,0"
+                            Style="{StaticResource PrimaryButton}" Click="ApplyGoogleMapsKey_Click"/>
+                </Grid>
+                <TextBlock Text="Κλειδί Google Maps API (προαιρετικό) — αν συμπληρωθεί, ο Χάρτης Διανομής και οι προτάσεις διεύθυνσης δουλεύουν με Google Maps αντί για το δωρεάν OpenStreetMap. Κενό = παραμένει το δωρεάν OpenStreetMap (προτεινόμενο)."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+
+                <!-- waiter android app -->
+                <TextBlock Text="ΣΕΡΒΙΤΟΡΟΣ (ANDROID)" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="WaiterAddressText" Grid.Column="0" Height="46" FontSize="14" IsReadOnly="True"
+                             Foreground="{DynamicResource Ink}" Background="{DynamicResource Bg}"
+                             BorderBrush="{DynamicResource Divider}" Padding="10,10" VerticalContentAlignment="Center"/>
+                    <Button Grid.Column="2" Content="ΑΝΤΙΓΡΑΦΗ" Height="46" Width="120" FontSize="13" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="CopyWaiterAddress_Click"/>
+                </Grid>
+                <TextBlock Text="Αυτή τη διεύθυνση γράφεις στις «Ρυθμίσεις» του Android app (πεδίο «Διεύθυνση ταμείου»), μαζί με τον κωδικό 4 ψηφίων καταστήματος. Το κινητό πρέπει να είναι στο ίδιο WiFi με αυτόν τον υπολογιστή. Αν αλλάξει ο router/δίκτυο, η διεύθυνση μπορεί να αλλάξει."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+
+                <!-- αναγνώριση κλήσεων -->
+                <TextBlock Text="ΑΝΑΓΝΩΡΙΣΗ ΚΛΗΣΕΩΝ (UCM)" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,10" MaxWidth="420">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="120"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="IP τηλεφωνικού κέντρου (UCM)" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="UcmHostBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Θύρα AMI" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="AmiPortBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,0,0,10" MaxWidth="420">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Χρήστης AMI" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="AmiUserBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Κωδικός AMI" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="AmiPasswordBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
+                    </StackPanel>
+                </Grid>
+                <Button Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Width="140"
+                        HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="ApplyAmiConfig_Click"/>
+                <TextBlock Text="Στοιχεία σύνδεσης στο AMI του Grandstream UCM (Integrations → AMI → Add), ώστε το ταμείο να αναγνωρίζει αυτόματα τον καλούντα. Κενή IP = ανενεργό. Χρειάζεται επανεκκίνηση της εφαρμογής μετά την αλλαγή."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+
+                <!-- δεύτερο ταμείο -->
+                <TextBlock Text="ΔΕΥΤΕΡΟ ΤΑΜΕΙΟ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,10" MaxWidth="420">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="HostModeBtn" Content="ΚΥΡΙΟ ΤΑΜΕΙΟ" Height="52" FontSize="13.5" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="HostMode_Click"/>
+                    <Button Grid.Column="2" x:Name="ClientModeBtn" Content="ΔΕΥΤΕΡΟ ΤΑΜΕΙΟ" Height="52" FontSize="13.5" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="ClientMode_Click"/>
+                </Grid>
+                <StackPanel x:Name="HostAddressPanel" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBox x:Name="HostAddressBox" Style="{StaticResource PosTextBox}" Width="220" Height="42" FontSize="14"/>
+                    <Button Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Margin="10,0,0,0"
+                            Style="{StaticResource PrimaryButton}" Padding="16,0" Click="ApplyHostAddress_Click"/>
+                </StackPanel>
+                <TextBlock x:Name="ThisPcAddressText" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
+                           TextWrapping="Wrap" Margin="0,0,0,4"/>
+                <TextBlock x:Name="ClientStatusText" FontSize="11.5" FontWeight="ExtraBold"
+                           TextWrapping="Wrap" Margin="0,0,0,4"/>
+                <TextBlock Text="Το κύριο ταμείο κρατάει όλα τα δεδομένα (τραπέζια, ζωντανές παραγγελίες, πελάτες, στατιστικά ημέρας) όπως πάντα. Το δεύτερο ταμείο διαβάζει/γράφει πάνω σε αυτό μέσα από το WiFi του μαγαζιού — γράψε εδώ την IP του κύριου ταμείου (φαίνεται στη δική του οθόνη Δικτύου, από πάνω). Χρειάζεται επανεκκίνηση της εφαρμογής μετά την αλλαγή."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

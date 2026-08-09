@@ -1,0 +1,16 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+artifacts/
+publish/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Build outputs
+*.log

@@ -1,0 +1,31 @@
+name: Build PittaPos (Windows, χωρίς εγκατάσταση .NET στο μαγαζί)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, claude/remote-commands-hnl8f1 ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # --self-contained μαζεύει και το ίδιο το .NET μέσα στο .exe — ο υπολογιστής του μαγαζιού
+      # δεν χρειάζεται τίποτα εγκατεστημένο, μόνο Windows 10/11 (x64).
+      - name: Δημιουργία αυτόνομου .exe
+        run: >
+          dotnet publish src/PittaPos.App/PittaPos.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PittaPos-Windows
+          path: publish/

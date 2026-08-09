@@ -1,0 +1,382 @@
+﻿using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using PittaPos.Core.Models;
+
+namespace PittaPos.App.Services;
+
+/// <summary>Κανάλι αποστολής με το χρώμα του (όπως στο design). Διανομέας και BOX (τα δύο που παραδίδει
+/// δικός μας διανομέας — βλ. OrderWizardViewModel.ShowCustomerForm) έχουν ο καθένας δικό του «Κάρτα»
+/// παραλλαγή αντί για ένα γενικό κοινό κανάλι «Κάρτα» — έτσι το ΠΕΡΑΣΕ ΤΗΝ ΣΕ/στατιστικά ξέρουν ακριβώς
+/// ποιος διανομέας πληρώθηκε με κάρτα. e-food/Wolt δεν έχουν παραλλαγή — τα πληρώνει ο πελάτης στην ίδια
+/// την πλατφόρμα, δεν μας αφορά.</summary>
+public sealed record ChannelInfo(string Name, Brush Brush)
+{
+    public static readonly IReadOnlyList<ChannelInfo> All =
+    [
+        new("Διανομέας", new SolidColorBrush(Color.FromRgb(0x20, 0x1e, 0x1d))),
+        new("Κάρτα Διανομέα", new SolidColorBrush(Color.FromRgb(0x20, 0x1e, 0x1d))),
+        new("e-food", new SolidColorBrush(Color.FromRgb(0xd3, 0x2f, 0x2f))),
+        new("Wolt", new SolidColorBrush(Color.FromRgb(0x15, 0x65, 0xc0))),
+        new("BOX Μετρητά", new SolidColorBrush(Color.FromRgb(0xb8, 0x86, 0x0b))),
+        new("BOX Κάρτα", new SolidColorBrush(Color.FromRgb(0xb8, 0x86, 0x0b))),
+    ];
+}
+
+/// <summary>Παραγγελία στον πίνακα ζωντανών παραγγελιών.</summary>
+public partial class BoardOrder : ObservableObject
+{
+    public required int OrderNumber { get; init; }
+    /// <summary>Όνομα πελάτη ή «Τραπέζι Ν».</summary>
+    public required string Name { get; init; }
+    public string Address { get; init; } = "";
+    public required OrderType Type { get; init; }
+    /// <summary>Πλατφόρμα για παραγγελίες εφαρμογών (e-food/Wolt/BOX).</summary>
+    public string? Channel { get; init; }
+    /// <summary>Ο αριθμός παραγγελίας που δίνει η ίδια η πλατφόρμα (Wolt/e-food/BOX) — μόνο για ΕΦΑΡΜΟΓΕΣ.
+    /// Γίνεται ο κύριος αριθμός που φαίνεται στις Ζωντανές Παραγγελίες, βλ. DisplayNumber.</summary>
+    public string? AppOrderRef { get; init; }
+    /// <summary>Μετρητά ή κάρτα — μόνο για ΔΙΑΝΟΜΗ/BOX (τα παραδίδει δικός μας διανομέας, βλ.
+    /// OrderWizardViewModel.ShowCustomerForm)· null για e-food/Wolt/ΠΑΡΑΛΑΒΗ/ΤΡΑΠΕΖΙ, δεν έχει νόημα εκεί.</summary>
+    public PaymentMethod? PaymentMethod { get; init; }
+    public required decimal Total { get; init; }
+    public DateTime PlacedAt { get; init; } = DateTime.Now;
+    /// <summary>Ποια βάρδια ήταν ενεργή (χειροκίνητος διακόπτης) τη στιγμή της παραγγελίας — όχι με βάση την ώρα.
+    /// Ξαναγράφεται στο Dispatch/Reassign (βλ. OrderBoardService), ώστε μια παραγγελία που βρισκόταν σε
+    /// αναμονή να μετρήσει στη βάρδια που πραγματικά την πέρασε ο ταμίας σε κανάλι, όχι σε όποια βάρδια
+    /// έτυχε να είναι ενεργή όταν καταχωρήθηκε αρχικά — αλλιώς η μέτρηση καναλιού δείχνει πάντα 0 για
+    /// παραγγελίες που έμειναν σε αναμονή από την προηγούμενη βάρδια.</summary>
+    public bool IsEveningShift { get; set; }
+
+    /// <summary>Σε ποιο κανάλι «πέρασε»· null = σε αναμονή.</summary>
+    [ObservableProperty]
+    private string? _sentVia;
+
+    [ObservableProperty]
+    private DateTime? _sentAt;
+
+    public bool IsPending => SentVia is null;
+
+    public string TypeLabel => Channel ?? Type switch
+    {
+        OrderType.Delivery => "ΔΙΑΝΟΜΗ",
+        OrderType.Apps => "ΕΦΑΡΜΟΓΕΣ",
+        OrderType.Pickup => "ΟΡΘΙΟΣ",
+        OrderType.Table => "ΤΡΑΠΕΖΙ",
+        _ => "",
+    };
+
+    public string TotalLabel => Order.FormatPrice(Total);
+
+    /// <summary>Ο αριθμός που φαίνεται δίπλα στο «#» στις Ζωντανές Παραγγελίες — για ΕΦΑΡΜΟΓΕΣ με
+    /// δηλωμένο αριθμό πλατφόρμας, αυτός είναι ο κύριος (πιο χρήσιμος για αντιστοίχιση με Wolt/e-food/BOX
+    /// παρά ο εσωτερικός μας μετρητής)· διαφορετικά ο εσωτερικός OrderNumber, όπως πάντα.</summary>
+    public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
+        ? AppOrderRef!
+        : OrderNumber.ToString();
+
+    /// <summary>Εικονίδιο μετρητών/κάρτας για τις Ζωντανές Παραγγελίες — null όταν δεν έχει νόημα
+    /// (PaymentMethod == null), οπότε δεν εμφανίζεται τίποτα.</summary>
+    public string? PaymentIcon => PaymentMethod switch
+    {
+        Core.Models.PaymentMethod.Cash => "💶",
+        Core.Models.PaymentMethod.Card => "💳",
+        _ => null,
+    };
+
+    /// <summary>Πληρωμένη με κάρτα — ο διανομέας ΔΕΝ εισπράττει τίποτα. Δείχνεται με ✓ δίπλα στο ποσό
+    /// στις Ζωντανές Παραγγελίες, ώστε να ξεχωρίζει με μια ματιά τι πρέπει να μαζέψει και τι όχι.</summary>
+    public bool IsPaidByCard => PaymentMethod == Core.Models.PaymentMethod.Card;
+
+    public string ElapsedLabel
+    {
+        get
+        {
+            var diff = DateTime.Now - PlacedAt;
+            if (diff < TimeSpan.Zero) diff = TimeSpan.Zero;
+            return (int)diff.TotalMinutes + ":" + diff.Seconds.ToString("00");
+        }
+    }
+
+    /// <summary>Πράσινο < 10', κίτρινο 10–19', κόκκινο ≥ 20'. Δεν σερβίρεται σε JSON (server-to-server
+    /// sync/αποθήκευση) — ένα WPF Brush σέρνει μαζί του αναφορές (π.χ. System.Type) που ο System.Text.Json
+    /// δεν υποστηρίζει και έσκαγε σιωπηλά κάθε POST/GET στο /api/sync/board μόλις υπήρχε έστω 1 παραγγελία,
+    /// εμποδίζοντας τον συγχρονισμό των ζωντανών παραγγελιών ανάμεσα στα δύο ταμεία.</summary>
+    [JsonIgnore]
+    public Brush ElapsedBrush
+    {
+        get
+        {
+            var mins = (DateTime.Now - PlacedAt).TotalMinutes;
+            var color = mins >= 20 ? Color.FromRgb(0xc0, 0x39, 0x2b)
+                : mins >= 10 ? Color.FromRgb(0xb8, 0x86, 0x0b)
+                : Color.FromRgb(0x2e, 0x7d, 0x32);
+            return new SolidColorBrush(color);
+        }
+    }
+
+    /// <summary>Ανανεώνει το ρολόι καθυστέρησης (καλείται κάθε δευτερόλεπτο).</summary>
+    public void Tick()
+    {
+        OnPropertyChanged(nameof(ElapsedLabel));
+        OnPropertyChanged(nameof(ElapsedBrush));
+    }
+}
+
+/// <summary>
+/// Κοινή κατάσταση των ζωντανών παραγγελιών ανάμεσα στην οθόνη POS και στον πίνακα.
+/// JSON στο %AppData%\PittaPos — ώστε ένα ξαφνικό κλείσιμο/restart του υπολογιστή να μη χάνει τη μέρα.
+/// </summary>
+public partial class OrderBoardService : ObservableObject
+{
+    public static OrderBoardService Instance { get; } = new();
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
+    private readonly string _path;
+
+    public ObservableCollection<BoardOrder> Orders { get; } = [];
+
+    [ObservableProperty]
+    private int _pendingCount;
+
+    /// <summary>Σηκώνεται σε κάθε μεταβολή (προσθήκη/αποστολή/επαναφορά).</summary>
+    public event Action? Changed;
+
+    private OrderBoardService()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
+        Directory.CreateDirectory(dir);
+        _path = Path.Combine(dir, "board-orders.json");
+        if (RemoteSync.IsClient)
+        {
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(2), RefreshFromHostAsync);
+            return;
+        }
+        Load();
+        PendingCount = Orders.Count(o => o.IsPending);
+    }
+
+    /// <summary>
+    /// Δεύτερο ταμείο (client) — συγχρονίζει με το host. Ενημερώνει τα υπάρχοντα αντικείμενα στη θέση
+    /// τους (ίδιο instance) αντί να τα ξαναφτιάχνει όλα, ώστε ο πίνακας ζωντανών παραγγελιών να μη
+    /// «τρεμοπαίζει» σε κάθε poll.
+    /// </summary>
+    private async Task RefreshFromHostAsync()
+    {
+        var data = await RemoteSync.GetAsync<List<BoardOrder>>("/api/sync/board");
+        if (data is null)
+            return;
+
+        var incomingNumbers = data.Select(o => o.OrderNumber).ToHashSet();
+        for (var i = Orders.Count - 1; i >= 0; i--)
+            if (!incomingNumbers.Contains(Orders[i].OrderNumber))
+                Orders.RemoveAt(i);
+
+        foreach (var incoming in data)
+        {
+            var existing = Orders.FirstOrDefault(o => o.OrderNumber == incoming.OrderNumber);
+            if (existing is null)
+                Orders.Add(incoming);
+            else
+            {
+                existing.SentVia = incoming.SentVia;
+                existing.SentAt = incoming.SentAt;
+            }
+        }
+
+        PendingCount = Orders.Count(o => o.IsPending);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — στέλνει τη μεταβολή στο host, μετά ξαναδιαβάζει την αληθινή κατάσταση.</summary>
+    private async Task SyncThenRefreshAsync(string path, object body)
+    {
+        await RemoteSync.PostAsync(path, body);
+        await RefreshFromHostAsync();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return;
+            var orders = JsonSerializer.Deserialize<List<BoardOrder>>(File.ReadAllText(_path)) ?? [];
+            foreach (var o in orders)
+                Orders.Add(o);
+        }
+        catch (Exception)
+        {
+            // Χαλασμένο αρχείο — ξεκίνα άδειο αντί να ρίξεις την εφαρμογή
+        }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(Orders.ToList(), JsonOpts));
+        }
+        catch (Exception)
+        {
+            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+        }
+    }
+
+    public void Add(BoardOrder order)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SendOrQueueAsync(order);
+            return;
+        }
+        // Φύλακας διπλοεγγραφής: η ίδια παραγγελία μπορεί να ξαναφτάσει εδώ από την ουρά αναμονής του
+        // δεύτερου ταμείου (βλ. PendingSyncService) αν η πρώτη αποστολή είχε φτάσει αλλά χάθηκε η
+        // απάντηση — αλλιώς θα εμφανιζόταν δύο φορές στον πίνακα ζωντανών παραγγελιών.
+        if (Orders.Any(o => o.OrderNumber == order.OrderNumber))
+            return;
+        Orders.Add(order);
+        Notify();
+    }
+
+    /// <summary>Δεύτερο ταμείο — προσθήκη στον πίνακα· αν δεν φτάσει στο κύριο ταμείο μπαίνει σε ουρά
+    /// (βλ. PendingSyncService) αντί να χαθεί: αλλιώς μια διανομή έμενε χωρίς καμία εγγραφή πουθενά,
+    /// ενώ ο ταμίας είχε ήδη πάρει το χαρτί στα χέρια του.</summary>
+    private async Task SendOrQueueAsync(BoardOrder order)
+    {
+        if (await RemoteSync.PostAsync("/api/sync/board", order))
+            await RefreshFromHostAsync();
+        else
+            PendingSyncService.Instance.Enqueue("/api/sync/board", order, $"Διανομή #{order.OrderNumber}");
+    }
+
+    public void Dispatch(BoardOrder order, string channel)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/board/dispatch", new { order.OrderNumber, Channel = channel });
+            return;
+        }
+        order.IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift;
+        order.SentVia = channel;
+        order.SentAt = DateTime.Now;
+        Notify();
+    }
+
+    public void Reassign(BoardOrder order, string channel)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/board/reassign", new { order.OrderNumber, Channel = channel });
+            return;
+        }
+        order.IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift;
+        order.SentVia = channel;
+        Notify();
+    }
+
+    /// <summary>Πραγματική ακύρωση (αφαίρεση από τον πίνακα) — π.χ. ο πελάτης ακύρωσε. Η αφαίρεση από τον
+    /// τζίρο (SalesStatsService) γίνεται ξεχωριστά από τον καλούντα (βλ. LiveOrdersViewModel), ίδια λογική
+    /// με το CancelRound του τραπεζιού (δύο ξεχωριστά services, δύο ξεχωριστές κλήσεις sync).</summary>
+    public void Cancel(BoardOrder order)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/board/cancel", new { order.OrderNumber });
+            return;
+        }
+        Orders.Remove(order);
+        Notify();
+    }
+
+    public void RevertToPending(BoardOrder order)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/board/revert", new { order.OrderNumber });
+            return;
+        }
+        order.SentVia = null;
+        order.SentAt = null;
+        Notify();
+    }
+
+    /// <summary>Κλείσιμο ημέρας — αδειάζει τον πίνακα, εκκρεμείς και ήδη περασμένες σε κανάλι, ώστε το
+    /// επόμενο άνοιγμα να μη δείχνει ζωντανές παραγγελίες της προηγούμενης μέρας (βλ. DayReportService.CloseDay).</summary>
+    public void Clear()
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/board/clear", new { });
+            return;
+        }
+        Orders.Clear();
+        Notify();
+    }
+
+    /// <summary>Αφαιρεί μόνο τις εγγραφές παλιότερης ημέρας-επιχείρησης, χωρίς να αδειάσει τον πίνακα
+    /// της τρέχουσας βάρδιας — βλ. SalesStatsService.RemoveOtherBusinessDays για το γιατί.</summary>
+    public void RemoveOtherBusinessDays(DateTime keep)
+    {
+        var stale = Orders.Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != keep).ToList();
+        if (stale.Count == 0)
+            return;
+        foreach (var o in stale)
+            Orders.Remove(o);
+        Notify();
+    }
+
+    private void Notify()
+    {
+        PendingCount = Orders.Count(o => o.IsPending);
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Τα κανάλια που παραδίδει ο δικός μας διανομέας — βλ. ChannelInfo.All· e-food/Wolt δεν
+    /// μπαίνουν εδώ, τα παραδίδει η ίδια η πλατφόρμα.</summary>
+    private static readonly string[] DriverChannels = ["Διανομέας", "Κάρτα Διανομέα", "BOX Μετρητά", "BOX Κάρτα"];
+
+    /// <summary>Αναλυτική αναφορά διανομέα — όλες οι παραγγελίες που πέρασαν σήμερα σε κανάλι διανομέα
+    /// (μετρητά/κάρτα, ΔΙΑΝΟΜΗ ή BOX), μία-μία με διεύθυνση, και σύνολο τζίρου στο τέλος. Για εκτύπωση
+    /// πριν βγει ο διανομέας — βλ. ReceiptPrinter.PrintDriverReport.</summary>
+    public string BuildDriverReport()
+    {
+        var greek = CultureInfo.GetCultureInfo("el-GR");
+        var orders = Orders
+            .Where(o => o.SentVia is not null && DriverChannels.Contains(o.SentVia))
+            .OrderBy(o => o.SentAt ?? o.PlacedAt)
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ — ΔΙΑΝΟΜΕΑΣ");
+        sb.AppendLine(DateTime.Now.ToString("dddd d MMMM yyyy · HH:mm", greek));
+        sb.AppendLine(new string('=', 40));
+        sb.AppendLine();
+        sb.AppendLine($"ΣΥΝΟΛΟ ΤΖΙΡΟΥ: {Order.FormatPrice(orders.Sum(o => o.Total))}  ({orders.Count} παρ.)");
+
+        // Μετρητά/κάρτα βγαίνουν κατευθείαν από το SentVia (το ίδιο το κανάλι λέει ήδη ποιο είναι) —
+        // δεν χρειάζεται να ξαναφιλτράρουμε με βάση PaymentMethod, DriverChannels ήδη τα καλύπτει όλα.
+        var cash = orders.Where(o => o.SentVia is "Διανομέας" or "BOX Μετρητά").ToList();
+        var card = orders.Where(o => o.SentVia is "Κάρτα Διανομέα" or "BOX Κάρτα").ToList();
+        sb.AppendLine($"  Μετρητά: {Order.FormatPrice(cash.Sum(o => o.Total))}  ({cash.Count} παρ.)");
+        sb.AppendLine($"  Κάρτες:  {Order.FormatPrice(card.Sum(o => o.Total))}  ({card.Count} παρ.)");
+
+        sb.AppendLine(new string('-', 40));
+        sb.AppendLine();
+
+        foreach (var o in orders)
+        {
+            sb.AppendLine($"#{o.DisplayNumber} · {o.SentVia} · {o.Name}   {o.TotalLabel}");
+            if (o.Address.Length > 0)
+                sb.AppendLine($"    {o.Address}");
+        }
+        return sb.ToString();
+    }
+}

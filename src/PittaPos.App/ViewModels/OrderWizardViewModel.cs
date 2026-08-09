@@ -1,0 +1,1357 @@
+using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using PittaPos.App.Services;
+using PittaPos.Core.Data;
+using PittaPos.Core.Models;
+
+namespace PittaPos.App.ViewModels;
+
+/// <summary>Βήμα στο stepper.</summary>
+public class StepItemViewModel
+{
+    public int Number { get; init; }
+    public required string Label { get; init; }
+    public bool IsActive { get; init; }
+    public bool IsReachable { get; init; }
+    public bool ShowArrow { get; init; }
+}
+
+/// <summary>Κάρτα τύπου παραγγελίας στο Βήμα 1.</summary>
+public partial class OrderTypeOptionViewModel : ObservableObject
+{
+    public required OrderType Key { get; init; }
+    public required string Label { get; init; }
+    public required string Sub { get; init; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+/// <summary>Κάρτα τραπεζιού στο Βήμα 1 — ελεύθερο, ή ανοιχτό με τρέχον σύνολο.</summary>
+public partial class TableOptionViewModel : ObservableObject
+{
+    public int Number { get; init; }
+    public bool IsOpen { get; init; }
+    public decimal Total { get; init; }
+    public int RoundCount { get; init; }
+    public DateTime? LastOrderAt { get; init; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    /// <summary>Θέση στην κάτοψη — ο χρήστης τη σέρνει ελεύθερα (βλ. TableLayoutService).</summary>
+    [ObservableProperty]
+    private double _x;
+
+    [ObservableProperty]
+    private double _y;
+
+    public string TotalLabel => Order.FormatPrice(Total);
+    public string RoundCountLabel => RoundCount == 1 ? "1 παραγγελία" : RoundCount + " παραγγελίες";
+    public string LastOrderLabel => LastOrderAt is { } t ? "τελευταία " + t.ToString("HH:mm") : "";
+}
+
+/// <summary>Πλατφόρμα εφαρμογών (Βήμα 4) με το χρώμα της.</summary>
+public partial class AppMethodViewModel : ObservableObject
+{
+    public required string Name { get; init; }
+    public required Brush Color { get; init; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public partial class PickupTimeViewModel : ObservableObject
+{
+    public required string Label { get; init; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
+public class CustomerMatchViewModel
+{
+    public required Customer Customer { get; init; }
+    public string Name => Customer.Name;
+    public string Detail => string.Join(" · ",
+        new[] { Customer.Phone, Customer.Address, Customer.Area }.Where(s => s.Length > 0))
+        + (Customer.OtherAddresses.Count > 0 ? "  ·  +" + Customer.OtherAddresses.Count + " ακόμη διεύθυνση" : "");
+}
+
+/// <summary>Μία επιλογή στο picker αποθηκευμένων διευθύνσεων πελάτη (Βήμα 2) — η κύρια διεύθυνση του
+/// Customer μαζί με όσες άλλες έχει (βλ. Customer.OtherAddresses).</summary>
+public class CustomerAddressOptionViewModel
+{
+    public required string Label { get; init; }
+    public required string Address { get; init; }
+    public required string StreetNumber { get; init; }
+    public required string Area { get; init; }
+    public required string PostalCode { get; init; }
+    public required string Floor { get; init; }
+    /// <summary>Αν διαγραφεί, η κύρια διεύθυνση χρειάζεται διαφορετικό χειρισμό (προαγωγή επόμενης, βλ.
+    /// CustomerStore.RemoveMainAddress) από τις άλλες (CustomerStore.RemoveOtherAddress).</summary>
+    public required bool IsMain { get; init; }
+}
+
+/// <summary>Πρόταση διεύθυνσης από τον χάρτη, καθώς πληκτρολογεί ο ταμίας (βλ. DeliveryRouteService).</summary>
+public class AddressSuggestionViewModel
+{
+    public required DeliveryRouteService.AddressSuggestion Suggestion { get; init; }
+    public string Display => Suggestion.Display;
+
+    /// <summary>Οδός/αριθμός — πρώτο κομμάτι πριν το πρώτο κόμμα, σε έντονα. Το Nominatim επιστρέφει
+    /// ολόκληρη διεύθυνση σε ένα string («Λεωφ. Χ 12, Δήμος, Περιφέρεια, Τ.Κ., Ελλάδα») — ο χωρισμός
+    /// δείχνει πρώτα το πιο χρήσιμο κομμάτι, σαν προτάσεις του Google Maps.</summary>
+    public string Primary => Display.Split(',')[0].Trim();
+
+    /// <summary>Ό,τι απομένει μετά το πρώτο κόμμα — περιοχή/πόλη, σε μικρότερα/πιο αχνά γράμματα.</summary>
+    public string Secondary => Display.Contains(',') ? Display[(Display.IndexOf(',') + 1)..].Trim() : "";
+    public bool HasSecondary => Secondary.Length > 0;
+}
+
+/// <summary>Το 5-βημα wizard παραγγελίας — κατέχει την κατάσταση και τη ροή.</summary>
+public partial class OrderWizardViewModel : ObservableObject
+{
+    public OrderWizardViewModel()
+    {
+        Products = new ProductsViewModel
+        {
+            ContinueRequested = ContinueStep3,
+            BackRequested = BackStep3,
+        };
+
+        // Σειρά κατά συχνότητα χρήσης στο μαγαζί: όρθιος πελάτης πρώτος, διανομή τελευταία.
+        OrderTypeOptions =
+        [
+            new() { Key = Core.Models.OrderType.Pickup, Label = "ΟΡΘΙΟΣ", Sub = "Από το κατάστημα" },
+            new() { Key = Core.Models.OrderType.Table, Label = "ΤΡΑΠΕΖΙ", Sub = "Επί τόπου" },
+            new() { Key = Core.Models.OrderType.Apps, Label = "ΕΦΑΡΜΟΓΕΣ", Sub = "e-food · Wolt · BOX" },
+            new() { Key = Core.Models.OrderType.Delivery, Label = "ΔΙΑΝΟΜΗ", Sub = "Ίδιος διανομέας" },
+        ];
+        TableNumbers = [];
+        RebuildTableNumbers();
+        SettingsStore.Instance.Changed += RebuildTableNumbers;
+        SettingsStore.Instance.Changed += () => OnPropertyChanged(nameof(IsEveningShift));
+        SalesStatsService.Instance.Changed += RebuildTableNumbers;
+        TableStatusService.Instance.Changed += RebuildTableNumbers;
+        TableSettlementService.Instance.Changed += RebuildTableNumbers;
+        TableLayoutService.Instance.Changed += RebuildTableNumbers;
+        AppMethods =
+        [
+            new() { Name = "e-food", Color = new SolidColorBrush(Color.FromRgb(0xd3, 0x2f, 0x2f)) },
+            new() { Name = "Wolt", Color = new SolidColorBrush(Color.FromRgb(0x15, 0x65, 0xc0)) },
+            new() { Name = "BOX", Color = new SolidColorBrush(Color.FromRgb(0xb8, 0x86, 0x0b)) },
+        ];
+        PickupTimes = new ObservableCollection<PickupTimeViewModel>(
+            MenuSeed.PickupTimes.Select(t => new PickupTimeViewModel { Label = t }));
+
+        Products.OrderNumber = NextDisplayNumber();
+    }
+
+    /// <summary>Τρέχουσα βάρδια — κοινός χειροκίνητος διακόπτης (Αρχική/Ζωντανές Παραγγελίες), ποτέ αυτόματος.</summary>
+    public bool IsEveningShift => SettingsStore.Instance.Settings.IsEveningShift;
+
+    [RelayCommand]
+    private void SelectMorningShift() => SettingsStore.Instance.SetShift(false);
+
+    [RelayCommand]
+    private void SelectEveningShift() => SettingsStore.Instance.SetShift(true);
+
+    /// <summary>
+    /// Ξαναφτιάχνει τη λίστα τραπεζιών από τις ρυθμίσεις — ελεύθερο/ανοιχτό, τρέχον σύνολο,
+    /// κρατά επιλεγμένο ό,τι υπάρχει ακόμα.
+    /// </summary>
+    private void RebuildTableNumbers()
+    {
+        var selected = TableNumber;
+        var orders = SalesStatsService.Instance.Orders.Where(o => o.Type == Core.Models.OrderType.Table).ToList();
+        var openSince = TableStatusService.Instance.OpenSince;
+
+        TableNumbers.Clear();
+        foreach (var n in Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount))
+        {
+            var isOpen = openSince.TryGetValue(n, out var since);
+            // Μόνο οι γύροι από το τρέχον άνοιγμα του τραπεζιού — όχι παλιότερος πελάτης της ίδιας μέρας
+            var mine = isOpen
+                ? orders.Where(o => o.Who == "Τραπέζι " + n && o.PlacedAt >= since).ToList()
+                : [];
+            var pos = TableLayoutService.Instance.GetPosition(n);
+            TableNumbers.Add(new TableOptionViewModel
+            {
+                Number = n,
+                IsSelected = n == selected,
+                IsOpen = isOpen,
+                Total = OutstandingTotal(n, mine),
+                RoundCount = mine.Count,
+                LastOrderAt = mine.Count > 0 ? mine.Max(o => o.PlacedAt) : null,
+                X = pos.X,
+                Y = pos.Y,
+            });
+        }
+    }
+
+    /// <summary>Άθροισμα των γραμμών του τραπεζιού που δεν έχουν εξοφληθεί ξεχωριστά — όχι το αρχικό σύνολο.</summary>
+    private static decimal OutstandingTotal(int table, List<CompletedOrder> orders) => orders.Sum(o =>
+        o.Lines.Select((l, i) => (l, i))
+            .Where(x => !TableSettlementService.Instance.IsSettled(table, o.OrderNumber, x.i))
+            .Sum(x => x.l.Revenue));
+
+    /// <summary>Ελευθερώνει τραπέζι — δεν ξανατυπώνει τίποτα, κάθε γύρος έχει ήδη τυπωθεί.</summary>
+    [RelayCommand]
+    private void CloseTable(TableOptionViewModel table) => TableStatusService.Instance.MarkClosed(table.Number);
+
+    /// <summary>Λειτουργία «σύρε τα τραπέζια όπου θέλεις» στην κάτοψη, αντί για επιλογή τραπεζιού.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ArrangeButtonLabel))]
+    private bool _isArrangingTables;
+
+    public string ArrangeButtonLabel => IsArrangingTables ? "✓ ΤΕΛΟΣ ΔΙΑΤΑΞΗΣ" : "✥ ΔΙΑΤΑΞΗ ΤΡΑΠΕΖΙΩΝ";
+
+    [RelayCommand]
+    private void ToggleArrangeTables() => IsArrangingTables = !IsArrangingTables;
+
+    /// <summary>Καλείται από το MainWindow όταν ο χρήστης αφήνει ένα σερμένο τραπέζι — αποθηκεύει τη νέα θέση.</summary>
+    public void SaveTablePosition(TableOptionViewModel table) =>
+        TableLayoutService.Instance.SetPosition(table.Number, table.X, table.Y);
+
+    public ProductsViewModel Products { get; }
+    public OrderBoardService Board => OrderBoardService.Instance;
+    public IncomingCallService IncomingCall => IncomingCallService.Instance;
+
+    /// <summary>Ξεκινά καθαρή παραγγελία ΔΙΑΝΟΜΗΣ προσυμπληρωμένη από μια ειδοποίηση κλήσης — ο ταμίας
+    /// βλέπει/διορθώνει τα στοιχεία στο Βήμα 2 πριν προχωρήσει (π.χ. αν άλλαξε διεύθυνση). Δουλεύει
+    /// το ίδιο σε host και client — το CustomerStore είναι ήδη συγχρονισμένο και στα δύο.</summary>
+    [RelayCommand]
+    private void StartOrderFromIncomingCall(IncomingCallItem call)
+    {
+        var phone = call.Phone;
+        var customer = CustomerStore.Instance.FindByPhone(phone);
+        IncomingCallService.Instance.Dismiss(call.Id);
+
+        ResetForm();
+        var option = OrderTypeOptions.First(o => o.Key == Core.Models.OrderType.Delivery);
+        SelectOrderType(option);
+
+        CustomerPhone = phone;
+        if (customer is not null)
+        {
+            CustomerName = customer.Name;
+            // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξει τις
+            // προτάσεις διεύθυνσης (ίδιο πρόβλημα με SelectCustomer/SelectCustomerAddressOption).
+            _suppressAddressAutocomplete = true;
+            CustomerAddress = customer.Address;
+            _suppressAddressAutocomplete = false;
+            CustomerStreetNumber = customer.StreetNumber;
+            CustomerArea = customer.Area;
+            CustomerPostalCode = customer.PostalCode;
+            CustomerFloor = customer.Floor;
+            CustomerNotes = customer.Notes;
+            CustomerMemo = customer.Memo;
+            LoadCustomerAddressOptions(customer);
+        }
+    }
+
+    [RelayCommand]
+    private void DismissIncomingCall(IncomingCallItem call) => IncomingCallService.Instance.Dismiss(call.Id);
+
+    public ObservableCollection<OrderTypeOptionViewModel> OrderTypeOptions { get; }
+    public ObservableCollection<TableOptionViewModel> TableNumbers { get; }
+    public ObservableCollection<AppMethodViewModel> AppMethods { get; }
+    public ObservableCollection<PickupTimeViewModel> PickupTimes { get; }
+
+    /// <summary>
+    /// Ο αριθμός που ΔΕΙΧΝΕΙ η οθόνη όσο γράφεται η παραγγελία. Υπολογίζεται κάθε φορά από τη μία
+    /// πηγή αλήθειας (SalesStatsService.NextOrderNumber) αντί για δικό του μετρητή που αυξανόταν
+    /// τυφλά: έτσι δεν αποκλίνει από την πραγματικότητα μέσα στη βάρδια (π.χ. όταν έρθουν στο ενδιάμεσο
+    /// παραγγελίες από το κινητό ή το δεύτερο ταμείο). Ο ΟΡΙΣΤΙΚΟΣ αριθμός δεσμεύεται πάντα ξανά, την
+    /// τελευταία στιγμή, στο ContinueStep3 — αυτός εδώ είναι μόνο για εμφάνιση.
+    /// </summary>
+    private static int NextDisplayNumber() => SalesStatsService.Instance.NextOrderNumber();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStep1))]
+    [NotifyPropertyChangedFor(nameof(IsStep2))]
+    [NotifyPropertyChangedFor(nameof(IsStep3))]
+    [NotifyPropertyChangedFor(nameof(IsStep4))]
+    [NotifyPropertyChangedFor(nameof(IsStep5))]
+    [NotifyPropertyChangedFor(nameof(StepItems))]
+    [NotifyPropertyChangedFor(nameof(ShowHeader))]
+    private int _step = 1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StepItems))]
+    private int _maxStep = 1;
+
+    /// <summary>Καταχωρεί/ενημερώνει την παραγγελία στα στατιστικά όταν ολοκληρώνεται.</summary>
+    private void RecordStats()
+    {
+        _orderCompleted = true;
+
+        // Καταγραφή στο μόνιμο ιστορικό του πελάτη (διανομή/εφαρμογές) — και ενημέρωση προφίλ
+        if (OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps
+            && CustomerName.Trim().Length > 0)
+        {
+            CustomerStore.Instance.RecordOrder(CustomerName.Trim(), CustomerPhone.Trim(), CustomerAddress.Trim(),
+                CustomerStreetNumber.Trim(), CustomerArea.Trim(), CustomerPostalCode.Trim(), CustomerFloor.Trim(),
+                CustomerNotes.Trim(), Products.Total, Products.Cart.Select(l => (l.Name, l.Quantity)).ToList());
+        }
+
+        // Πρέπει να ανοίξει ΠΡΙΝ καταγραφεί η παραγγελία — αλλιώς η ώρα ανοίγματος μπορεί να βγει
+        // (λόγω I/O) ελάχιστα μετά το PlacedAt της ίδιας της παραγγελίας και να μη μετρήσει στο σύνολο.
+        if (OrderType == Core.Models.OrderType.Table && TableNumber is { } table)
+            TableStatusService.Instance.MarkOpen(table);
+
+        SalesStatsService.Instance.Record(new CompletedOrder
+        {
+            OrderNumber = Products.OrderNumber,
+            Type = OrderType ?? Core.Models.OrderType.Delivery,
+            Channel = OrderType == Core.Models.OrderType.Apps ? AppPlatform : null,
+            AppOrderRef = OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0 ? AppOrderRef.Trim() : null,
+            PaymentMethod = NeedsPaymentMethod ? SelectedPaymentMethod : null,
+            Who = OrderType == Core.Models.OrderType.Table
+                ? "Τραπέζι " + TableNumber
+                : CustomerName.Trim(),
+            Phone = ShowCustomerForm ? CustomerPhone.Trim() : "",
+            // Ίδια λογική με το PushBoardOrder — μόνο ΔΙΑΝΟΜΗ/BOX έχουν δικά μας στοιχεία παράδοσης
+            // (Wolt/e-food τα έχει ήδη η πλατφόρμα, ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ δεν έχουν καν πεδία διεύθυνσης).
+            // Ξεχωριστά πεδία (όχι μία σύνθετη πρόταση) — η απόδειξη τα τυπώνει σε ξεχωριστές γραμμές.
+            DeliveryAddress = ShowCustomerForm ? ComposeAddressLine() : "",
+            DeliveryFloor = ShowCustomerForm ? CustomerFloor.Trim() : "",
+            // Το CustomerNotes ΔΕΝ περιορίζεται σε ΔΙΑΝΟΜΗ/BOX σαν τα παραπάνω — το ίδιο πεδίο γεμίζει και
+            // από το κουμπί «💬 ΣΧΟΛΙΑ ΠΑΡΑΓΓΕΛΙΑΣ» στα Προϊόντα για ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ/ΕΦΑΡΜΟΓΕΣ (βλ.
+            // ShowOrderNoteButton, ProductsView.xaml) — πριν αυτό το fix, εκείνα τα σχόλια καταχωρούνταν
+            // αλλά δεν τυπώνονταν ποτέ στην απόδειξη.
+            DeliveryNotes = CustomerNotes.Trim(),
+            Total = Products.Total,
+            Lines = Products.Cart
+                .Select(l => new SoldLine(l.Name, l.Quantity, l.Total,
+                    string.Join("\n", new[] { l.DescLine1, l.DescLine2 }.Where(s => s.Length > 0)), l.DiscountPct,
+                    l.ProductId, l.Customization))
+                .ToList(),
+            OrderDiscountPct = Products.OrderDiscountPct,
+            IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift,
+        });
+    }
+
+    public bool IsStep1 => Step == 1;
+    public bool IsStep2 => Step == 2;
+    public bool IsStep3 => Step == 3;
+    public bool IsStep4 => Step == 4;
+    public bool IsStep5 => Step == 5;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTableGrid))]
+    [NotifyPropertyChangedFor(nameof(ShowOrderTypeCards))]
+    [NotifyPropertyChangedFor(nameof(ShowHeader))]
+    [NotifyPropertyChangedFor(nameof(ShowAddressField))]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(IsPickupOrder))]
+    [NotifyPropertyChangedFor(nameof(Step4Title))]
+    [NotifyPropertyChangedFor(nameof(Step4Sub))]
+    [NotifyPropertyChangedFor(nameof(ReceiptTypeLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptWhoLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptWho))]
+    [NotifyPropertyChangedFor(nameof(StepItems))]
+    [NotifyPropertyChangedFor(nameof(ShowOrderNoteButton))]
+    [NotifyPropertyChangedFor(nameof(ShowCustomerForm))]
+    [NotifyPropertyChangedFor(nameof(ShowAppPlatformPicker))]
+    [NotifyPropertyChangedFor(nameof(ShowStep2ContinueButton))]
+    [NotifyPropertyChangedFor(nameof(Step2Header))]
+    [NotifyPropertyChangedFor(nameof(Step2Sub))]
+    [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
+    private OrderType? _orderType;
+
+    /// <summary>ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ/ΕΦΑΡΜΟΓΕΣ δεν έχουν σχόλια πελάτη στο Βήμα 2 — δίνε κουμπί σχολίων μέσα στα Προϊόντα.</summary>
+    public bool ShowOrderNoteButton => SkipsStep2;
+
+    /// <summary>Βήμα 2 για ΔΙΑΝΟΜΗ, και για BOX (βλ. SelectAppMethod) — οι δύο περιπτώσεις που πραγματικά
+    /// χρειάζονται στοιχεία πελάτη (όνομα/διεύθυνση), γιατί τις παραδίδει δικός μας διανομέας. Ο τρόπος
+    /// πληρωμής πλέον ρωτιέται στο Βήμα 3 (Προϊόντα, βλ. ProductsView) — όχι εδώ.</summary>
+    public bool ShowCustomerForm => OrderType == Core.Models.OrderType.Delivery
+        || (OrderType == Core.Models.OrderType.Apps && AppPlatform == "BOX");
+
+    /// <summary>Ποιοι τύποι παραγγελίας ρωτάνε τρόπο πληρωμής στο τέλος (βλ. ShowPaymentPrompt/
+    /// ContinueStep3) — ΔΙΑΝΟΜΗ/BOX (βλ. ShowCustomerForm, τα παραδίδει δικός μας διανομέας) ΚΑΙ ΠΑΡΑΛΑΒΗ
+    /// (ο πελάτης πληρώνει στο ταμείο όταν παραλαμβάνει). ΤΡΑΠΕΖΙ/e-food/Wolt δεν το χρειάζονται.</summary>
+    public bool NeedsPaymentMethod => ShowCustomerForm || OrderType == Core.Models.OrderType.Pickup;
+
+    /// <summary>Βήμα 2 για ΕΦΑΡΜΟΓΕΣ — αντί για στοιχεία πελάτη (τα έχει ήδη η ίδια η εφαρμογή), επιλογή
+    /// πλατφόρμας πρώτα-πρώτα, πριν τα προϊόντα (βλ. SelectAppMethod). Το πεδίο αριθμού παραγγελίας
+    /// (βλ. AppOrderRef) φαίνεται εδώ για όλες τις πλατφόρμες — υποχρεωτικό για Wolt/e-food, προαιρετικό
+    /// για BOX (βλ. Step2ContinueEnabled).</summary>
+    public bool ShowAppPlatformPicker => OrderType == Core.Models.OrderType.Apps;
+
+    /// <summary>Το κουμπί «ΣΥΝΕΧΕΙΑ» χρειάζεται πλέον και οι ΕΦΑΡΜΟΓΕΣ — πριν, το Wolt/e-food προχωρούσε
+    /// αυτόματα με το πάτημα της πλατφόρμας· τώρα ο αριθμός παραγγελίας είναι υποχρεωτικός γι' αυτά (βλ.
+    /// Step2ContinueEnabled), άρα ο ταμίας πρέπει πρώτα να τον γράψει και μετά να πατήσει ΣΥΝΕΧΕΙΑ.</summary>
+    public bool ShowStep2ContinueButton => OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps;
+
+    /// <summary>Ο αριθμός που δείχνει η οθόνη Προϊόντων πάνω δεξιά (και η απόδειξη) — για ΕΦΑΡΜΟΓΕΣ με
+    /// δηλωμένο αριθμό πλατφόρμας, αυτός είναι ο κύριος, ίδια λογική με BoardOrder.DisplayNumber, από
+    /// πριν καν καταχωρηθεί η παραγγελία στον πίνακα· διαφορετικά ο εσωτερικός μας μετρητής, όπως πάντα.</summary>
+    public string DisplayOrderNumber => OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0
+        ? AppOrderRef.Trim()
+        : Products.OrderNumber.ToString();
+
+    public string Step2Header => ShowAppPlatformPicker ? "Ποια εφαρμογή;" : "Στοιχεία πελάτη";
+    public string Step2Sub => ShowAppPlatformPicker
+        ? "Επίλεξε την πλατφόρμα παράδοσης"
+        : "Αναζήτησε με τηλέφωνο ή όνομα, ή συμπλήρωσε νέα στοιχεία";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptTypeLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptWho))]
+    private int? _tableNumber;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CustomerMatches))]
+    [NotifyPropertyChangedFor(nameof(HasCustomerMatches))]
+    private string _customerSearch = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptWho))]
+    private string _customerName = "";
+
+    [ObservableProperty]
+    private string _customerPhone = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    private string _customerAddress = "";
+
+    /// <summary>Αριθμός οδού — ξεχωριστό πεδίο, ώστε ο Χάρτης Διανομής να εντοπίζει ακριβώς το σημείο.</summary>
+    [ObservableProperty]
+    private string _customerStreetNumber = "";
+
+    [ObservableProperty]
+    private string _customerArea = "";
+
+    /// <summary>Ταχυδρομικός κώδικας — βοηθάει τη γεωκωδικοποίηση όταν η περιοχή έχει κοινό όνομα δρόμου.</summary>
+    [ObservableProperty]
+    private string _customerPostalCode = "";
+
+    [ObservableProperty]
+    private string _customerFloor = "";
+
+    /// <summary>Επιλογές για το dropdown ορόφου — σταθερή λίστα, ώστε να μη γράφεται ελεύθερο κείμενο
+    /// που μπερδεύει τη γεωκωδικοποίηση (βλ. DeliveryMapWindow.CleanAddressForGeocoding).</summary>
+    public static IReadOnlyList<string> FloorOptions { get; } =
+        // "ος" σκόπιμα με μικρά — κεφαλαίο "10ΟΣ" διαβάζεται σαν "100" (Ο δίπλα σε 1,0).
+        ["ΥΠΟΓΕΙΟ", "ΙΣΟΓΕΙΟ", "1ος", "2ος", "3ος", "4ος", "5ος", "6ος", "7ος", "8ος", "9ος", "10ος"];
+
+    /// <summary>Σχόλια διανομής — π.χ. «θέλει αναπάντητη».</summary>
+    [ObservableProperty]
+    private string _customerNotes = "";
+
+    /// <summary>Μόνιμη υπενθύμιση πελάτη (π.χ. «του χρωστάμε ένα γεύμα»).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCustomerMemo))]
+    private string _customerMemo = "";
+
+    public bool HasCustomerMemo => CustomerMemo.Trim().Length > 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(ReceiptTypeLabel))]
+    [NotifyPropertyChangedFor(nameof(ShowCustomerForm))]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
+    private string? _appPlatform;
+
+    /// <summary>Ο αριθμός παραγγελίας που δίνει η ίδια η πλατφόρμα (Wolt/e-food/BOX) — ώστε να αντιστοιχεί
+    /// η παραγγελία μας με αυτήν της εφαρμογής (π.χ. σε τηλεφώνημα διαφωνίας) και να φαίνεται σαν κύριος
+    /// αριθμός στις Ζωντανές Παραγγελίες (βλ. BoardOrder.DisplayNumber). Υποχρεωτικό για Wolt/e-food,
+    /// προαιρετικό για BOX — βλ. Step2ContinueEnabled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
+    [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
+    private string _appOrderRef = "";
+
+    /// <summary>Μετρητά ή κάρτα — μόνο για ΔΙΑΝΟΜΗ/BOX (βλ. ShowCustomerForm), ώστε ο διανομέας να ξέρει
+    /// πόσα μετρητά να έχει πάνω του. Ρωτιέται στο τέλος, με το banner (βλ. ShowPaymentPrompt), όχι στο
+    /// Βήμα 2 — ο ταμίας το επιλέγει αφού έχει ήδη δει το τελικό σύνολο, με λιγότερα λάθη.</summary>
+    [ObservableProperty]
+    private Core.Models.PaymentMethod? _selectedPaymentMethod;
+
+    /// <summary>Banner στη μέση της οθόνης, πάνω από όλα (βλ. MainWindow.xaml) — εμφανίζεται όταν ο ταμίας
+    /// πατήσει το τελικό «ΣΥΝΕΧΕΙΑ»/ΟΛΟΚΛΗΡΩΣΗ» για ΔΙΑΝΟΜΗ/BOX χωρίς να έχει διαλέξει ακόμα τρόπο
+    /// πληρωμής (βλ. ContinueStep3) — επιλογή εκεί ολοκληρώνει κατευθείαν την παραγγελία.</summary>
+    [ObservableProperty]
+    private bool _showPaymentPrompt;
+
+    [RelayCommand] private void SelectCashPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Cash);
+    [RelayCommand] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);
+
+    /// <summary>Κλείνει το banner τρόπου πληρωμής και επιστρέφει στην παραγγελία, χωρίς να καταχωρηθεί
+    /// τίποτα. Αρχικά δεν υπήρχε διέξοδος (η παραγγελία θεωρούνταν έτοιμη), αλλά στην πράξη ο ταμίας
+    /// θυμάται συχνά κάτι ξεχασμένο ακριβώς εκείνη τη στιγμή — χωρίς αυτό ήταν αναγκασμένος να
+    /// ολοκληρώσει και μετά να διορθώσει (ή να ακυρώσει) ολόκληρη παραγγελία.</summary>
+    [RelayCommand]
+    private void CancelPaymentPrompt() => ShowPaymentPrompt = false;
+
+    private void ChoosePaymentMethod(Core.Models.PaymentMethod method)
+    {
+        SelectedPaymentMethod = method;
+        if (!ShowPaymentPrompt)
+            return;
+        ShowPaymentPrompt = false;
+        ContinueStep3();
+    }
+
+    [ObservableProperty]
+    private string? _pickupTime;
+
+    // ---- header ----
+
+    public string OrderContextLabel
+    {
+        get
+        {
+            if (Step <= 1 || OrderType is null)
+                return "";
+            var type = TypeLabel();
+            return OrderType == Core.Models.OrderType.Table
+                ? type
+                : string.Join(" · ", new[] { type, CustomerName, CustomerAddress }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        }
+    }
+
+    private string TypeLabel()
+    {
+        var label = OrderType switch
+        {
+            Core.Models.OrderType.Delivery => "ΔΙΑΝΟΜΗ",
+            Core.Models.OrderType.Apps => "ΕΦΑΡΜΟΓΕΣ",
+            Core.Models.OrderType.Pickup => "ΟΡΘΙΟΣ",
+            Core.Models.OrderType.Table => "ΤΡΑΠΕΖΙ " + TableNumber,
+            _ => "",
+        };
+        if (OrderType == Core.Models.OrderType.Apps && AppPlatform is not null)
+            label += " · " + AppPlatform;
+        return label;
+    }
+
+    // ---- stepper ----
+
+    /// <summary>Η ετικέτα του Βήματος 2 αλλάζει για ΕΦΑΡΜΟΓΕΣ — δείχνει πλατφόρμα, όχι πελάτη.</summary>
+    private string[] StepLabels => ["1 ΤΥΠΟΣ", ShowAppPlatformPicker ? "2 ΕΦΑΡΜΟΓΗ" : "2 ΠΕΛΑΤΗΣ", "3 ΠΡΟΪΟΝΤΑ", "4 ΔΙΑΝΟΜΗ"];
+
+    /// <summary>ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ δεν έχουν Βήμα 2 (στοιχεία πελάτη) — να μη γίνεται προσβάσιμο, μπερδεύει.
+    /// ΕΦΑΡΜΟΓΕΣ επίσης δεν έχουν στοιχεία πελάτη πια (το Βήμα 2 δείχνει την επιλογή πλατφόρμας αντ' αυτού,
+    /// βλ. ShowAppPlatformPicker) — ο πελάτης είναι δικός της εφαρμογής, όχι δικός μας.</summary>
+    private bool SkipsStep2 => OrderType is Core.Models.OrderType.Table or Core.Models.OrderType.Pickup
+        or Core.Models.OrderType.Apps;
+
+    public IReadOnlyList<StepItemViewModel> StepItems =>
+        StepLabels.Select((label, i) => new StepItemViewModel
+        {
+            Number = i + 1,
+            Label = label,
+            IsActive = i + 1 == Step,
+            IsReachable = i + 1 <= MaxStep && !(i + 1 == 2 && SkipsStep2),
+            ShowArrow = i < 3,
+        }).ToList();
+
+    /// <summary>Η παραγγελία έφτασε στην εκτύπωση — επιστροφή στην αρχική σημαίνει νέα παραγγελία.</summary>
+    private bool _orderCompleted;
+
+    [RelayCommand]
+    private void GoToStep(int step)
+    {
+        // Επιστροφή στην αρχική = πάντα καθαρή φόρμα, μην κρατάει τα προηγούμενα
+        if (step == 1)
+        {
+            if (_orderCompleted)
+                NewOrder();
+            else
+                ResetForm();
+            return;
+        }
+        if (step == 2 && SkipsStep2)
+            return;
+        if (step <= MaxStep)
+            Step = step;
+    }
+
+    private void AdvanceTo(int step)
+    {
+        MaxStep = Math.Max(MaxStep, step);
+        Step = step;
+    }
+
+    // ---- βήμα 1 ----
+
+    public bool ShowTableGrid => OrderType == Core.Models.OrderType.Table;
+
+    /// <summary>Κρύβει τις κάρτες τύπου παραγγελίας όσο διαλέγεις τραπέζι — μόνο τραπέζι ή πίσω.</summary>
+    public bool ShowOrderTypeCards => !ShowTableGrid;
+
+    /// <summary>Ενόσω διαλέγεις τραπέζι, η κάτοψη γίνεται όλη η οθόνη — κρύβεται και το header.</summary>
+    public bool ShowHeader => !(Step == 1 && ShowTableGrid);
+
+    [RelayCommand]
+    private void SelectOrderType(OrderTypeOptionViewModel option)
+    {
+        OrderType = option.Key;
+        TableNumber = null;
+        foreach (var o in OrderTypeOptions)
+            o.IsSelected = o == option;
+        foreach (var t in TableNumbers)
+            t.IsSelected = false;
+        Products.ContinueLabel = option.Key == Core.Models.OrderType.Apps
+            ? "ΣΥΝΕΧΕΙΑ" : "ΣΥΝΕΧΕΙΑ · ΕΚΤΥΠΩΣΗ";
+        // Μόνο οι εφαρμογές (e-food/Wolt/BOX) έχουν δικό τους τιμοκατάλογο
+        Products.UseDeliveryPrices = option.Key == Core.Models.OrderType.Apps;
+
+        if (option.Key == Core.Models.OrderType.Table)
+            return; // περιμένει αριθμό τραπεζιού
+        AdvanceTo(option.Key == Core.Models.OrderType.Pickup ? 3 : 2);
+    }
+
+    [RelayCommand]
+    private void SelectTable(TableOptionViewModel table)
+    {
+        if (IsArrangingTables)
+            return;
+        if (table.IsOpen)
+        {
+            TableDetailRequested?.Invoke(table.Number);
+            return;
+        }
+        TableNumber = table.Number;
+        foreach (var t in TableNumbers)
+            t.IsSelected = t == table;
+        AdvanceTo(3);
+    }
+
+    /// <summary>Ζητά προβολή λεπτομερειών ανοιχτού τραπεζιού (τι έχει παραγγελθεί, εξόφληση ανά προϊόν).</summary>
+    public event Action<int>? TableDetailRequested;
+
+    /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ Νέα παραγγελία».</summary>
+    public void StartNewRoundForTable(int number)
+    {
+        TableNumber = number;
+        foreach (var t in TableNumbers)
+            t.IsSelected = t.Number == number;
+        AdvanceTo(3);
+    }
+
+    /// <summary>Κλικ στο κενό φόντο του Βήματος 1 κάνει deselect.</summary>
+    [RelayCommand]
+    private void DeselectOrderType()
+    {
+        OrderType = null;
+        TableNumber = null;
+        foreach (var o in OrderTypeOptions)
+            o.IsSelected = false;
+        foreach (var t in TableNumbers)
+            t.IsSelected = false;
+    }
+
+    // ---- βήμα 2 ----
+
+    public bool ShowAddressField => OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps;
+    /// <summary>ΔΙΑΝΟΜΗ: όνομα. ΕΦΑΡΜΟΓΕΣ: πλατφόρμα επιλεγμένη, και αριθμός παραγγελίας — υποχρεωτικός
+    /// για Wolt/e-food, προαιρετικός για BOX (που έχει ήδη το πιο σημαντικό: όνομα/διεύθυνση πελάτη).</summary>
+    public bool Step2ContinueEnabled
+    {
+        get
+        {
+            if (OrderType == Core.Models.OrderType.Apps)
+            {
+                if (string.IsNullOrWhiteSpace(AppPlatform))
+                    return false;
+                return AppPlatform == "BOX"
+                    ? !string.IsNullOrWhiteSpace(CustomerName)
+                    : AppOrderRef.Trim().Length > 0;
+            }
+            return !string.IsNullOrWhiteSpace(CustomerName);
+        }
+    }
+
+    public IReadOnlyList<CustomerMatchViewModel> CustomerMatches
+    {
+        get
+        {
+            // Μόνο το ειδικό πεδίο αναζήτησης ενεργοποιεί προτάσεις — τα κανονικά πεδία Τηλέφωνο/
+            // Διεύθυνση (όταν ο ταμίας απλώς καταχωρεί έναν νέο/υπάρχοντα πελάτη) δεν πρέπει να πετάνε
+            // απροειδοποίητα λίστα πελατών πάνω από τη φόρμα.
+            var q = CustomerSearch.Trim();
+            if (q.Length < 2)
+                return [];
+            return CustomerStore.Instance.Search(q)
+                // Μην ξαναδείχνεις τον ήδη επιλεγμένο πελάτη
+                .Where(c => c.Name != CustomerName || c.Phone != CustomerPhone || c.Address != CustomerAddress)
+                .Select(c => new CustomerMatchViewModel { Customer = c })
+                .ToList();
+        }
+    }
+
+    public bool HasCustomerMatches => CustomerMatches.Count > 0;
+
+    /// <summary>Επιλογές αποθηκευμένων διευθύνσεων του τρέχοντος πελάτη (κύρια + τυχόν άλλες, βλ.
+    /// Customer.OtherAddresses) — γεμίζει όταν φορτωθεί πελάτης (αναζήτηση ή εισερχόμενη κλήση), άδειο
+    /// για νέο/άγνωστο πελάτη. Το picker φαίνεται μόνο όταν υπάρχει πάνω από μία επιλογή.</summary>
+    public ObservableCollection<CustomerAddressOptionViewModel> CustomerAddressOptions { get; } = [];
+    public bool HasMultipleCustomerAddresses => CustomerAddressOptions.Count > 1;
+
+    /// <summary>Ο πελάτης που φόρτωσε τελευταία το picker διευθύνσεων — κρατιέται εδώ ώστε το
+    /// DeleteCustomerAddressOption να ξέρει σε ποιον να αφαιρέσει τη διεύθυνση (βλ. CustomerStore).</summary>
+    private Customer? _addressOptionsCustomer;
+
+    private void LoadCustomerAddressOptions(Customer customer)
+    {
+        _addressOptionsCustomer = customer;
+        IsAddingCustomerAddress = false;
+        CustomerAddressOptions.Clear();
+        if (customer.Address.Length > 0)
+        {
+            CustomerAddressOptions.Add(new CustomerAddressOptionViewModel
+            {
+                Label = "Κύρια" + (customer.Address.Length > 0 ? " · " + customer.Address : ""),
+                Address = customer.Address, StreetNumber = customer.StreetNumber, Area = customer.Area,
+                PostalCode = customer.PostalCode, Floor = customer.Floor, IsMain = true,
+            });
+        }
+        foreach (var other in customer.OtherAddresses)
+        {
+            // Πάντα από οδό+αριθμό, όχι από το αποθηκευμένο other.Label — αυτό μπορεί να έχει μείνει από
+            // παλιότερη λογική που έβαζε την περιοχή όταν έλειπε η οδός, ή απλά να είναι η περιοχή σε
+            // παλιά δεδομένα· ο ταμίας θέλει να βλέπει διεύθυνση στο κουμπί, όχι περιοχή.
+            var display = other.StreetNumber.Length > 0 ? other.Address + " " + other.StreetNumber : other.Address;
+            CustomerAddressOptions.Add(new CustomerAddressOptionViewModel
+            {
+                Label = display.Length > 0 ? display : (other.Area.Length > 0 ? other.Area : "Άλλη διεύθυνση"),
+                Address = other.Address, StreetNumber = other.StreetNumber, Area = other.Area,
+                PostalCode = other.PostalCode, Floor = other.Floor, IsMain = false,
+            });
+        }
+        OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
+        OnPropertyChanged(nameof(CanAddCustomerAddress));
+        OnPropertyChanged(nameof(ShowAddCustomerAddressButton));
+    }
+
+    /// <summary>Ο ταμίας πάτησε το × πάνω σε μια αποθηκευμένη διεύθυνση, κατευθείαν στο Βήμα 2 — χωρίς να
+    /// χρειάζεται να ανοίξει το παράθυρο ΠΕΛΑΤΕΣ. Ρωτάει πρώτα (ώστε ένα κατά λάθος πάτημα να μην πετάξει
+    /// αμέσως μια διεύθυνση) — αν διαγραφεί η κύρια, προάγεται αυτόματα η επόμενη αποθηκευμένη σε κύρια
+    /// (βλ. CustomerStore.RemoveMainAddress), δεν μένει ποτέ κενή αν υπάρχει άλλη επιλογή.</summary>
+    [RelayCommand]
+    private void DeleteCustomerAddressOption(CustomerAddressOptionViewModel option)
+    {
+        if (_addressOptionsCustomer is not { } customer)
+            return;
+
+        var message = option.IsMain
+            ? "Διαγραφή της κύριας διεύθυνσης «" + option.Label + "»;"
+                + (customer.OtherAddresses.Count > 0 ? "\n\nΘα γίνει κύρια η επόμενη αποθηκευμένη διεύθυνση." : "")
+            : "Διαγραφή της διεύθυνσης «" + option.Label + "»;";
+        var answer = MessageBox.Show(message, "Διαγραφή διεύθυνσης", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+            return;
+
+        if (option.IsMain)
+        {
+            CustomerStore.Instance.RemoveMainAddress(customer);
+        }
+        else
+        {
+            var address = new CustomerAddress
+            {
+                Address = option.Address, StreetNumber = option.StreetNumber, Area = option.Area,
+            };
+            CustomerStore.Instance.RemoveOtherAddress(customer, address);
+        }
+        LoadCustomerAddressOptions(customer);
+    }
+
+    private void ClearCustomerAddressOptions()
+    {
+        _addressOptionsCustomer = null;
+        CustomerAddressOptions.Clear();
+        IsAddingCustomerAddress = false;
+        OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
+        OnPropertyChanged(nameof(CanAddCustomerAddress));
+        OnPropertyChanged(nameof(ShowAddCustomerAddressButton));
+    }
+
+    /// <summary>Το κουμπί «+ Νέα διεύθυνση» φαίνεται μόνο για ήδη γνωστό πελάτη (βρέθηκε με τηλέφωνο/
+    /// όνομα) — για εντελώς νέο πελάτη δεν υπάρχει ακόμα Customer object να προστεθεί η διεύθυνση,
+    /// δημιουργείται μόνο όταν ολοκληρωθεί η παραγγελία (βλ. CustomerStore.Upsert).</summary>
+    public bool CanAddCustomerAddress => _addressOptionsCustomer is not null;
+    /// <summary>Το κουμπί κρύβεται όσο είναι ήδη ανοιχτή η φόρμα προσθήκης (βλ. παρακάτω).</summary>
+    public bool ShowAddCustomerAddressButton => CanAddCustomerAddress && !IsAddingCustomerAddress;
+
+    // ---- μικρή, ξεχωριστή φόρμα «νέα διεύθυνση πελάτη» (Βήμα 2) — δικά της πεδία, ΟΧΙ τα πεδία της
+    // τρέχουσας παραγγελίας, ώστε να μην μπερδεύεται ο ταμίας για το ποια διεύθυνση επεξεργάζεται. ----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAddCustomerAddressButton))]
+    private bool _isAddingCustomerAddress;
+    [ObservableProperty]
+    private string _newAddressStreet = "";
+    [ObservableProperty]
+    private string _newAddressNumber = "";
+    [ObservableProperty]
+    private string _newAddressArea = "";
+    [ObservableProperty]
+    private string _newAddressPostalCode = "";
+    [ObservableProperty]
+    private string _newAddressFloor = "";
+
+    [RelayCommand]
+    private void ShowAddCustomerAddressForm()
+    {
+        NewAddressStreet = NewAddressNumber = NewAddressArea = NewAddressPostalCode = NewAddressFloor = "";
+        IsAddingCustomerAddress = true;
+    }
+
+    [RelayCommand]
+    private void CancelAddCustomerAddress() => IsAddingCustomerAddress = false;
+
+    /// <summary>Ο ταμίας γέμισε τη ξεχωριστή φόρμα «νέα διεύθυνση» και πατά «Αποθήκευση» — προστίθεται
+    /// κατευθείαν στον πελάτη, χωρίς να χρειάζεται να ολοκληρωθεί πρώτα παραγγελία με αυτή τη διεύθυνση
+    /// (βλ. CustomerStore.AddOtherAddress). Επιλέγεται ΚΑΙ αυτόματα για την τρέχουσα παραγγελία — ο
+    /// ταμίας τη γράφει εδώ επειδή θέλει να παραδοθεί ΕΚΕΙ αυτή η παραγγελία, όχι απλώς να αποθηκευτεί
+    /// για το μέλλον· χωρίς αυτό η παραγγελία έφευγε με ό,τι διεύθυνση ήταν ήδη επιλεγμένη (συνήθως η
+    /// κύρια), εκτός αν ο ταμίας πατούσε ΚΑΙ το καινούριο κουμπί που εμφανίζεται μετά την αποθήκευση.</summary>
+    [RelayCommand]
+    private void ConfirmAddCustomerAddress()
+    {
+        if (_addressOptionsCustomer is not { } customer || NewAddressStreet.Trim().Length == 0)
+            return;
+        var street = NewAddressStreet.Trim();
+        var number = NewAddressNumber.Trim();
+        var area = NewAddressArea.Trim();
+        var postalCode = NewAddressPostalCode.Trim();
+        var floor = NewAddressFloor.Trim();
+
+        CustomerStore.Instance.AddOtherAddress(customer, street, number, area, postalCode, floor);
+        LoadCustomerAddressOptions(customer);
+        IsAddingCustomerAddress = false;
+
+        _suppressAddressAutocomplete = true;
+        CustomerAddress = street;
+        _suppressAddressAutocomplete = false;
+        CustomerStreetNumber = number;
+        CustomerArea = area;
+        CustomerPostalCode = postalCode;
+        CustomerFloor = floor;
+    }
+
+    // ---- προτάσεις διεύθυνσης για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια λογική με το OnCustomerAddressChanged
+    // παρακάτω, αλλά ξεχωριστή λίστα/dropdown (κάτω από το δικό της πεδίο Οδού), ώστε οι δύο φόρμες να μην
+    // μοιράζονται προτάσεις όταν είναι και οι δύο ορατές μαζί. ----
+
+    private CancellationTokenSource? _newAddressSuggestCts;
+    private bool _suppressNewAddressAutocomplete;
+    private string _lastNewAddressSuggestQuery = "";
+
+    public ObservableCollection<AddressSuggestionViewModel> NewAddressSuggestions { get; } = [];
+    public bool HasNewAddressSuggestions => NewAddressSuggestions.Count > 0;
+
+    partial void OnNewAddressStreetChanged(string value)
+    {
+        _newAddressSuggestCts?.Cancel();
+        if (_suppressNewAddressAutocomplete || value.Trim().Length < 3)
+        {
+            NewAddressSuggestions.Clear();
+            _lastNewAddressSuggestQuery = "";
+            OnPropertyChanged(nameof(HasNewAddressSuggestions));
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _newAddressSuggestCts = cts;
+        _ = DebouncedSuggestNewAddressAsync(value.Trim(), cts.Token);
+    }
+
+    private async Task DebouncedSuggestNewAddressAsync(string query, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(110, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        if (token.IsCancellationRequested)
+            return;
+
+        var results = await DeliveryRouteService.SuggestAddressesAsync(query);
+        if (token.IsCancellationRequested)
+            return;
+
+        // Ίδιο fix με το OnCustomerAddressChanged/DebouncedSuggestAddressAsync — κρατάμε τη λίστα ορατή
+        // και όταν ο ταμίας διαγράφει χαρακτήρες (backspace) πάνω στην ίδια διεύθυνση, όχι μόνο όταν
+        // γράφει προς τα εμπρός· αλλιώς κάθε backspace σε μισοτελειωμένη λέξη άδειαζε τη λίστα οριστικά.
+        if (results.Count == 0)
+        {
+            var sameAddress = _lastNewAddressSuggestQuery.Length > 0
+                && (query.StartsWith(_lastNewAddressSuggestQuery, StringComparison.OrdinalIgnoreCase)
+                    || _lastNewAddressSuggestQuery.StartsWith(query, StringComparison.OrdinalIgnoreCase));
+            if (!sameAddress)
+            {
+                NewAddressSuggestions.Clear();
+                OnPropertyChanged(nameof(HasNewAddressSuggestions));
+            }
+            return;
+        }
+
+        _lastNewAddressSuggestQuery = query;
+        NewAddressSuggestions.Clear();
+        foreach (var r in results)
+            NewAddressSuggestions.Add(new AddressSuggestionViewModel { Suggestion = r });
+        OnPropertyChanged(nameof(HasNewAddressSuggestions));
+    }
+
+    [RelayCommand]
+    private async Task SelectNewAddressSuggestion(AddressSuggestionViewModel item)
+    {
+        _newAddressSuggestCts?.Cancel();
+        NewAddressSuggestions.Clear();
+        _lastNewAddressSuggestQuery = "";
+        OnPropertyChanged(nameof(HasNewAddressSuggestions));
+
+        var suggestion = item.Suggestion;
+        if (suggestion.PlaceId is not null)
+        {
+            var resolved = await DeliveryRouteService.ResolveGooglePlaceAsync(suggestion.PlaceId);
+            if (resolved is not null)
+                suggestion = resolved;
+        }
+
+        var typedNumber = suggestion.HouseNumber.Length == 0
+            ? Regex.Match(NewAddressStreet, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim()
+            : "";
+
+        _suppressNewAddressAutocomplete = true;
+        NewAddressStreet = suggestion.Street;
+        _suppressNewAddressAutocomplete = false;
+        if (suggestion.HouseNumber.Length > 0)
+            NewAddressNumber = suggestion.HouseNumber;
+        else if (typedNumber.Length > 0 && NewAddressNumber.Trim().Length == 0)
+            NewAddressNumber = typedNumber;
+        if (suggestion.Area.Length > 0)
+            NewAddressArea = suggestion.Area;
+        if (suggestion.PostalCode.Length > 0)
+            NewAddressPostalCode = suggestion.PostalCode;
+    }
+
+    /// <summary>Ο ταμίας διάλεξε άλλη αποθηκευμένη διεύθυνση από το picker (Βήμα 2).</summary>
+    [RelayCommand]
+    private void SelectCustomerAddressOption(CustomerAddressOptionViewModel option)
+    {
+        _suppressAddressAutocomplete = true;
+        CustomerAddress = option.Address;
+        _suppressAddressAutocomplete = false;
+        CustomerStreetNumber = option.StreetNumber;
+        CustomerArea = option.Area;
+        CustomerPostalCode = option.PostalCode;
+        CustomerFloor = option.Floor;
+    }
+
+    [RelayCommand]
+    private void SelectCustomer(CustomerMatchViewModel match)
+    {
+        CustomerName = match.Customer.Name;
+        CustomerPhone = match.Customer.Phone;
+        // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξει τις
+        // προτάσεις διεύθυνσης (ίδιο πρόβλημα με το Τηλέφωνο/Διεύθυνση, βλ. CustomerMatches παραπάνω).
+        _suppressAddressAutocomplete = true;
+        CustomerAddress = match.Customer.Address;
+        _suppressAddressAutocomplete = false;
+        CustomerStreetNumber = match.Customer.StreetNumber;
+        CustomerArea = match.Customer.Area;
+        CustomerPostalCode = match.Customer.PostalCode;
+        CustomerFloor = match.Customer.Floor;
+        CustomerNotes = match.Customer.Notes;
+        CustomerMemo = match.Customer.Memo;
+        CustomerSearch = "";
+        LoadCustomerAddressOptions(match.Customer);
+    }
+
+    // ---- προτάσεις διεύθυνσης από τον χάρτη, ενόσω πληκτρολογεί (βλ. DeliveryRouteService) ----
+
+    private CancellationTokenSource? _addressSuggestCts;
+    private bool _suppressAddressAutocomplete;
+    /// <summary>Το τελευταίο κείμενο που έδωσε ΜΗ κενά αποτελέσματα — ώστε μια κενή απάντηση (βλ.
+    /// DebouncedSuggestAddressAsync) να ξέρουμε αν πρέπει να κρατήσουμε την τρέχουσα λίστα ορατή (ο
+    /// ταμίας απλά συνεχίζει να γράφει την ΙΔΙΑ διεύθυνση) ή να την αδειάσουμε (άλλαξε εντελώς κείμενο).</summary>
+    private string _lastAddressSuggestQuery = "";
+
+    public ObservableCollection<AddressSuggestionViewModel> AddressSuggestions { get; } = [];
+    public bool HasAddressSuggestions => AddressSuggestions.Count > 0;
+
+    /// <summary>Καλείται σε κάθε πληκτρολόγηση της διεύθυνσης — περιμένει λίγο πριν ρωτήσει τον
+    /// χάρτη (το Nominatim θέλει &lt;= 1 αίτημα/δευτ., δεν αντέχει ερώτημα ανά χαρακτήρα).</summary>
+    partial void OnCustomerAddressChanged(string value)
+    {
+        _addressSuggestCts?.Cancel();
+
+        // Δεν καθαρίζουμε τις προτάσεις εδώ, σε κάθε πάτημα πλήκτρου — μόνο όταν φτάσουν οι καινούριες
+        // (βλ. DebouncedSuggestAddressAsync) ή όταν η αναζήτηση ακυρώνεται εντελώς παρακάτω. Αλλιώς η
+        // λίστα άδειαζε στιγμιαία σε κάθε χαρακτήρα πριν ξαναγεμίσει — φαινόταν σαν να «χάνεται»/τρεμοπαίζει
+        // η αυτόματη συμπλήρωση ενώ ο ταμίας πληκτρολογεί, ακόμα και όταν τα γράμματα ταίριαζαν κανονικά.
+        if (_suppressAddressAutocomplete || !ShowAddressField || value.Trim().Length < 3)
+        {
+            AddressSuggestions.Clear();
+            _lastAddressSuggestQuery = "";
+            OnPropertyChanged(nameof(HasAddressSuggestions));
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _addressSuggestCts = cts;
+        _ = DebouncedSuggestAddressAsync(value.Trim(), cts.Token);
+    }
+
+    private async Task DebouncedSuggestAddressAsync(string query, CancellationToken token)
+    {
+        try
+        {
+            // 110ms — πιο άμεσο χωρίς να ρισκάρει το όριο του Nominatim (<=1 αίτημα/δευτ.): κάθε νέος
+            // χαρακτήρας ακυρώνει το προηγούμενο αναμονή, οπότε φεύγει αίτημα μόνο όταν ο ταμίας
+            // σταματήσει πραγματικά να πληκτρολογεί, όχι ανά χαρακτήρα — ο πραγματικός ρυθμός αιτημάτων
+            // δεν εξαρτάται από αυτή την τιμή, μόνο πόσο γρήγορα αντιδρά μετά το τελευταίο πάτημα.
+            await Task.Delay(110, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        if (token.IsCancellationRequested)
+            return;
+
+        var results = await DeliveryRouteService.SuggestAddressesAsync(query);
+        if (token.IsCancellationRequested)
+            return;
+
+        // Το Nominatim δεν κάνει καλό prefix-ταίριασμα σε μισοτελειωμένη λέξη (δοκιμασμένο: «28ης» δίνει
+        // αποτελέσματα, «28ης οκτ» δίνει μηδέν, μόνο η πλήρης «28ης Οκτωβρίου» ξαναδουλεύει) — μια κενή
+        // απάντηση εδώ είναι πολύ πιθανό να είναι στιγμιαία, όχι πραγματική «δεν υπάρχει τίποτα». Κρατάμε
+        // ορατή την τελευταία καλή λίστα όταν ο ταμίας συνεχίζει να επεξεργάζεται την ΙΔΙΑ διεύθυνση —
+        // είτε γράφοντας προς τα εμπρός (το νέο κείμενο ξεκινά με αυτό που έδωσε τη λίστα) ΕΙΤΕ διαγράφοντας
+        // μερικούς χαρακτήρες με backspace (το κείμενο που έδωσε τη λίστα ξεκινά με το νέο, μικρότερο
+        // κείμενο) — πριν έλεγχε μόνο την πρώτη κατεύθυνση, οπότε ΚΑΘΕ backspace που έπεφτε σε μισοτελειωμένη
+        // λέξη (πολύ συχνό, βλ. πάνω) άδειαζε αμέσως τη λίστα χωρίς να ξαναγεμίσει ποτέ, ακόμα κι αν ο
+        // ταμίας ξαναέγραφε προς τα εμπρός την ίδια σωστή διεύθυνση. Αλλιώς (κάτι εντελώς άλλο) πρέπει να
+        // αδειάσει, αλλιώς θα έδειχνε παλιές άσχετες προτάσεις.
+        if (results.Count == 0)
+        {
+            var sameAddress = _lastAddressSuggestQuery.Length > 0
+                && (query.StartsWith(_lastAddressSuggestQuery, StringComparison.OrdinalIgnoreCase)
+                    || _lastAddressSuggestQuery.StartsWith(query, StringComparison.OrdinalIgnoreCase));
+            if (!sameAddress)
+            {
+                AddressSuggestions.Clear();
+                OnPropertyChanged(nameof(HasAddressSuggestions));
+            }
+            return;
+        }
+
+        _lastAddressSuggestQuery = query;
+        AddressSuggestions.Clear();
+        foreach (var r in results)
+            AddressSuggestions.Add(new AddressSuggestionViewModel { Suggestion = r });
+        OnPropertyChanged(nameof(HasAddressSuggestions));
+    }
+
+    /// <summary>Στο Google, η πρόταση φτάνει με μόνο Display+PlaceId (βλ. DeliveryRouteService) — τα
+    /// πεδία της φόρμας λύνονται εδώ, μία φορά, μόνο για την επιλογή που πάτησε ο ταμίας.</summary>
+    [RelayCommand]
+    private async Task SelectAddressSuggestion(AddressSuggestionViewModel item)
+    {
+        _addressSuggestCts?.Cancel();
+        AddressSuggestions.Clear();
+        _lastAddressSuggestQuery = "";
+        OnPropertyChanged(nameof(HasAddressSuggestions));
+
+        var suggestion = item.Suggestion;
+        if (suggestion.PlaceId is not null)
+        {
+            var resolved = await DeliveryRouteService.ResolveGooglePlaceAsync(suggestion.PlaceId);
+            if (resolved is not null)
+                suggestion = resolved;
+        }
+
+        // Αν ο ταμίας έγραψε οδό ΚΑΙ αριθμό μαζί στο ίδιο κουτί (π.χ. «Μαγνησίας 12») αλλά το Nominatim
+        // δεν επέστρεψε house_number (δεν είναι πάντα καταχωρημένο ανά αριθμό στο OSM), ο αριθμός δεν
+        // πρέπει να χαθεί όταν το κουτί διεύθυνσης ξαναγραφεί με μόνο το όνομα δρόμου — τον κρατάμε από
+        // ό,τι είχε ήδη πληκτρολογηθεί και τον βάζουμε στο δικό του κουτί δίπλα.
+        var typedNumber = suggestion.HouseNumber.Length == 0
+            ? Regex.Match(CustomerAddress, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim()
+            : "";
+
+        _suppressAddressAutocomplete = true;
+        CustomerAddress = suggestion.Street;
+        _suppressAddressAutocomplete = false;
+        if (suggestion.HouseNumber.Length > 0)
+            CustomerStreetNumber = suggestion.HouseNumber;
+        else if (typedNumber.Length > 0 && CustomerStreetNumber.Trim().Length == 0)
+            CustomerStreetNumber = typedNumber;
+        if (suggestion.Area.Length > 0)
+            CustomerArea = suggestion.Area;
+        if (suggestion.PostalCode.Length > 0)
+            CustomerPostalCode = suggestion.PostalCode;
+    }
+
+    [RelayCommand] private void BackStep2() => ResetForm();
+
+    [RelayCommand]
+    private void ContinueStep2()
+    {
+        SaveCustomer();
+        Products.SetRepeatableOrder(FindLastOrderLines(CustomerName));
+        AdvanceTo(3);
+    }
+
+    /// <summary>Ψάχνει την πιο πρόσφατη ολοκληρωμένη παραγγελία αυτού του πελάτη (σημερινές + αρχείο
+    /// ιστορικού) για το κουμπί «μία από τα ίδια» στα προϊόντα. Ταίριασμα με το όνομα, γιατί το
+    /// αρχειοθετημένο ιστορικό δεν κρατάει τηλέφωνο ανά παραγγελία.</summary>
+    private static IReadOnlyList<SoldLine>? FindLastOrderLines(string customerName)
+    {
+        var name = customerName.Trim();
+        if (name.Length == 0)
+            return null;
+
+        return SalesStatsService.Instance.Orders
+            .Concat(HistoryArchiveService.LoadOrders(DateTime.Now.AddDays(-180), DateTime.Now))
+            .Where(o => string.Equals(o.Who.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(o => o.PlacedAt)
+            .FirstOrDefault()?.Lines;
+    }
+
+    /// <summary>Αποθηκεύει/ενημερώνει τον πελάτη ώστε να βρίσκεται στην αναζήτηση από εδώ και πέρα.</summary>
+    private void SaveCustomer()
+    {
+        if (OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps
+            && CustomerName.Trim().Length > 0)
+        {
+            CustomerStore.Instance.Upsert(CustomerName.Trim(), CustomerPhone.Trim(), CustomerAddress.Trim(),
+                CustomerStreetNumber.Trim(), CustomerArea.Trim(), CustomerPostalCode.Trim(), CustomerFloor.Trim(),
+                CustomerNotes.Trim());
+        }
+    }
+
+    // ---- βήμα 3 (μέσα στο ProductsViewModel) ----
+
+    private void BackStep3()
+    {
+        if (OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps)
+            Step = 2;
+        else if (OrderType == Core.Models.OrderType.Table)
+            BackToTableGrid();
+        else
+            ResetForm();
+    }
+
+    /// <summary>Πίσω από τα προϊόντα ενός τραπεζιού — γυρνά στην κάτοψη τραπεζιών, όχι στη γενική επιλογή τύπου.</summary>
+    private void BackToTableGrid()
+    {
+        Step = 1;
+        MaxStep = 1;
+        TableNumber = null;
+        _boardPushed = false;
+        _orderCompleted = false;
+        foreach (var t in TableNumbers) t.IsSelected = false;
+        Products.Reset(NextDisplayNumber());
+    }
+
+    /// <summary>Σηκώνεται όταν ολοκληρώνεται παραγγελία — τυπώνει αυτόματα την απόδειξη.</summary>
+    public event Action? AutoPrintRequested;
+
+    private void ContinueStep3()
+    {
+        // Τρόπος πληρωμής (Μετρητά/Κάρτα) ρωτιέται εδώ, στο τέλος — όχι στο Βήμα 2 — για να το επιλέγει
+        // ο ταμίας αφού έχει ήδη δει το τελικό σύνολο, με λιγότερα λάθη (βλ. SelectedPaymentMethod). Μόνο
+        // ΔΙΑΝΟΜΗ/BOX/ΠΑΡΑΛΑΒΗ το χρειάζονται (βλ. NeedsPaymentMethod). Δείχνει banner στη μέση της οθόνης
+        // (βλ. ShowPaymentPrompt, MainWindow.xaml) — η επιλογή εκεί ξαναπερνάει από εδώ (βλ.
+        // ChoosePaymentMethod) και ολοκληρώνει κατευθείαν την παραγγελία.
+        if (NeedsPaymentMethod && SelectedPaymentMethod is null)
+        {
+            ShowPaymentPrompt = true;
+            return;
+        }
+
+        // Ο έλεγχος βάρδιας ΠΡΙΝ δεσμευτεί αριθμός: δείχνει modal παράθυρο, και όσο αυτό είναι ανοιχτό το
+        // UI thread συνεχίζει να εξυπηρετεί άλλες εργασίες — π.χ. παραγγελία από το κινητό του σερβιτόρου.
+        // Αν ο αριθμός είχε ήδη δεσμευτεί, εκείνη θα προλάβαινε να πάρει τον ίδιο όσο περίμενε ο ταμίας.
+        if (!ConfirmShiftMatchesTime())
+            return;
+
+        // Φρέσκος αριθμός ΤΩΡΑ, όχι αυτός που δείχνει η οθόνη από νωρίτερα — βλ. SalesStatsService.NextOrderNumber
+        // για το γιατί (αποφυγή σιωπηλής απώλειας παραγγελίας σε σύγκρουση με το κινητό σερβιτόρου). Πρέπει
+        // να γίνει ΠΡΙΝ το PushBoardOrder, ώστε BoardOrder/CompletedOrder να μοιράζονται τον ίδιο αριθμό.
+        Products.OrderNumber = SalesStatsService.Instance.NextOrderNumber();
+
+        // ΕΦΑΡΜΟΓΕΣ έχει ήδη διαλέξει πλατφόρμα στο Βήμα 2 (βλ. SelectAppMethod) — ολοκληρώνεται
+        // εδώ μαζί με τη ΔΙΑΝΟΜΗ, και τα δύο περνάνε από τον πίνακα ζωντανών παραγγελιών.
+        if (OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps)
+            PushBoardOrder();
+        CompleteOrder();
+    }
+
+    /// <summary>Κλείνει την παραγγελία: καταγραφή, αυτόματη εκτύπωση και επιστροφή στην αρχική.
+    /// Ο έλεγχος βάρδιας έχει ήδη γίνει στο ContinueStep3 (βλ. εκεί γιατί πρέπει να προηγείται).</summary>
+    private void CompleteOrder()
+    {
+        RecordStats();
+        AutoPrintRequested?.Invoke();
+        NewOrder();
+    }
+
+    /// <summary>
+    /// Προειδοποίηση αν η επιλεγμένη βάρδια δεν ταιριάζει με την ώρα (πιθανό ξεχασμένος διακόπτης) —
+    /// βραδινή επιλεγμένη το πρωί/μεσημέρι (6:00–18:59), ή πρωινή επιλεγμένη μετά τις 19:00.
+    /// </summary>
+    private static bool ConfirmShiftMatchesTime()
+    {
+        var hour = DateTime.Now.Hour;
+        var evening = SettingsStore.Instance.Settings.IsEveningShift;
+        var mismatch = evening ? hour is >= 6 and < 19 : hour >= 19;
+        if (!mismatch)
+            return true;
+
+        var shiftLabel = evening ? "ΒΡΑΔΙΝΗ" : "ΠΡΩΙΝΗ";
+        var answer = MessageBox.Show(
+            $"Έχεις επιλεγμένη {shiftLabel} βάρδια, αλλά δεν ταιριάζει με την ώρα ({DateTime.Now:HH:mm}).\n\nΝα καταχωρηθεί έτσι η παραγγελία;",
+            "Έλεγχος βάρδιας", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        return answer == MessageBoxResult.Yes;
+    }
+
+    private bool _boardPushed;
+
+    /// <summary>Διεύθυνση + αριθμός + περιοχή + Τ.Κ. + όροφος + σχόλια σε μία γραμμή για τον πίνακα
+    /// διανομής. Σειρά σκόπιμη: οδός+αριθμός/περιοχή/Τ.Κ. πρώτα, χωρισμένα με κόμμα (ό,τι χρειάζεται
+    /// ο Χάρτης Διανομής για γεωκωδικοποίηση — βλ. DeliveryMapWindow.CleanAddressForGeocoding), μετά
+    /// ο όροφος με «·» και οι ελεύθερες σημειώσεις με «—» (δεν έχουν νόημα σε μια αναζήτηση χάρτη).</summary>
+    private string ComposeDeliveryInfo()
+    {
+        var info = ComposeAddressLine();
+
+        var floor = CustomerFloor.Trim();
+        if (floor.Length > 0)
+            info = info.Length > 0 ? info + " · " + floor : floor;
+
+        var notes = CustomerNotes.Trim();
+        if (notes.Length > 0)
+            info = info.Length > 0 ? info + " — " + notes : notes;
+        return info;
+    }
+
+    /// <summary>Μόνο οδός+αριθμός/περιοχή/Τ.Κ. — χωρίς όροφο/σχόλια (βλ. ComposeDeliveryInfo παραπάνω,
+    /// που τα προσθέτει για τον πίνακα διανομής). Χρησιμοποιείται στο CompletedOrder.DeliveryAddress, όπου
+    /// όροφος/σχόλια θέλουν να τυπωθούν σε ξεχωριστές γραμμές στην απόδειξη, όχι όλα μαζί σε μία πρόταση.</summary>
+    private string ComposeAddressLine()
+    {
+        var street = (CustomerAddress.Trim() + " " + CustomerStreetNumber.Trim()).Trim();
+        var parts = new[] { street, CustomerArea.Trim(), CustomerPostalCode.Trim() }.Where(s => s.Length > 0);
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>Καταχωρεί την παραγγελία στον πίνακα ζωντανών παραγγελιών (μία φορά ανά παραγγελία).</summary>
+    private void PushBoardOrder()
+    {
+        if (_boardPushed)
+            return;
+        _boardPushed = true;
+        Board.Add(new BoardOrder
+        {
+            OrderNumber = Products.OrderNumber,
+            Name = OrderType == Core.Models.OrderType.Table
+                ? "Τραπέζι " + TableNumber
+                : (string.IsNullOrWhiteSpace(CustomerName) ? "—" : CustomerName),
+            // BOX πλέον το παραδίδει δικός μας διανομέας (βλ. ShowCustomerForm) — θέλει την πραγματική
+            // διεύθυνση παράδοσης σαν τη ΔΙΑΝΟΜΗ. Wolt/e-food δεν έχουν δική μας διεύθυνση — ο αριθμός
+            // παραγγελίας της πλατφόρμας πάει πλέον στο δικό του πεδίο (βλ. AppOrderRef παρακάτω), όχι
+            // εδώ, ώστε να είναι ο κύριος αριθμός στις Ζωντανές Παραγγελίες (βλ. BoardOrder.DisplayNumber).
+            Address = OrderType == Core.Models.OrderType.Apps && AppPlatform != "BOX" ? "" : ComposeDeliveryInfo(),
+            Type = OrderType ?? Core.Models.OrderType.Delivery,
+            Channel = OrderType == Core.Models.OrderType.Apps ? AppPlatform : null,
+            AppOrderRef = OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0 ? AppOrderRef.Trim() : null,
+            PaymentMethod = ShowCustomerForm ? SelectedPaymentMethod : null,
+            Total = Products.Total,
+            IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift,
+        });
+    }
+
+    // ---- βήμα 4 ----
+
+    public bool IsPickupOrder => OrderType == Core.Models.OrderType.Pickup;
+    public string Step4Title => "Ώρα παραλαβής";
+    public string Step4Sub => "Πότε θα παραλάβει ο πελάτης";
+
+    /// <summary>Ο ταμίας διαλέγει πλατφόρμα στο Βήμα 2, πριν τα προϊόντα — μόνο επιλογή/highlight εδώ,
+    /// ΔΕΝ προχωράει αυτόματα πια (πριν, Wolt/e-food προχωρούσαν αμέσως) — ο αριθμός παραγγελίας είναι
+    /// πλέον υποχρεωτικός για Wolt/e-food (βλ. Step2ContinueEnabled), οπότε ο ταμίας πρέπει να πατήσει
+    /// «ΣΥΝΕΧΕΙΑ» μόνος του αφού τον γράψει, ίδια λογική με τη ΔΙΑΝΟΜΗ/BOX.</summary>
+    [RelayCommand]
+    private void SelectAppMethod(AppMethodViewModel method)
+    {
+        AppPlatform = method.Name;
+        foreach (var m in AppMethods)
+            m.IsSelected = m == method;
+    }
+
+    [RelayCommand]
+    private void SelectPickupTime(PickupTimeViewModel time)
+    {
+        PickupTime = time.Label;
+        foreach (var t in PickupTimes)
+            t.IsSelected = t == time;
+        AdvanceTo(5);
+    }
+
+    [RelayCommand] private void BackStep4() => Step = 3;
+
+    // ---- βήμα 5 ----
+
+    public string ReceiptTypeLabel => TypeLabel();
+    public string ReceiptWhoLabel => OrderType == Core.Models.OrderType.Table ? "Τραπέζι" : "Πελάτης";
+    public string ReceiptWho => OrderType == Core.Models.OrderType.Table
+        ? TableNumber?.ToString() ?? "—"
+        : (string.IsNullOrWhiteSpace(CustomerName) ? "—" : CustomerName);
+
+    [RelayCommand]
+    private void BackStep5() =>
+        Step = OrderType == Core.Models.OrderType.Apps ? 4 : 3;
+
+    [RelayCommand]
+    private void NewOrder()
+    {
+        ResetForm();
+    }
+
+    /// <summary>Καθαρίζει όλη τη φόρμα — κρατάει τον ίδιο αριθμό αν η παραγγελία δεν ολοκληρώθηκε.</summary>
+    private void ResetForm()
+    {
+        Step = 1;
+        MaxStep = 1;
+        OrderType = null;
+        TableNumber = null;
+        CustomerSearch = CustomerName = CustomerPhone = CustomerAddress = "";
+        CustomerStreetNumber = CustomerArea = CustomerPostalCode = "";
+        CustomerFloor = CustomerNotes = CustomerMemo = "";
+        ClearCustomerAddressOptions();
+        AppPlatform = null;
+        AppOrderRef = "";
+        SelectedPaymentMethod = null;
+        ShowPaymentPrompt = false;
+        PickupTime = null;
+        _boardPushed = false;
+        _orderCompleted = false;
+        IsArrangingTables = false;
+        foreach (var o in OrderTypeOptions) o.IsSelected = false;
+        foreach (var t in TableNumbers) t.IsSelected = false;
+        foreach (var m in AppMethods) m.IsSelected = false;
+        foreach (var t in PickupTimes) t.IsSelected = false;
+        Products.Reset(NextDisplayNumber());
+    }
+}

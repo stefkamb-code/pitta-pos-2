@@ -1,0 +1,156 @@
+﻿using System.IO;
+using System.Text.Json;
+
+namespace PittaPos.App.Services;
+
+/// <summary>
+/// Ποια τραπέζια είναι αυτή τη στιγμή «ανοιχτά» (έχουν ανοιχτό λογαριασμό) και από πότε —
+/// ώστε αν ένα τραπέζι ξανανοίξει την ίδια μέρα, το τρέχον σύνολο να μη μαζεύει τις παλιές
+/// παραγγελίες προηγούμενου πελάτη. Ένα τραπέζι ανοίγει αυτόματα με την πρώτη παραγγελία του
+/// και κλείνει χειροκίνητα. JSON στο %AppData%\PittaPos — ώστε ένα ξαφνικό κλείσιμο/restart
+/// να μη χάνει ποια ήταν ανοιχτά.
+/// </summary>
+public class TableStatusService
+{
+    public static TableStatusService Instance { get; } = new();
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
+    private readonly string _path;
+    private readonly Dictionary<int, DateTime> _openSince = [];
+
+    /// <summary>Σηκώνεται όταν ανοίγει/κλείνει τραπέζι.</summary>
+    public event Action? Changed;
+
+    public IReadOnlyDictionary<int, DateTime> OpenSince => _openSince;
+
+    private TableStatusService()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
+        Directory.CreateDirectory(dir);
+        _path = Path.Combine(dir, "table-status.json");
+        if (RemoteSync.IsClient)
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(2), RefreshFromHostAsync);
+        else
+            Load();
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — αντικαθιστά την τοπική εικόνα με την κατάσταση του host.</summary>
+    private async Task RefreshFromHostAsync()
+    {
+        var data = await RemoteSync.GetAsync<Dictionary<int, DateTime>>("/api/sync/table-status");
+        if (data is null)
+            return;
+        _openSince.Clear();
+        foreach (var (table, since) in data)
+            _openSince[table] = since;
+        Changed?.Invoke();
+    }
+
+    private void Load()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+                return;
+            var tables = JsonSerializer.Deserialize<Dictionary<int, DateTime>>(File.ReadAllText(_path)) ?? [];
+            foreach (var (table, since) in tables)
+                _openSince[table] = since;
+        }
+        catch (Exception)
+        {
+            // Χαλασμένο αρχείο — ξεκίνα άδειο αντί να ρίξεις την εφαρμογή
+        }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_openSince, JsonOpts));
+        }
+        catch (Exception)
+        {
+            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+        }
+    }
+
+    /// <summary>Σημειώνει το τραπέζι ανοιχτό (αν δεν ήταν ήδη) — καλείται αυτόματα με κάθε παραγγελία τραπεζιού.</summary>
+    public void MarkOpen(int table)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/table-status/open", new { Table = table });
+            return;
+        }
+        if (_openSince.ContainsKey(table))
+            return;
+        _openSince[table] = DateTime.Now;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Ελευθερώνει το τραπέζι — η επόμενη παραγγελία θα ξεκινήσει νέο, καθαρό σύνολο.</summary>
+    public void MarkClosed(int table)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/table-status/close", new { Table = table });
+            return;
+        }
+        TableSettlementService.Instance.ClearTable(table);
+        if (!_openSince.Remove(table))
+            return;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Κλείνει όλα τα ανοιχτά τραπέζια — καλείται στο κλείσιμο μέρας, ώστε ένα τραπέζι που έμεινε
+    /// ανοιχτό να μη μείνει «κολλημένο» σαν ανοιχτό με €0 την επόμενη μέρα (οι παραγγελίες του
+    /// έχουν ήδη αρχειοθετηθεί και καθαρίσει από το SalesStatsService).
+    /// </summary>
+    public void CloseAll()
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/table-status/close-all", new { });
+            return;
+        }
+        if (_openSince.Count == 0)
+            return;
+        foreach (var table in _openSince.Keys.ToList())
+            TableSettlementService.Instance.ClearTable(table);
+        _openSince.Clear();
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Καθαρίζει «φαντάσματα»: τραπέζια σημειωμένα ανοιχτά που δεν έχουν καμία ζωντανή παραγγελία
+    /// (π.χ. έκλεισε η μέρα ενώ ήταν ανοιχτά, πριν μπει το CloseAll). Καλείται μία φορά στο startup —
+    /// μόνο στο κύριο ταμείο (host)· το δεύτερο ταμείο διαβάζει έτοιμη κατάσταση από εκεί.
+    /// </summary>
+    public void CloseIfNoLiveOrders(Func<int, DateTime, bool> hasLiveOrders)
+    {
+        if (RemoteSync.IsClient)
+            return;
+        var stale = _openSince.Where(kv => !hasLiveOrders(kv.Key, kv.Value)).Select(kv => kv.Key).ToList();
+        if (stale.Count == 0)
+            return;
+        foreach (var table in stale)
+        {
+            TableSettlementService.Instance.ClearTable(table);
+            _openSince.Remove(table);
+        }
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — στέλνει τη μεταβολή στο host, μετά ξαναδιαβάζει την αληθινή κατάσταση.</summary>
+    private async Task SyncThenRefreshAsync(string path, object body)
+    {
+        await RemoteSync.PostAsync(path, body);
+        await RefreshFromHostAsync();
+    }
+}

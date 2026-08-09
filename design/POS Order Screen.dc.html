@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="_ds/modernist-73a22cdc-dee9-4d7e-9a3f-0c6831927ce0/styles.css">
+<style>
+body{margin:0;background:#cecac5;font-family:"Archivo",system-ui,sans-serif;color:#201e1d}
+.plist::-webkit-scrollbar,.tk::-webkit-scrollbar{width:8px}
+.plist::-webkit-scrollbar-thumb,.tk::-webkit-scrollbar-thumb{background:var(--color-neutral-400)}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+<div style="width:1280px;height:800px;display:flex;flex-direction:column;background:var(--color-bg);border:2px solid var(--color-divider);box-shadow:0 18px 50px rgba(45,43,43,.30);overflow:hidden">
+
+  <!-- header -->
+  <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none">
+    <div style="display:flex;align-items:center;gap:9px"><img src="assets/pitta-tou-pappou-logo-cropped.png" alt="" style="width:60px;height:60px;object-fit:contain;display:block" /><span style="font-weight:800;font-size:14px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</span></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <span style="font-size:12px;color:var(--color-neutral-700)">{{ orderContextLabel }}</span>
+      <a href="Live%20Orders%20Board.dc.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--color-divider);font-size:11.5px;font-weight:800;cursor:pointer;background:var(--color-surface);color:var(--color-text);text-decoration:none">ΠΑΡΑΓΓΕΛΙΕΣ<span style="background:var(--color-accent);color:#fff;border-radius:50%;min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;padding:0 4px">{{ boardPendingCount }}</span></a>
+      <div style="display:inline-flex;border:1px solid var(--color-divider);font-size:10.5px;font-weight:800"><span style="padding:4px 8px;background:var(--color-text);color:var(--color-bg)">EL</span><span style="padding:4px 8px;color:var(--color-neutral-600);border-left:1px solid var(--color-divider)">EN</span></div>
+      <span style="font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--color-neutral-700)">20:14</span>
+    </div>
+  </div>
+
+  <!-- stepper -->
+  <div style="display:flex;align-items:center;gap:0;height:42px;padding:0 18px;border-bottom:2px solid var(--color-divider);flex:none;font-size:11px;font-weight:800;letter-spacing:.05em">
+    <sc-for list="{{ stepItems }}" as="it" hint-placeholder-count="5">
+      <span style="{{ it.style }}" onClick="{{ it.onClick }}">{{ it.label }}</span>
+      <sc-if value="{{ it.showArrow }}" hint-placeholder-val="{{ true }}"><span style="margin:0 10px;color:var(--color-neutral-400)">▸</span></sc-if>
+    </sc-for>
+  </div>
+
+  <!-- ===================== STEP 1 — ΤΥΠΟΣ ===================== -->
+  <sc-if value="{{ isStep1 }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;padding:30px" onClick="{{ onStep1BgClick }}">
+    <div style="text-align:center">
+      <img src="assets/pitta-tou-pappou-logo-cropped.png" alt="" style="width:230px;height:auto;object-fit:contain;display:block;margin:0 auto 6px" />
+      <h2 style="font-size:28px;margin:0 0 8px">Τύπος παραγγελίας</h2>
+      <p style="font-size:13px;color:var(--color-neutral-600);margin:0">Επίλεξε πώς θα παραδοθεί η παραγγελία</p>
+    </div>
+    <div style="display:flex;gap:20px">
+      <sc-for list="{{ orderTypeOptions }}" as="ot" hint-placeholder-count="3">
+        <div style="{{ ot.style }}" onClick="{{ ot.onClick }}">
+          <div style="font-size:19px;font-weight:800">{{ ot.label }}</div>
+          <sc-if value="{{ ot.hasColorSub }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;margin-top:6px;font-weight:800">
+              <sc-for list="{{ ot.subParts }}" as="sp" hint-placeholder-count="3">
+                <span style="color:{{ sp.color }}">{{ sp.text }}</span><sc-if value="{{ sp.sep }}" hint-placeholder-val="{{ false }}"><span style="color:var(--color-neutral-500)"> · </span></sc-if>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ot.showPlainSub }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;margin-top:6px;{{ ot.subStyle }}">{{ ot.sub }}</div></sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ showTableGrid }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--color-neutral-600)">ΑΡΙΘΜΟΣ ΤΡΑΠΕΖΙΟΥ</div>
+        <div style="display:grid;grid-template-columns:repeat(6,56px);gap:10px">
+          <sc-for list="{{ tableNumbers }}" as="tb" hint-placeholder-count="12">
+            <div style="{{ tb.style }}" onClick="{{ tb.onClick }}">{{ tb.n }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ===================== STEP 2 — ΠΕΛΑΤΗΣ ===================== -->
+  <sc-if value="{{ isStep2 }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:40px 30px;gap:22px;overflow:auto">
+    <div style="width:520px">
+      <h2 style="font-size:24px;margin:0 0 4px">Στοιχεία πελάτη</h2>
+      <p style="font-size:13px;color:var(--color-neutral-600);margin:0 0 20px">Αναζήτησε με τηλέφωνο ή όνομα, ή συμπλήρωσε νέα στοιχεία</p>
+      <input class="input" placeholder="Τηλέφωνο ή όνομα…" value="{{ customerSearch }}" onChange="{{ onCustomerSearchChange }}" style="height:44px;font-size:15px;margin-bottom:10px" />
+      <sc-if value="{{ hasCustomerMatches }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid var(--color-divider);margin-bottom:16px">
+          <sc-for list="{{ customerMatches }}" as="cm" hint-placeholder-count="2">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--color-divider);cursor:pointer" onClick="{{ cm.onSelect }}">
+              <div><div style="font-size:14px;font-weight:800">{{ cm.name }}</div><div style="font-size:11.5px;color:var(--color-neutral-600)">{{ cm.phone }} · {{ cm.address }}</div></div>
+              <span style="font-size:11px;font-weight:800;color:var(--color-accent-700)">ΕΠΙΛΟΓΗ</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div class="field" style="margin-bottom:12px"><label>Ονοματεπώνυμο</label><input class="input" value="{{ customerName }}" onChange="{{ onCustomerNameChange }}" placeholder="π.χ. Μαρία Παπαδοπούλου" /></div>
+      <div class="field" style="margin-bottom:12px"><label>Τηλέφωνο</label><input class="input" value="{{ customerPhone }}" onChange="{{ onCustomerPhoneChange }}" placeholder="π.χ. 210 748 2210" /></div>
+      <sc-if value="{{ showAddressField }}" hint-placeholder-val="{{ true }}">
+        <div class="field" style="margin-bottom:4px"><label>Διεύθυνση</label><input class="input" value="{{ customerAddress }}" onChange="{{ onCustomerAddressChange }}" placeholder="π.χ. Λ. Βουλιαγμένης 142" /></div>
+      </sc-if>
+    </div>
+    <div style="width:520px;display:flex;justify-content:space-between;margin-top:auto">
+      <button class="btn btn-secondary" onClick="{{ onBackStep2 }}" style="height:46px;padding:0 20px;font-size:13px">← Πίσω</button>
+      <button class="btn btn-primary" disabled="{{ step2Disabled }}" onClick="{{ onContinueStep2 }}" style="height:46px;padding:0 24px;font-size:14px;gap:14px">ΣΥΝΕΧΕΙΑ<span>→</span></button>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===================== STEP 3 — ΠΡΟΪΟΝΤΑ ===================== -->
+  <sc-if value="{{ isStep3 }}" hint-placeholder-val="{{ false }}">
+  <div style="display:flex;flex:1;min-height:0">
+    <!-- category rail -->
+    <div style="width:170px;flex:none;border-right:2px solid var(--color-divider);overflow:auto;background:var(--color-surface)">
+      <sc-for list="{{ categories }}" as="cat" hint-placeholder-count="7">
+        <div style="{{ cat.style }}" onClick="{{ cat.onClick }}">{{ cat.name }}</div>
+      </sc-for>
+    </div>
+
+    <!-- main pane: tile grid OR customizer -->
+    <sc-if value="{{ isCustomizing }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+        <div style="flex:none;display:flex;align-items:center;gap:12px;padding:11px 20px;border-bottom:2px solid var(--color-divider)">
+          <span style="font-size:18px;color:var(--color-neutral-600);cursor:pointer" onClick="{{ onCloseCustomizer }}">←</span>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--color-accent-700)">{{ customizer.categoryLabel }}</span></div>
+            <div style="font-size:25px;font-weight:800;line-height:1.0;letter-spacing:-.025em">{{ customizer.productName }}</div>
+          </div>
+          <div style="display:flex;align-items:center;border:1px solid var(--color-divider);height:34px;background:var(--color-surface)">
+            <span style="width:30px;text-align:center;font-size:17px;color:var(--color-neutral-600);cursor:pointer" onClick="{{ customizer.onDecQty }}">−</span>
+            <span style="width:34px;text-align:center;font-weight:800;line-height:34px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">{{ customizer.qty }}</span>
+            <span style="width:30px;text-align:center;font-size:17px;color:var(--color-accent);cursor:pointer" onClick="{{ customizer.onIncQty }}">+</span>
+          </div>
+          <span style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;width:76px;text-align:right">{{ customizer.unitPriceLabel }}</span>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--color-divider)">
+          <span style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--color-neutral-600)">ΨΩΜΙ</span>
+          <div style="display:inline-flex;border:1px solid var(--color-divider)">
+            <sc-for list="{{ customizer.breadOptions }}" as="br" hint-placeholder-count="3">
+              <span style="{{ br.style }}" onClick="{{ br.onClick }}">{{ br.label }}</span>
+            </sc-for>
+          </div>
+          <span style="margin-left:auto;{{ customizer.sketoWrapStyle }}" onClick="{{ customizer.onToggleSketo }}"><span style="{{ customizer.sketoBoxStyle }}"></span>ΣΚΕΤΟ</span>
+        </div>
+        <div style="flex:none;padding:12px 20px 14px;border-bottom:1px solid var(--color-divider)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px"><span style="width:8px;height:8px;background:var(--color-text)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.08em">ΥΛΙΚΑ</span><span style="font-size:11.5px;color:var(--color-neutral-600)">περιλαμβάνονται — τάπα για αφαίρεση</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <sc-for list="{{ customizer.included }}" as="ing" hint-placeholder-count="6">
+              <span style="{{ ing.style }}" onClick="{{ ing.onClick }}"><span style="{{ ing.boxStyle }}">{{ ing.mark }}</span>{{ ing.name }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:center;gap:10px;padding:11px 20px 9px">
+            <span style="display:inline-flex;align-items:center;gap:9px"><span style="width:8px;height:8px;background:var(--color-accent)"></span><span style="font-size:11px;font-weight:800;letter-spacing:.08em">ΕΞΤΡΑ</span></span>
+            <input class="input" placeholder="Αναζήτηση έξτρα…" value="{{ customizer.extrasSearch }}" onChange="{{ customizer.onExtrasSearchChange }}" style="height:32px;max-width:240px;margin-left:auto" />
+          </div>
+          <div style="flex:1;overflow:auto;padding:0 20px 12px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <sc-for list="{{ customizer.extras }}" as="ex" hint-placeholder-count="12">
+                <div style="{{ ex.rowStyle }}" onClick="{{ ex.onRowClick }}">
+                  <span style="flex:1;font-size:13.5px;font-weight:600;{{ ex.nameStyle }}">{{ ex.name }}</span>
+                  <span style="font-size:12px;font-variant-numeric:tabular-nums;{{ ex.priceStyle }}">{{ ex.priceLabel }}</span>
+                  <sc-if value="{{ ex.active }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;border:1px solid var(--color-accent);height:24px">
+                      <span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px" onClick="{{ ex.onDec }}">−</span>
+                      <span style="width:28px;text-align:center;font-weight:800;line-height:24px;border-left:1px solid var(--color-accent);border-right:1px solid var(--color-accent);color:var(--color-accent-800)">{{ ex.qtyLabel }}</span>
+                      <span style="width:22px;text-align:center;color:var(--color-accent);line-height:24px" onClick="{{ ex.onInc }}">+</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="flex:none;border-top:2px solid var(--color-divider);padding:12px 20px;display:flex;align-items:center;gap:12px">
+          <input class="input" placeholder="Παρατηρήσεις για το είδος…" value="{{ customizer.note }}" onChange="{{ customizer.onNoteChange }}" style="flex:1;height:40px" />
+          <span style="display:inline-flex;align-items:center;gap:8px;padding:0 14px;height:40px;border:1px solid var(--color-divider);font-size:12.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer;white-space:nowrap" onClick="{{ customizer.onToggleNoCharge }}"><span style="{{ customizer.noChargeBoxStyle }}"></span>Χωρίς χρέωση</span>
+          <div style="display:inline-flex;align-items:center;border:1px solid var(--color-divider);height:40px">
+            <span style="padding:0 10px;font-size:14px;line-height:40px;cursor:pointer;color:var(--color-neutral-600)" onClick="{{ customizer.onDecDiscount }}">−</span>
+            <span style="padding:0 8px;font-size:11px;font-weight:800;letter-spacing:.05em;line-height:40px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">ΕΚΠΤ. {{ customizer.discountPct }}%</span>
+            <span style="padding:0 10px;font-size:14px;line-height:40px;cursor:pointer;color:var(--color-accent)" onClick="{{ customizer.onIncDiscount }}">+</span>
+          </div>
+          <button class="btn btn-primary" onClick="{{ customizer.onAdd }}" style="height:48px;padding:0 20px;justify-content:space-between;gap:18px;min-width:220px">ΠΡΟΣΘΗΚΗ<span style="font-variant-numeric:tabular-nums;font-size:17px">{{ customizer.totalLabel }}</span></button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isTileGrid }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:baseline;gap:10px;padding:12px 20px;border-bottom:2px solid var(--color-divider);flex:none"><h3 style="font-size:19px;margin:0">{{ activeCategoryName }}</h3><span style="font-size:12px;color:var(--color-neutral-600)">{{ productCount }} προϊόντα</span></div>
+        <div style="flex:1;overflow:auto;padding:16px 20px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for list="{{ products }}" as="pr" hint-placeholder-count="8">
+              <div style="{{ pr.style }}" onClick="{{ pr.onClick }}">
+                <sc-if value="{{ pr.showEdit }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:8px;width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--color-divider);background:var(--color-bg);font-size:11px;cursor:pointer;z-index:1" onClick="{{ pr.onEdit }}">✎</span></sc-if>
+                <div style="font-size:15px;font-weight:800;line-height:1.25;padding-right:20px">{{ pr.name }}</div>
+                <sc-if value="{{ pr.showEn }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--color-neutral-500);margin-top:2px">{{ pr.nameEn }}</div></sc-if>
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto">
+                  <sc-if value="{{ pr.hasQty }}" hint-placeholder-val="{{ false }}"><span style="width:26px;height:26px;background:var(--color-accent);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center;cursor:pointer" onClick="{{ pr.onDecrement }}" title="Αφαίρεση">{{ pr.qty }}</span></sc-if>
+                  <span style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-left:auto">{{ pr.priceLabel }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ticket -->
+    <div style="width:340px;flex:none;border-left:2px solid var(--color-divider);display:flex;flex-direction:column;background:var(--color-surface)">
+      <div style="flex:none;padding:12px 16px;border-bottom:2px solid var(--color-divider);display:flex;align-items:baseline;justify-content:space-between"><h3 style="font-size:16px;margin:0">ΠΑΡΑΓΓΕΛΙΑ #{{ orderNumber }}</h3><span style="font-size:11px;color:var(--color-neutral-600)">{{ cartCountLabel }}</span></div>
+      <div class="tk" style="flex:1;overflow:auto;padding:0 16px">
+        <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:24px 0;font-size:12.5px;color:var(--color-neutral-500);text-align:center">Άδεια παραγγελία</div></sc-if>
+        <sc-for list="{{ cartLines }}" as="ln" hint-placeholder-count="2">
+          <div style="padding:12px 0;border-bottom:1px solid var(--color-divider)">
+            <div style="display:flex;gap:9px;align-items:baseline">
+              <div style="display:flex;align-items:center;border:1px solid var(--color-divider);flex:none;height:24px;background:var(--color-bg)">
+                <span style="width:20px;text-align:center;font-size:13px;color:var(--color-neutral-600);cursor:pointer" onClick="{{ ln.onDec }}">−</span>
+                <span style="width:22px;text-align:center;font-weight:800;font-size:12px;line-height:22px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider)">{{ ln.qty }}</span>
+                <span style="width:20px;text-align:center;font-size:13px;color:var(--color-accent);cursor:pointer" onClick="{{ ln.onInc }}">+</span>
+              </div>
+              <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">{{ ln.name }}</div></div>
+              <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">{{ ln.totalLabel }}</span>
+              <sc-if value="{{ ln.canEdit }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--color-neutral-500);cursor:pointer;padding:0 2px" onClick="{{ ln.onEditLine }}" title="Επεξεργασία">✎</span></sc-if>
+              <span style="font-size:15px;color:var(--color-neutral-500);cursor:pointer;padding:0 2px" onClick="{{ ln.onRemove }}" title="Αφαίρεση είδους">×</span>
+            </div>
+            <sc-if value="{{ ln.hasDesc }}" hint-placeholder-val="{{ false }}"><div style="margin:5px 0 0 29px;font-size:11.5px;line-height:1.5;color:var(--color-neutral-600)">{{ ln.descLine1 }}</div></sc-if>
+            <sc-if value="{{ ln.hasMods }}" hint-placeholder-val="{{ false }}"><div style="margin:1px 0 0 29px;font-size:11.5px;line-height:1.5;color:var(--color-accent-700)">{{ ln.descLine2 }}</div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="flex:none;padding:12px 16px;border-top:2px solid var(--color-divider)">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Υποσύνολο</span><span style="font-variant-numeric:tabular-nums">{{ subtotalLabel }}</span></div>
+        <sc-if value="{{ hasDiscount }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-neutral-700);margin-bottom:5px"><span>Έκπτωση ειδών</span><span style="font-variant-numeric:tabular-nums;color:var(--color-accent-700)">{{ discountLabel }}</span></div></sc-if>
+        <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid var(--color-divider);padding:8px 10px;margin:6px 0 5px">
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--color-neutral-600)">ΕΚΠΤΩΣΗ ΠΑΡΑΓΓΕΛΙΑΣ</div>
+            <sc-if value="{{ hasOrderDiscount }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;font-weight:800;color:var(--color-accent-700);font-variant-numeric:tabular-nums;margin-top:2px">{{ orderDiscountLabel }}</div></sc-if>
+          </div>
+          <div style="display:inline-flex;align-items:center;border:1px solid var(--color-divider);height:30px;background:var(--color-bg)">
+            <span style="width:26px;text-align:center;font-size:15px;line-height:30px;cursor:pointer;color:var(--color-neutral-600)" onClick="{{ onDecOrderDiscount }}">−</span>
+            <span style="display:inline-flex;align-items:center;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider);height:30px"><input type="number" min="0" max="100" value="{{ orderDiscountPct }}" onChange="{{ onOrderDiscountPctChange }}" style="width:34px;height:28px;text-align:right;font-size:13px;font-weight:800;font-family:inherit;border:0;background:transparent;color:var(--color-text)" /><span style="font-size:13px;font-weight:800;padding-right:6px">%</span></span>
+            <span style="width:26px;text-align:center;font-size:15px;line-height:30px;cursor:pointer;color:var(--color-accent)" onClick="{{ onIncOrderDiscount }}">+</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:9px;border-top:2px solid var(--color-divider);margin-top:6px"><span style="font-size:16px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:23px;font-weight:800;font-variant-numeric:tabular-nums">{{ totalLabel }}</span></div>
+      </div>
+      <div style="flex:none;padding:0 16px 16px;display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary btn-block" disabled="{{ step3Disabled }}" onClick="{{ onContinueStep3 }}" style="justify-content:space-between;padding:13px 14px;font-size:14px">{{ step3ContinueLabel }}<span>→</span></button>
+        <button class="btn btn-secondary" onClick="{{ onBackStep3 }}" style="justify-content:flex-start;font-size:12.5px">← Πίσω</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===================== STEP 4 — ΔΙΑΝΟΜΗ ===================== -->
+  <sc-if value="{{ isStep4 }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:40px 30px;gap:22px;overflow:auto">
+    <div style="width:560px">
+      <h2 style="font-size:24px;margin:0 0 4px">{{ step4Title }}</h2>
+      <p style="font-size:13px;color:var(--color-neutral-600);margin:0 0 20px">{{ step4Sub }}</p>
+      <sc-if value="{{ isAppsOrder }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:22px">
+          <sc-for list="{{ appMethods }}" as="dm" hint-placeholder-count="3">
+            <div style="{{ dm.style }}" onClick="{{ dm.onClick }}">{{ dm.label }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isPickupOrder }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px">
+          <sc-for list="{{ pickupTimes }}" as="pt" hint-placeholder-count="4">
+            <div style="{{ pt.style }}" onClick="{{ pt.onClick }}">{{ pt.label }}</div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <div style="width:560px;margin-top:auto">
+      <button class="btn btn-secondary" onClick="{{ onBackStep4 }}" style="height:46px;padding:0 20px;font-size:13px">← Πίσω</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===================== STEP 5 — ΕΚΤΥΠΩΣΗ ===================== -->
+  <sc-if value="{{ isStep5 }}" hint-placeholder-val="{{ false }}">
+  <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;padding:34px 30px;gap:20px;overflow:auto">
+    <div style="width:420px;border:2px solid var(--color-divider);padding:24px">
+      <div style="text-align:center;margin-bottom:16px"><div style="font-weight:800;font-size:16px;letter-spacing:.02em">ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ</div><div style="font-size:11px;color:var(--color-neutral-600);margin-top:4px">ΠΑΡΑΓΓΕΛΙΑ #{{ orderNumber }}</div></div>
+      <div style="border-top:2px solid var(--color-divider);border-bottom:2px solid var(--color-divider);padding:12px 0;margin-bottom:14px;font-size:12.5px;color:var(--color-neutral-700)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Τύπος</span><span style="font-weight:800;color:var(--color-text)">{{ receiptOrderType }}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>{{ receiptWhoLabel }}</span><span style="font-weight:800;color:var(--color-text);text-align:right;max-width:220px">{{ receiptWho }}</span></div>
+      </div>
+      <sc-for list="{{ receiptLines }}" as="rl" hint-placeholder-count="2">
+        <div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px">
+          <span>{{ rl.qty }}× {{ rl.name }}</span><span style="font-variant-numeric:tabular-nums;font-weight:600">{{ rl.totalLabel }}</span>
+        </div>
+      </sc-for>
+      <div style="border-top:2px solid var(--color-divider);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between"><span style="font-size:17px;font-weight:800">ΣΥΝΟΛΟ</span><span style="font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">{{ totalLabel }}</span></div>
+    </div>
+    <div style="width:420px;display:flex;gap:10px">
+      <button class="btn btn-secondary" onClick="{{ onBackStep5 }}" style="flex:1;height:46px;font-size:13px;justify-content:center">← Πίσω</button>
+      <button class="btn btn-primary" onClick="{{ onPrint }}" style="flex:2;height:46px;font-size:14px;justify-content:center">ΕΚΤΥΠΩΣΗ</button>
+    </div>
+    <button class="btn btn-ghost" onClick="{{ onNewOrder }}" style="font-size:12.5px">Νέα παραγγελία</button>
+  </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;orderNumber&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1044,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1000,&quot;max&quot;:9999},&quot;showEnglishLabels&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;startStep&quot;:{&quot;editor&quot;:null,&quot;default&quot;:1,&quot;tsType&quot;:&quot;number&quot;}}">
+const CATEGORIES = [
+  {id:'souvlakia', name:'ΣΟΥΒΛΑΚΙΑ', customizable:false, products:[
+    {id:'skv1',name:'Καλαμάκι Χοιρινό',price:1.30},
+    {id:'skv2',name:'Καλαμάκι Κοτόπουλο',price:1.30},
+    {id:'skv3',name:'Μπιφτέκι Σουβλάκι',price:1.50},
+  ]},
+  {id:'pittes', name:'ΠΙΤΤΕΣ', customizable:true, products:[
+    {id:'pt1',name:'Πίττα Γύρος Χοιρινό', nameEn:'Pork gyros wrap', price:3.20},
+    {id:'pt2',name:'Πίττα Γύρος Κοτόπουλο', nameEn:'Chicken gyros wrap', price:3.30},
+    {id:'pt3',name:'Πίττα Κεμπάπ', nameEn:'Kebab wrap', price:3.50},
+    {id:'pt4',name:'Πίττα Μπιφτέκι', nameEn:'Beef patty wrap', price:3.40},
+    {id:'pt5',name:'Πίττα Club Κοτόπουλο', nameEn:'Chicken club', price:4.20},
+    {id:'pt6',name:'Πίττα Λουκάνικο', nameEn:'Sausage wrap', price:3.30},
+    {id:'pt7',name:'Πίττα Χαλλούμι', nameEn:'Halloumi · vegetarian', price:3.60},
+    {id:'pt8',name:'Πίττα Special Παππού', nameEn:"Grandpa's special", price:4.50},
+  ]},
+  {id:'merides', name:'ΜΕΡΙΔΕΣ', customizable:false, products:[
+    {id:'mr1',name:'Μερίδα Χοιρινό',price:7.50},
+    {id:'mr2',name:'Μερίδα Κοτόπουλο',price:7.50},
+    {id:'mr3',name:'Μερίδα Κεμπάπ',price:8.00},
+  ]},
+  {id:'burgers', name:'BURGERS', customizable:false, products:[
+    {id:'bg1',name:'Hamburger Special',price:5.90},
+    {id:'bg2',name:'Cheeseburger',price:6.20},
+  ]},
+  {id:'salates', name:'ΣΑΛΑΤΕΣ', customizable:false, products:[
+    {id:'sl1',name:'Σαλάτα Χωριάτικη',price:5.00},
+    {id:'sl2',name:'Caesar Salad',price:5.50},
+  ]},
+  {id:'orektika', name:'ΟΡΕΚΤΙΚΑ', customizable:false, products:[
+    {id:'or1',name:'Πατάτες Τηγανητές',price:2.00},
+    {id:'or2',name:'Ντολμαδάκια',price:3.50},
+  ]},
+  {id:'anapsyktika', name:'ΑΝΑΨΥΚΤΙΚΑ', customizable:false, products:[
+    {id:'dr1',name:'Coca-Cola 330ml',price:1.00},
+    {id:'dr2',name:'Νερό 500ml',price:0.50},
+    {id:'dr3',name:'Πορτοκαλάδα',price:1.20},
+  ]},
+];
+const INCLUDED_INGREDIENTS = ['Ντομάτα','Μίγμα','Κρεμμύδι','Αλάτι','Πιπέρι','Κίτρινη σάλτσα'];
+const BREAD_OPTIONS = ['Ελληνική','Αραβική','Ψωμί'];
+const EXTRAS = [
+  {name:'Γκούντα', price:0.80}, {name:'Μπέικον', price:0.80}, {name:'Τζατζίκι', price:0},
+  {name:'Αυγό', price:0.70}, {name:'Γραβιέρα', price:0.80}, {name:'Ζαμπόν', price:0.80},
+  {name:'Φέτα', price:1.00}, {name:'Μανιτάρια', price:1.20}, {name:'Πατάτες', price:0},
+  {name:'Μαγιονέζα', price:0}, {name:'Μαρούλι', price:0}, {name:'Λουκάνικο', price:2.20},
+];
+const APP_METHODS = [{ name: 'e-food', color: '#d32f2f' }, { name: 'Wolt', color: '#1565c0' }, { name: 'BOX', color: '#b8860b' }];
+const PICKUP_TIMES = ['Άμεσα','15\u2019','30\u2019','45\u2019'];
+const DEMO_CUSTOMERS = [
+  {name:'Μαρία Παπαδοπούλου', phone:'210 748 2210', address:'Λ. Βουλιαγμένης 142'},
+  {name:'Γιώργος Ιωάννου', phone:'694 512 3087', address:'Λ. Αλεξάνδρας 61'},
+];
+function fmt(n){ return '€' + n.toFixed(2).replace('.', ','); }
+function lc1(s){ return s.charAt(0).toLowerCase() + s.slice(1); }
+const BOARD_KEY = 'posLiveOrders';
+function loadBoard(){ try { return JSON.parse(localStorage.getItem(BOARD_KEY) || '[]'); } catch (e) { return []; } }
+function saveBoard(arr){ localStorage.setItem(BOARD_KEY, JSON.stringify(arr)); }
+
+class Component extends DCLogic {
+  state = {
+    step: 1, maxStep: 1,
+    orderType: null, tableNumber: null,
+    customerSearch: '', customerName: '', customerPhone: '', customerAddress: '',
+    activeCategory: 'pittes',
+    customizing: null,
+    cart: [], cartSeq: 1,
+    deliveryMethod: null, pickupTime: null,
+    orderDiscountPct: 0,
+    orderSeq: 1044, boardPushed: false, boardOrders: [],
+  };
+
+  componentDidMount(){
+    if (this.props.orderNumber) this.setState({ orderSeq: this.props.orderNumber });
+    this.setState({ boardOrders: loadBoard() });
+    this._onStorage = e => { if (e.key === BOARD_KEY) this.setState({ boardOrders: loadBoard() }); };
+    window.addEventListener('storage', this._onStorage);
+  }
+  componentWillUnmount(){ window.removeEventListener('storage', this._onStorage); }
+
+  pushBoardOrder(){
+    if (this.state.boardPushed) return;
+    const s = this.state;
+    const id = 'ord' + Date.now();
+    const lineTotal = s.cart.reduce((sum, l) => sum + l.qty * l.unitPrice * l.mult, 0);
+    const total = lineTotal * (1 - s.orderDiscountPct / 100);
+    const entry = { id, orderNumber: s.orderSeq, name: s.orderType === 'table' ? ('Τραπέζι ' + s.tableNumber) : (s.customerName || '—'),
+      address: s.customerAddress || '', type: s.orderType, channel: s.orderType === 'apps' ? s.deliveryMethod : null,
+      total, placedAt: Date.now(), sentVia: null, sentAt: null };
+    const arr = [...loadBoard(), entry];
+    saveBoard(arr);
+    this.setState({ boardOrders: arr, boardPushed: true });
+  }
+
+  goTo(step){ if (step <= this.state.maxStep) this.setState({ step }); }
+  advanceTo(step){ this.setState(s => ({ step, maxStep: Math.max(s.maxStep, step) })); }
+
+  selectOrderType(t){
+    this.setState({ orderType: t, tableNumber: null });
+    if (t === 'table') return;
+    this.advanceTo(t === 'pickup' ? 3 : 2);
+  }
+  selectTable(n){ this.setState({ tableNumber: n }); this.advanceTo(3); }
+  onStep1BgClick(e){ if (e.target === e.currentTarget) this.setState({ orderType: null, tableNumber: null }); }
+  backStep2(){ this.advanceTo(1); }
+  continueStep2(){ this.advanceTo(3); }
+
+  selectCustomer(c){ this.setState({ customerName: c.name, customerPhone: c.phone, customerAddress: c.address, customerSearch: '' }); }
+
+  selectCategory(id){ this.setState({ activeCategory: id, customizing: null }); }
+
+  openCustomizer(product){
+    this.setState({ customizing: {
+      productId: product.id, name: product.name, price: product.price,
+      qty: 1, bread: BREAD_OPTIONS[0], removed: [], extraQty: {}, note: '',
+      noCharge: false, discountPct: 0, extrasSearch: '',
+    }});
+  }
+  closeCustomizer(){ this.setState({ customizing: null }); }
+  custSet(patch){ this.setState(s => ({ customizing: { ...s.customizing, ...patch } })); }
+  incQty(){ this.custSet({ qty: this.state.customizing.qty + 1 }); }
+  decQty(){ this.custSet({ qty: Math.max(1, this.state.customizing.qty - 1) }); }
+  toggleIngredient(name){
+    const removed = this.state.customizing.removed;
+    this.custSet({ removed: removed.includes(name) ? removed.filter(n => n !== name) : [...removed, name] });
+  }
+  toggleSketo(){
+    const allRemoved = this.state.customizing.removed.length === INCLUDED_INGREDIENTS.length;
+    this.custSet({ removed: allRemoved ? [] : [...INCLUDED_INGREDIENTS] });
+  }
+  setBread(b){ this.custSet({ bread: b }); }
+  incExtra(name){
+    const q = this.state.customizing.extraQty;
+    this.custSet({ extraQty: { ...q, [name]: Math.min(2, (q[name] || 0) + 1) } });
+  }
+  decExtra(name){
+    const q = this.state.customizing.extraQty;
+    const next = Math.max(0, (q[name] || 0) - 1);
+    const q2 = { ...q }; if (next === 0) delete q2[name]; else q2[name] = next;
+    this.custSet({ extraQty: q2 });
+  }
+  toggleNoCharge(){ this.custSet({ noCharge: !this.state.customizing.noCharge }); }
+  incDiscount(){ this.custSet({ discountPct: Math.min(50, this.state.customizing.discountPct + 5) }); }
+  decDiscount(){ this.custSet({ discountPct: Math.max(0, this.state.customizing.discountPct - 5) }); }
+
+  addCustomizedToCart(){
+    const c = this.state.customizing;
+    const extrasTotal = EXTRAS.reduce((sum, ex) => sum + (c.extraQty[ex.name] || 0) * ex.price, 0);
+    const unitPrice = c.price + extrasTotal;
+    const mult = c.noCharge ? 0 : (1 - c.discountPct / 100);
+    const mods = [];
+    c.removed.forEach(n => mods.push('χωρίς ' + lc1(n)));
+    EXTRAS.forEach(ex => { const q = c.extraQty[ex.name] || 0; if (q > 0) mods.push('+ ' + ex.name + (q > 1 ? ' ×' + q : '')); });
+    if (c.noCharge) mods.push('ΔΩΡΕΑΝ'); else if (c.discountPct > 0) mods.push('−' + c.discountPct + '%');
+    const line = {
+      key: c.editingKey || ('s' + this.state.cartSeq), name: c.name, qty: c.qty, unitPrice, mult,
+      descLine1: c.bread + ' πίττα' + (c.note ? ' · ' + c.note : ''), descLine2: mods.join(' · '),
+      raw: { productId: c.productId, price: c.price, bread: c.bread, removed: c.removed, extraQty: c.extraQty, note: c.note, noCharge: c.noCharge, discountPct: c.discountPct },
+    };
+    this.setState(s => ({
+      cart: c.editingKey ? s.cart.map(l => l.key === c.editingKey ? line : l) : [...s.cart, line],
+      cartSeq: c.editingKey ? s.cartSeq : s.cartSeq + 1,
+      customizing: null,
+    }));
+  }
+  editCartLine(key){
+    const line = this.state.cart.find(l => l.key === key);
+    if (!line || !line.raw) return;
+    this.setState({ customizing: { ...line.raw, name: line.name, qty: line.qty, extrasSearch: '', editingKey: key } });
+  }
+
+  addSimpleProduct(product, customizable){
+    this.setState(s => {
+      const key = 'p' + product.id;
+      const existing = s.cart.find(l => l.key === key);
+      if (existing) return { cart: s.cart.map(l => l.key === key ? { ...l, qty: l.qty + 1 } : l) };
+      const line = customizable
+        ? { key, name: product.name, qty: 1, unitPrice: product.price, mult: 1, descLine1: '', descLine2: '',
+            raw: { productId: product.id, price: product.price, bread: BREAD_OPTIONS[0], removed: [], extraQty: {}, note: '', noCharge: false, discountPct: 0 } }
+        : { key, name: product.name, qty: 1, unitPrice: product.price, mult: 1, descLine1: '', descLine2: '' };
+      return { cart: [...s.cart, line] };
+    });
+  }
+  incCartLine(key){ this.setState(s => ({ cart: s.cart.map(l => l.key === key ? { ...l, qty: l.qty + 1 } : l) })); }
+  decCartLine(key){ this.setState(s => ({ cart: s.cart.flatMap(l => l.key === key ? (l.qty > 1 ? [{ ...l, qty: l.qty - 1 }] : []) : [l]) })); }
+  removeCartLine(key){ this.setState(s => ({ cart: s.cart.filter(l => l.key !== key) })); }
+  incOrderDiscount(){ this.setState(s => ({ orderDiscountPct: Math.min(100, s.orderDiscountPct + 5) })); }
+  decOrderDiscount(){ this.setState(s => ({ orderDiscountPct: Math.max(0, s.orderDiscountPct - 5) })); }
+  setOrderDiscountPct(v){
+    const n = Math.round(Number(v));
+    this.setState({ orderDiscountPct: Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0 });
+  }
+
+  backStep3(){ const t = this.state.orderType; this.advanceTo((t === 'delivery' || t === 'apps') ? 2 : 1); }
+  continueStep3(){
+    const t = this.state.orderType;
+    this.advanceTo((t === 'table' || t === 'delivery') ? 5 : 4);
+    if (t === 'delivery') this.pushBoardOrder();
+  }
+
+  selectDeliveryMethod(m){
+    this.setState({ deliveryMethod: m }); this.advanceTo(5);
+    if (this.state.orderType === 'apps') this.pushBoardOrder();
+  }
+  selectPickupTime(t){ this.setState({ pickupTime: t }); this.advanceTo(5); }
+  backStep4(){ this.advanceTo(3); }
+  backStep5(){ const t = this.state.orderType; this.advanceTo((t === 'table' || t === 'delivery') ? 3 : 4); }
+
+  print(){ window.print(); }
+  newOrder(){
+    this.setState(s => ({ step: 1, maxStep: 1, orderType: null, tableNumber: null,
+      customerSearch: '', customerName: '', customerPhone: '', customerAddress: '',
+      activeCategory: 'pittes', customizing: null, cart: [], deliveryMethod: null, pickupTime: null,
+      orderDiscountPct: 0, orderSeq: s.orderSeq + 1, boardPushed: false }));
+  }
+
+  renderVals(){
+    const s = this.state;
+    const orderNumber = s.orderSeq;
+    const showEn = this.props.showEnglishLabels ?? true;
+
+    const stepLabels = ['1 ΤΥΠΟΣ','2 ΠΕΛΑΤΗΣ','3 ΠΡΟΪΟΝΤΑ','4 ΔΙΑΝΟΜΗ','5 ΕΚΤΥΠΩΣΗ'];
+    const stepItems = stepLabels.map((label, i) => {
+      const n = i + 1;
+      const reachable = n <= s.maxStep;
+      const active = n === s.step;
+      return {
+        label, showArrow: n < 5,
+        onClick: reachable ? () => this.goTo(n) : undefined,
+        style: `padding:11px 0;margin-right:10px;cursor:${reachable ? 'pointer' : 'default'};color:${active ? 'var(--color-accent)' : (reachable ? 'var(--color-text)' : 'var(--color-neutral-500)')};border-bottom:2px solid ${active ? 'var(--color-accent)' : 'transparent'}`,
+      };
+    });
+
+    let typeLabel = s.orderType === 'delivery' ? 'ΔΙΑΝΟΜΗ' : s.orderType === 'apps' ? 'ΕΦΑΡΜΟΓΕΣ' : s.orderType === 'pickup' ? 'ΠΑΡΑΛΑΒΗ' : s.orderType === 'table' ? 'ΤΡΑΠΕΖΙ ' + s.tableNumber : '';
+    if (s.orderType === 'apps' && s.deliveryMethod) typeLabel += ' · ' + s.deliveryMethod;
+    let orderContextLabel = '';
+    if (s.step > 1 && s.orderType) {
+      if (s.orderType === 'table') orderContextLabel = typeLabel;
+      else orderContextLabel = [typeLabel, s.customerName, s.customerAddress].filter(Boolean).join(' · ');
+    }
+
+    // ---- step 1 ----
+    const otMeta = [
+      { key: 'delivery', label: 'ΔΙΑΝΟΜΗ', sub: 'Ίδιος διανομέας' },
+      { key: 'apps', label: 'ΕΦΑΡΜΟΓΕΣ', sub: 'e-food · Wolt · BOX' },
+      { key: 'pickup', label: 'ΠΑΡΑΛΑΒΗ', sub: 'Από το κατάστημα' },
+      { key: 'table', label: 'ΤΡΑΠΕΖΙ', sub: 'Επί τόπου' },
+    ];
+    const orderTypeOptions = otMeta.map(o => {
+      const sel = s.orderType === o.key;
+      return { label: o.label, sub: o.sub, onClick: () => this.selectOrderType(o.key),
+        style: `width:150px;padding:18px 14px;border:2px solid ${sel ? 'var(--color-accent)' : 'var(--color-divider)'};background:${sel ? 'var(--color-accent-100)' : 'var(--color-bg)'};color:${sel ? 'var(--color-accent-800)' : 'var(--color-text)'};cursor:pointer;text-align:center`,
+        subStyle: `color:${sel ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'}`,
+        hasColorSub: false, showPlainSub: true, subParts: [] };
+    });
+    const showTableGrid = s.orderType === 'table';
+    const tableNumbers = Array.from({ length: 12 }, (_, i) => i + 1).map(n => {
+      const sel = s.tableNumber === n;
+      return { n, onClick: () => this.selectTable(n),
+        style: `width:56px;height:56px;display:grid;place-items:center;font-size:16px;font-weight:800;border:2px solid ${sel ? 'var(--color-accent)' : 'var(--color-divider)'};background:${sel ? 'var(--color-accent)' : 'var(--color-bg)'};color:${sel ? '#fff' : 'var(--color-text)'};cursor:pointer` };
+    });
+
+
+    // ---- step 2 ----
+    const q = s.customerSearch.trim().toLowerCase();
+    const customerMatches = q ? DEMO_CUSTOMERS.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+      .map(c => ({ ...c, onSelect: () => this.selectCustomer(c) })) : [];
+    const step2Disabled = !s.customerName.trim();
+
+    // ---- step 3: categories/products ----
+    const activeCat = CATEGORIES.find(c => c.id === s.activeCategory);
+    const categories = CATEGORIES.map(c => {
+      const sel = c.id === s.activeCategory;
+      return { name: c.name, onClick: () => this.selectCategory(c.id),
+        style: `padding:8px 14px;border-left:3px solid ${sel ? 'var(--color-accent)' : 'transparent'};background:${sel ? 'var(--color-accent-100)' : 'transparent'};font-size:13px;font-weight:${sel ? 800 : 400};color:${sel ? 'var(--color-accent-800)' : 'var(--color-neutral-700)'};cursor:pointer` };
+    });
+    const cartQtyFor = id => { const l = s.cart.find(x => x.key === 'p' + id); return l ? l.qty : 0; };
+    const products = activeCat.products.map(p => {
+      const qty = cartQtyFor(p.id);
+      return { name: p.name, nameEn: p.nameEn || '', showEn: showEn && !!p.nameEn, priceLabel: fmt(p.price), hasQty: qty > 0, qty,
+        onClick: () => this.addSimpleProduct(p, activeCat.customizable),
+        showEdit: activeCat.customizable,
+        onEdit: e => { e.stopPropagation(); this.openCustomizer(p); },
+        onDecrement: e => { e.stopPropagation(); this.decCartLine('p' + p.id); },
+        style: `position:relative;border:${qty > 0 ? 2 : 1}px solid ${qty > 0 ? 'var(--color-accent)' : 'var(--color-divider)'};background:${qty > 0 ? 'var(--color-accent-100)' : 'var(--color-bg)'};padding:14px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer` };
+    });
+
+    // ---- customizer ----
+    let customizer = null;
+    if (s.customizing) {
+      const c = s.customizing;
+      const extrasTotal = EXTRAS.reduce((sum, ex) => sum + (c.extraQty[ex.name] || 0) * ex.price, 0);
+      const unitPrice = c.price + extrasTotal;
+      const mult = c.noCharge ? 0 : (1 - c.discountPct / 100);
+      const total = c.qty * unitPrice * mult;
+      const searchQ = c.extrasSearch.trim().toLowerCase();
+      customizer = {
+        productName: c.name, categoryLabel: 'ΠΙΤΤΕΣ · WRAPS', qty: c.qty,
+        onIncQty: () => this.incQty(), onDecQty: () => this.decQty(),
+        unitPriceLabel: fmt(c.price),
+        breadOptions: BREAD_OPTIONS.map(b => { const sel = c.bread === b; return { label: b, onClick: () => this.setBread(b),
+          style: `padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;background:${sel ? 'var(--color-accent)' : 'transparent'};color:${sel ? 'var(--color-bg)' : 'var(--color-neutral-700)'};border-left:1px solid var(--color-divider)` }; }),
+        sketoWrapStyle: 'display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border:1px solid var(--color-divider);font-size:12.5px;font-weight:600;color:var(--color-neutral-700);cursor:pointer',
+        sketoBoxStyle: `width:14px;height:14px;border:1px solid var(--color-neutral-400);display:inline-block;background:${c.removed.length === INCLUDED_INGREDIENTS.length ? 'var(--color-text)' : 'transparent'}`,
+        onToggleSketo: () => this.toggleSketo(),
+        included: INCLUDED_INGREDIENTS.map(name => {
+          const off = c.removed.includes(name);
+          return { name, onClick: () => this.toggleIngredient(name), mark: off ? '' : '✓',
+            style: off ? 'display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px dashed var(--color-neutral-400);background:var(--color-bg);font-size:13px;color:var(--color-neutral-500);text-decoration:line-through;cursor:pointer'
+                       : 'display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:13.5px;font-weight:600;cursor:pointer',
+            boxStyle: off ? 'width:14px;height:14px;border:1px solid var(--color-neutral-400)' : 'width:15px;height:15px;background:var(--color-text);display:grid;place-items:center;color:var(--color-bg);font-size:9px' };
+        }),
+        extrasSearch: c.extrasSearch, onExtrasSearchChange: e => this.custSet({ extrasSearch: e.target.value }),
+        extras: EXTRAS.filter(ex => !searchQ || ex.name.toLowerCase().includes(searchQ)).map(ex => {
+          const qty = c.extraQty[ex.name] || 0; const active = qty > 0;
+          return { name: ex.name, priceLabel: ex.price > 0 ? fmt(ex.price) : 'δωρεάν', active, qtyLabel: qty + '×',
+            onInc: () => this.incExtra(ex.name), onDec: () => this.decExtra(ex.name),
+            onRowClick: active ? undefined : () => this.incExtra(ex.name),
+            nameStyle: active ? 'color:var(--color-accent-800)' : '', priceStyle: active ? 'color:var(--color-accent-700)' : 'color:var(--color-neutral-600)',
+            rowStyle: `display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid ${active ? 'var(--color-accent)' : 'var(--color-divider)'};background:${active ? 'var(--color-accent-100)' : 'var(--color-bg)'};cursor:${active ? 'default' : 'pointer'}` };
+        }),
+        note: c.note, onNoteChange: e => this.custSet({ note: e.target.value }),
+        noChargeBoxStyle: `width:13px;height:13px;border:1px solid var(--color-neutral-400);display:inline-block;background:${c.noCharge ? 'var(--color-text)' : 'transparent'}`,
+        onToggleNoCharge: () => this.toggleNoCharge(),
+        discountPct: c.discountPct, onIncDiscount: () => this.incDiscount(), onDecDiscount: () => this.decDiscount(),
+        onAdd: () => this.addCustomizedToCart(), totalLabel: fmt(total),
+      };
+    }
+    const isCustomizing = !!s.customizing;
+
+    // ---- cart / ticket ----
+    const cartLines = s.cart.map(l => ({
+      key: l.key, name: l.name, qty: l.qty, totalLabel: fmt(l.qty * l.unitPrice * l.mult),
+      hasDesc: !!l.descLine1, descLine1: l.descLine1, hasMods: !!l.descLine2, descLine2: l.descLine2,
+      onInc: () => this.incCartLine(l.key), onDec: () => this.decCartLine(l.key), onRemove: () => this.removeCartLine(l.key),
+      canEdit: !!l.raw, onEditLine: () => this.editCartLine(l.key),
+    }));
+    const subtotal = s.cart.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
+    const lineTotal = s.cart.reduce((sum, l) => sum + l.qty * l.unitPrice * l.mult, 0);
+    const lineDiscount = subtotal - lineTotal;
+    const orderDiscountAmount = lineTotal * (s.orderDiscountPct / 100);
+    const total = lineTotal - orderDiscountAmount;
+    const discount = lineDiscount;
+
+    // ---- step 4 ----
+    const isAppsOrder = s.orderType === 'apps';
+    const isPickupOrder = s.orderType === 'pickup';
+    const appMethods = APP_METHODS.map(m => { const sel = s.deliveryMethod === m.name; return { label: m.name, onClick: () => this.selectDeliveryMethod(m.name),
+      style: `padding:18px;text-align:center;font-size:14px;font-weight:800;border:2px solid ${sel ? 'var(--color-accent)' : 'var(--color-divider)'};background:${sel ? 'var(--color-accent-100)' : 'var(--color-bg)'};color:${m.color};cursor:pointer` }; });
+    const pickupTimes = PICKUP_TIMES.map(t => { const sel = s.pickupTime === t; return { label: t, onClick: () => this.selectPickupTime(t),
+      style: `padding:16px 4px;text-align:center;font-size:13px;font-weight:800;border:2px solid ${sel ? 'var(--color-accent)' : 'var(--color-divider)'};background:${sel ? 'var(--color-accent-100)' : 'var(--color-bg)'};color:${sel ? 'var(--color-accent-800)' : 'var(--color-text)'};cursor:pointer` }; });
+    const step4Title = isAppsOrder ? 'Ποια εφαρμογή;' : 'Ώρα παραλαβής';
+    const step4Sub = isAppsOrder ? 'Επίλεξε την πλατφόρμα παράδοσης' : 'Πότε θα παραλάβει ο πελάτης';
+
+
+    const boardPendingCount = s.boardOrders.filter(o => !o.sentVia).length;
+
+    // ---- step 5 ----
+    const receiptLines = s.cart.map(l => ({ qty: l.qty, name: l.name, totalLabel: fmt(l.qty * l.unitPrice * l.mult) }));
+    const receiptWhoLabel = s.orderType === 'table' ? 'Τραπέζι' : 'Πελάτης';
+    const receiptWho = s.orderType === 'table' ? String(s.tableNumber) : (s.customerName || '—');
+
+    return {
+      boardPendingCount,
+      orderContextLabel, stepItems,
+      isStep1: s.step === 1, isStep2: s.step === 2, isStep3: s.step === 3, isStep4: s.step === 4, isStep5: s.step === 5,
+      orderTypeOptions, showTableGrid, tableNumbers, onStep1BgClick: e => this.onStep1BgClick(e),
+
+      customerSearch: s.customerSearch, onCustomerSearchChange: e => this.setState({ customerSearch: e.target.value }),
+      hasCustomerMatches: customerMatches.length > 0, customerMatches,
+      customerName: s.customerName, onCustomerNameChange: e => this.setState({ customerName: e.target.value }),
+      customerPhone: s.customerPhone, onCustomerPhoneChange: e => this.setState({ customerPhone: e.target.value }),
+      customerAddress: s.customerAddress, onCustomerAddressChange: e => this.setState({ customerAddress: e.target.value }),
+      showAddressField: s.orderType === 'delivery' || s.orderType === 'apps',
+      step2Disabled, onBackStep2: () => this.backStep2(), onContinueStep2: () => this.continueStep2(),
+
+      categories, activeCategoryName: activeCat.name, productCount: activeCat.products.length, products,
+      isCustomizing, isTileGrid: !isCustomizing, customizer,
+      onCloseCustomizer: () => this.closeCustomizer(),
+      orderNumber, cartCountLabel: s.cart.length + ' είδη', cartEmpty: s.cart.length === 0, cartLines,
+      subtotalLabel: fmt(subtotal), hasDiscount: discount > 0.001, discountLabel: '−' + fmt(discount), totalLabel: fmt(total),
+      orderDiscountPct: s.orderDiscountPct, onIncOrderDiscount: () => this.incOrderDiscount(), onDecOrderDiscount: () => this.decOrderDiscount(),
+      onOrderDiscountPctChange: e => this.setOrderDiscountPct(e.target.value),
+      hasOrderDiscount: orderDiscountAmount > 0.001, orderDiscountLabel: '−' + fmt(orderDiscountAmount),
+      step3Disabled: s.cart.length === 0, step3ContinueLabel: (s.orderType === 'table' || s.orderType === 'delivery') ? 'ΣΥΝΕΧΕΙΑ · ΕΚΤΥΠΩΣΗ' : 'ΣΥΝΕΧΕΙΑ',
+      onContinueStep3: () => this.continueStep3(), onBackStep3: () => this.backStep3(),
+
+      isAppsOrder, isPickupOrder, appMethods, pickupTimes, step4Title, step4Sub,
+      onBackStep4: () => this.backStep4(),
+
+      receiptOrderType: typeLabel, receiptWhoLabel, receiptWho, receiptLines,
+      onBackStep5: () => this.backStep5(), onPrint: () => this.print(), onNewOrder: () => this.newOrder(),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

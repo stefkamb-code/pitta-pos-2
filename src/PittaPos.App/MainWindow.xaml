@@ -1,0 +1,986 @@
+<Window x:Class="PittaPos.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:PittaPos.App.Views"
+        xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        xmlns:services="clr-namespace:PittaPos.App.Services"
+        Title="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ — POS (ΚΑΤΑΣΤΗΜΑ 2)" Height="800" Width="1280"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}"
+        KeyDown="Window_KeyDown">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- ChoiceCard μετακόμισε στο PosTheme.xaml (merged dictionary) — το χρειάζεται πλέον και το
+             ProductsView.xaml (επιλογή τρόπου πληρωμής), βλ. σχόλιο εκεί. -->
+
+        <!-- Στρογγυλεμένο κουμπί μόνο για το banner τρόπου πληρωμής — σκόπιμα ξεχωριστό από το ChoiceCard
+             (τετράγωνο, όπως όλη η υπόλοιπη εφαρμογή)· εδώ είναι ένα εφήμερο modal, όχι μόνιμη επιφάνεια,
+             οπότε λίγο πιο «ζεστό»/στρογγυλό ταιριάζει χωρίς να σπάει τη γενική γλώσσα σχεδίασης. -->
+        <Style x:Key="PaymentChoiceButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource Surface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource Divider}" BorderThickness="2" CornerRadius="16"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Accent100}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Accent100}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StepPanel" TargetType="FrameworkElement">
+            <Setter Property="Visibility" Value="Collapsed"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================= header (κρυφό ενόσω διαλέγεις τραπέζι — μόνο η κάτοψη) ================= -->
+        <Grid Grid.Row="0" Height="62" Visibility="{Binding ShowHeader, Converter={StaticResource BoolToVis}}">
+        <Border Background="{DynamicResource Surface}" Effect="{StaticResource SoftShadowSmall}"/>
+        <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="20,0">
+            <DockPanel VerticalAlignment="Center">
+                <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
+                       Height="50" Margin="0,0,10,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock DockPanel.Dock="Left" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontWeight="ExtraBold" FontSize="15.5"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Left" Content="ΣΤΑΤΙΣΤΙΚΑ" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="20,0,0,0"
+                        VerticalAlignment="Center" Click="OpenStats_Click"/>
+                <Button DockPanel.Dock="Left" Content="ΙΣΤΟΡΙΚΟ" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
+                        VerticalAlignment="Center" Click="OpenHistory_Click"/>
+                <Button DockPanel.Dock="Left" Content="ΚΑΤΑΛΟΓΟΣ" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
+                        VerticalAlignment="Center" Click="OpenMenuManager_Click"/>
+                <Button DockPanel.Dock="Left" Content="ΠΕΛΑΤΕΣ" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
+                        VerticalAlignment="Center" Click="OpenCustomers_Click"/>
+                <Button DockPanel.Dock="Right" Content="⚙" FontSize="23" ToolTip="Ρυθμίσεις"
+                        Style="{StaticResource GlyphButton}" Padding="7,0" Margin="12,0,0,0"
+                        VerticalAlignment="Center" Click="OpenSettings_Click"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <Button Content="☀ ΠΡΩΙΝΗ" FontSize="11.5" FontWeight="ExtraBold" Padding="12,7" Margin="0,0,6,0"
+                            Command="{Binding SelectMorningShiftCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEveningShift}" Value="False">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                        <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="🌙 ΒΡΑΔΙΝΗ" FontSize="11.5" FontWeight="ExtraBold" Padding="12,7"
+                            Command="{Binding SelectEveningShiftCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEveningShift}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{DynamicResource Night}"/>
+                                        <Setter Property="Background" Value="{DynamicResource NightBg}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource Night}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" x:Name="ClockText" FontSize="14.5" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="0,0,14,0"
+                        Click="OpenLiveOrders_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="13" Height="13" Fill="#2e7d32" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="ΠΑΡΑΓΓΕΛΙΕΣ" VerticalAlignment="Center"/>
+                        <Border Background="{DynamicResource Accent}" CornerRadius="10" MinWidth="20" Height="20"
+                                Margin="7,0,0,0" Padding="4,0">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Board.PendingCount}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding Board.PendingCount}" Foreground="White" FontSize="10.5"
+                                       FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Button>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding OrderContextLabel}" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+        </Grid>
+
+        <!-- ================= stepper (κρυφό) ================= -->
+        <Border Grid.Row="1" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0" Visibility="Collapsed">
+            <ItemsControl ItemsSource="{Binding StepItems}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:StepItemViewModel}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding Label}" FontSize="11" FontWeight="ExtraBold"
+                                    BorderThickness="0" Background="Transparent" Padding="0,4"
+                                    IsEnabled="{Binding IsReachable}"
+                                    Command="{Binding DataContext.GoToStepCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding Number}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                        <Setter Property="Foreground" Value="{DynamicResource Neutral500}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReachable}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <TextBlock Text="▸" Margin="10,0" Foreground="{DynamicResource Neutral400}" FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding ShowArrow, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- ================= υπενθύμιση πελάτη ================= -->
+        <Border Grid.Row="2" Background="{DynamicResource Accent100}" BorderBrush="{DynamicResource Accent}"
+                BorderThickness="0,0,0,2" Padding="18,10"
+                Visibility="{Binding HasCustomerMemo, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Text="⚠" FontSize="16" Foreground="{DynamicResource Accent700}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding CustomerMemo}" FontSize="14.5" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Accent700}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ================= ειδοποίηση εισερχόμενης κλήσης (Grandstream UCM) ================= -->
+        <Border Grid.Row="0" Grid.RowSpan="4" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,78,24,0" Panel.ZIndex="100"
+                IsHitTestVisible="{Binding IncomingCall.IsActive}">
+            <Border.RenderTransform>
+                <TranslateTransform Y="-36"/>
+            </Border.RenderTransform>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IncomingCall.IsActive}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.22"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         To="0" Duration="0:0:0.32">
+                                            <DoubleAnimation.EasingFunction>
+                                                <BackEase EasingMode="EaseOut" Amplitude="0.35"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                         To="-36" Duration="0:0:0.16"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <ItemsControl ItemsSource="{Binding IncomingCall.Calls}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type services:IncomingCallItem}">
+                        <Grid Margin="0,0,0,10">
+                        <!-- ελαχιστοποιημένο — μικρή λωρίδα, δεν καλύπτει σχεδόν τίποτα από την οθόνη -->
+                        <Border Background="{DynamicResource Surface}" CornerRadius="10" Padding="10,7"
+                                MinWidth="220" MaxWidth="280" BorderBrush="{DynamicResource Divider}" BorderThickness="1"
+                                HorizontalAlignment="Right"
+                                Visibility="{Binding IsMinimized, Converter={StaticResource BoolToVis}}">
+                            <DockPanel LastChildFill="True">
+                                <TextBlock DockPanel.Dock="Left" Text="📞" FontSize="12" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <Button DockPanel.Dock="Right" Content="✕" FontSize="9" Width="20" Height="20" Padding="0"
+                                        Style="{StaticResource GlyphButton}"
+                                        Command="{Binding DataContext.DismissIncomingCallCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"/>
+                                <Button DockPanel.Dock="Right" Content="⤢" FontSize="10" Width="20" Height="20" Padding="0" Margin="0,0,4,0"
+                                        Style="{StaticResource GlyphButton}" ToolTip="Εμφάνιση"
+                                        Command="{Binding ToggleMinimizedCommand}"/>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="11.5" FontWeight="ExtraBold"
+                                           Foreground="{DynamicResource Ink}" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- πλήρης κάρτα -->
+                        <Border Background="{DynamicResource Surface}" CornerRadius="16" Padding="16,14"
+                                MinWidth="360" MaxWidth="420"
+                                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#1a1615" Opacity="0.18" BlurRadius="20" ShadowDepth="5" Direction="270"/>
+                            </Border.Effect>
+                            <StackPanel>
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="38" Height="38" CornerRadius="19"
+                                            Background="{DynamicResource Accent100}" VerticalAlignment="Top">
+                                        <TextBlock Text="📞" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                        <Button Content="⤡" FontSize="11" Width="24" Height="24" Padding="0"
+                                                Style="{StaticResource GlyphButton}" ToolTip="Ελαχιστοποίηση"
+                                                Command="{Binding ToggleMinimizedCommand}"/>
+                                        <Button Content="✕" FontSize="11" Width="24" Height="24" Padding="0"
+                                                Style="{StaticResource GlyphButton}"
+                                                Command="{Binding DataContext.DismissIncomingCallCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="12,0,10,0" VerticalAlignment="Center">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Left" Text="ΕΙΣΕΡΧΟΜΕΝΗ ΚΛΗΣΗ" FontSize="9" FontWeight="ExtraBold"
+                                                       Foreground="{DynamicResource Accent}" Margin="0,0,0,2"/>
+                                            <Border DockPanel.Dock="Left" Background="{DynamicResource Accent100}" CornerRadius="6"
+                                                    Padding="6,1" Margin="6,0,0,0"
+                                                    Visibility="{Binding HasQueuePosition, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{Binding PositionLabel}" FontSize="8.5" FontWeight="ExtraBold"
+                                                           Foreground="{DynamicResource Accent700}"/>
+                                            </Border>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="14.5" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Ink}"/>
+                                        <TextBlock Text="{Binding DisplayDetail}" FontSize="11"
+                                                   Foreground="{DynamicResource Neutral600}" Margin="0,1,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Παράβλεψη" HorizontalAlignment="Left" FontSize="11.5"
+                                            BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Neutral600}"
+                                            Padding="6,8" Style="{StaticResource FlatButton}"
+                                            Command="{Binding DataContext.DismissIncomingCallCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Grid.Column="1" Content="ΝΕΑ ΠΑΡΑΓΓΕΛΙΑ ΔΙΑΝΟΜΗΣ" Style="{StaticResource PrimaryButton}"
+                                            FontSize="11.5" HorizontalContentAlignment="Center" Padding="16,10"
+                                            Command="{Binding DataContext.StartOrderFromIncomingCallCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- ================= ΒΗΜΑ 1 — ΤΥΠΟΣ ================= -->
+        <Border Grid.Row="3" Background="Transparent" MouseLeftButtonDown="Step1Background_MouseLeftButtonDown">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource StepPanel}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsStep1}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Image Source="pack://application:,,,/Assets/logo.png" Width="340" Margin="0,0,0,64"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       Visibility="{Binding ShowOrderTypeCards, Converter={StaticResource BoolToVis}}"/>
+                <ItemsControl ItemsSource="{Binding OrderTypeOptions}" HorizontalAlignment="Center"
+                              Visibility="{Binding ShowOrderTypeCards, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:OrderTypeOptionViewModel}">
+                            <Button Width="172" Padding="18,24" Margin="0,0,22,0"
+                                    Style="{StaticResource ChoiceCard}"
+                                    Command="{Binding DataContext.SelectOrderTypeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" FontSize="21" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Sub}" FontSize="12.5" Foreground="{DynamicResource Neutral600}"
+                                               HorizontalAlignment="Center" Margin="0,7,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Visibility="{Binding ShowTableGrid, Converter={StaticResource BoolToVis}}"
+                            HorizontalAlignment="Center" Margin="0,34,0,0">
+                    <Grid Width="878" Margin="0,0,0,10">
+                        <Button Content="← ΠΙΣΩ" FontSize="10.5" FontWeight="Bold" Padding="12,5"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                Style="{StaticResource FlatButton}" BorderThickness="1.5"
+                                Command="{Binding DeselectOrderTypeCommand}"/>
+                        <TextBlock Text="ΚΑΤΟΨΗ — ΕΞΩΤΕΡΙΚΟΣ ΧΩΡΟΣ" FontSize="11" FontWeight="ExtraBold"
+                                   Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center"/>
+                        <Button Content="{Binding ArrangeButtonLabel}" FontSize="10.5" FontWeight="Bold"
+                                Padding="12,5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                Command="{Binding ToggleArrangeTablesCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                    <Setter Property="BorderThickness" Value="1.5"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsArrangingTables}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                    <TextBlock Text="Σύρε ένα τραπέζι όπου θέλεις — η θέση αποθηκεύεται αυτόματα"
+                               FontSize="10.5" Foreground="{DynamicResource Accent700}"
+                               HorizontalAlignment="Center" Margin="0,0,0,10"
+                               Visibility="{Binding IsArrangingTables, Converter={StaticResource BoolToVis}}"/>
+                    <Grid>
+                        <Border Background="{DynamicResource Surface}" CornerRadius="18" Effect="{StaticResource SoftShadowSmall}"/>
+                        <Border Background="{DynamicResource Surface}" CornerRadius="18" Padding="24"
+                                BorderBrush="{DynamicResource Divider}" BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsArrangingTables}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <ItemsControl ItemsSource="{Binding TableNumbers}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas Width="830" Height="320"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:TableOptionViewModel}">
+                                        <Grid Width="150" Height="92"
+                                              PreviewMouseLeftButtonDown="TableCard_PreviewMouseLeftButtonDown"
+                                              MouseMove="TableCard_MouseMove"
+                                              PreviewMouseLeftButtonUp="TableCard_PreviewMouseLeftButtonUp">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DataContext.IsArrangingTables, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                            <Setter Property="Cursor" Value="SizeAll"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+                                            <Button Padding="12,10"
+                                                    Command="{Binding DataContext.SelectTableCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                        <Setter Property="VerticalContentAlignment" Value="Top"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOpen}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                                <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                                <Setter Property="Foreground" Value="White"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Number}" FontSize="22" FontWeight="ExtraBold"/>
+                                                    <TextBlock Text="{Binding TotalLabel}" FontSize="13" FontWeight="ExtraBold"
+                                                               Foreground="{DynamicResource Accent700}" Margin="0,3,0,0"
+                                                               Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"/>
+                                                    <TextBlock Text="{Binding LastOrderLabel}" FontSize="9.5"
+                                                               Foreground="{DynamicResource Neutral600}" Margin="0,1,0,0"
+                                                               Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Content="✕" FontSize="10" Width="22" Height="22" Padding="0"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0"
+                                                    Style="{StaticResource GlyphButton}" ToolTip="Κλείσιμο τραπεζιού"
+                                                    Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.CloseTableCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+            <!-- Έκδοση εφαρμογής — μόνο στην Αρχική (Βήμα 1), κάτω-δεξιά· ώστε να ξέρει ο χρήστης οπτικά
+                 αν το build που τρέχει είναι το τελευταίο μετά από update. Τιμή γεμίζει από κώδικα
+                 (code-behind) διαβάζοντας το version.txt δίπλα στο exe — βλ. MainWindow.xaml.cs constructor.
+                 ΔΕΝ ανεβαίνει αυτόματα σε κάθε build πλέον — μόνο χειροκίνητα σε κάθε commit/νέο setup
+                 (βλ. scripts/bump-version.sh, PittaPos.App.csproj). -->
+            <TextBlock x:Name="VersionText" FontSize="10" Foreground="{DynamicResource Neutral600}"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10"
+                       IsHitTestVisible="False"/>
+            </Grid>
+        </Border>
+
+        <!-- ================= ΒΗΜΑ 2 — ΠΕΛΑΤΗΣ ================= -->
+        <Grid Grid.Row="3">
+            <Grid.Style>
+                <Style TargetType="Grid" BasedOn="{StaticResource StepPanel}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsStep2}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid Width="520" Margin="0,40,0,30">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Step2Header}" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding Step2Sub}" FontSize="13"
+                                   Foreground="{DynamicResource Neutral600}" Margin="0,0,0,20"/>
+
+                        <!-- ΕΦΑΡΜΟΓΕΣ: αριθμός παραγγελίας της πλατφόρμας — υποχρεωτικός για Wolt/e-food,
+                             προαιρετικός για BOX (βλ. Step2ContinueEnabled). Μικρό κουτί στη μέση — είναι
+                             ο κύριος αριθμός που θα φανεί στις Ζωντανές Παραγγελίες (βλ. BoardOrder.DisplayNumber). -->
+                        <StackPanel Visibility="{Binding ShowAppPlatformPicker, Converter={StaticResource BoolToVis}}"
+                                    HorizontalAlignment="Center" Margin="0,0,0,16">
+                            <TextBlock Text="Αριθμός παραγγελίας" FontSize="12" Foreground="{DynamicResource Neutral700}"
+                                       HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource PosTextBox}" Height="42" Width="160" FontSize="16"
+                                     FontWeight="ExtraBold" TextAlignment="Center"
+                                     Text="{Binding AppOrderRef, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <!-- ΕΦΑΡΜΟΓΕΣ: επιλογή πλατφόρμας πρώτα-πρώτα, αντί για στοιχεία πελάτη -->
+                        <ItemsControl ItemsSource="{Binding AppMethods}" Margin="0,0,0,10"
+                                      Visibility="{Binding ShowAppPlatformPicker, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="3"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:AppMethodViewModel}">
+                                    <Button Margin="0,0,12,12" Padding="18" FontSize="14" FontWeight="ExtraBold"
+                                            Style="{StaticResource ChoiceCard}"
+                                            Foreground="{Binding Color}" Content="{Binding Name}"
+                                            Command="{Binding DataContext.SelectAppMethodCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Visibility="{Binding ShowCustomerForm, Converter={StaticResource BoolToVis}}">
+                        <!-- Σύμβολο αναζήτησης στην άκρη — δείχνει αμέσως ότι το πεδίο ψάχνει (τηλέφωνο/όνομα),
+                             δεν είναι απλή καταχώρηση. IsHitTestVisible="False" ώστε το κλικ να περνάει στο TextBox. -->
+                        <Grid Margin="0,0,0,10">
+                            <TextBox Style="{StaticResource PosTextBox}" Height="44" FontSize="15" Padding="34,4,8,4"
+                                     Text="{Binding CustomerSearch, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="🔍" FontSize="14" Foreground="{DynamicResource Neutral500}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
+                                       IsHitTestVisible="False"/>
+                        </Grid>
+                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Margin="0,0,0,16"
+                                Visibility="{Binding HasCustomerMatches, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl ItemsSource="{Binding CustomerMatches}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CustomerMatchViewModel}">
+                                        <Button Style="{StaticResource FlatButton}" BorderThickness="0,0,0,1"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="14,11"
+                                                Command="{Binding DataContext.SelectCustomerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="ΕΠΙΛΟΓΗ" FontSize="11" FontWeight="ExtraBold"
+                                                           Foreground="{DynamicResource Accent700}" VerticalAlignment="Center"/>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                    <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"/>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                        <TextBlock Text="Ονοματεπώνυμο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,12"
+                                 Text="{Binding CustomerName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Τηλέφωνο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,12"
+                                 Text="{Binding CustomerPhone, UpdateSourceTrigger=PropertyChanged}"/>
+                        <StackPanel Visibility="{Binding ShowAddressField, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                                        Visibility="{Binding HasMultipleCustomerAddresses, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Αποθηκευμένες:" FontSize="11.5" Foreground="{DynamicResource Neutral600}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ItemsControl ItemsSource="{Binding CustomerAddressOptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:CustomerAddressOptionViewModel}">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,6,6">
+                                                <Button Content="{Binding Label}" Style="{StaticResource FlatButton}"
+                                                        FontSize="11" Padding="10,5"
+                                                        HorizontalContentAlignment="Center"
+                                                        Command="{Binding DataContext.SelectCustomerAddressOptionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <!-- Διαγραφή κατευθείαν εδώ, στο Βήμα 2 — χωρίς να χρειάζεται να ανοίξει
+                                                     το παράθυρο ΠΕΛΑΤΕΣ. Ρωτάει πριν διαγράψει (βλ. DeleteCustomerAddressOption) —
+                                                     ακόμα και η κύρια μπορεί να διαγραφεί, προάγεται αυτόματα η επόμενη. -->
+                                                <Button Content="×" Style="{StaticResource GlyphButton}"
+                                                        FontSize="14" Foreground="{DynamicResource Accent}" Width="22"
+                                                        ToolTip="Διαγραφή αποθηκευμένης διεύθυνσης"
+                                                        Command="{Binding DataContext.DeleteCustomerAddressOptionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="90"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Διεύθυνση" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                    <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                             Text="{Binding CustomerAddress, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Αριθμός" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                    <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                             Text="{Binding CustomerStreetNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,12"
+                                    Background="{DynamicResource Bg}" Effect="{StaticResource SoftShadowSmall}"
+                                    Visibility="{Binding HasAddressSuggestions, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl ItemsSource="{Binding AddressSuggestions}" Margin="4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:AddressSuggestionViewModel}">
+                                            <Button Style="{StaticResource FlatButton}" BorderThickness="0"
+                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
+                                                    Command="{Binding DataContext.SelectAddressSuggestionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <DockPanel LastChildFill="True">
+                                                    <TextBlock DockPanel.Dock="Left" Text="📍" FontSize="12.5" Margin="0,0,8,0" VerticalAlignment="Top"/>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Primary}" FontSize="13" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Secondary}" FontSize="11" Foreground="{DynamicResource Neutral500}"
+                                                                   TextWrapping="Wrap" Margin="0,1,0,0"
+                                                                   Visibility="{Binding HasSecondary, Converter={StaticResource BoolToVis}}"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="90"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Περιοχή" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                    <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                             Text="{Binding CustomerArea, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Τ.Κ." FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                    <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                             Text="{Binding CustomerPostalCode, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="Όροφος" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                    <ComboBox Style="{StaticResource PosComboBox}" Height="38" FontSize="13"
+                                              IsEditable="True" ItemsSource="{Binding FloorOptions}"
+                                              Text="{Binding CustomerFloor, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
+                            </Grid>
+                            <!-- Ξεχωριστό κουμπί/φόρμα για προσθήκη νέας διεύθυνσης στον ήδη γνωστό πελάτη — δικά
+                                 της πεδία, ΟΧΙ τα πεδία της τρέχουσας παραγγελίας από πάνω, ώστε να μη μπερδεύεται
+                                 ο ταμίας για το ποια διεύθυνση αφορά κάθε πεδίο (βλ. ConfirmAddCustomerAddress). -->
+                            <Button Content="+ Νέα διεύθυνση πελάτη" Style="{StaticResource FlatButton}"
+                                    FontSize="11.5" Padding="10,6" HorizontalAlignment="Left" Margin="0,0,0,12"
+                                    Visibility="{Binding ShowAddCustomerAddressButton, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding ShowAddCustomerAddressFormCommand}"/>
+                            <Border Visibility="{Binding IsAddingCustomerAddress, Converter={StaticResource BoolToVis}}"
+                                    BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10"
+                                    Padding="12" Margin="0,0,0,12" Background="{DynamicResource Bg}">
+                                <StackPanel>
+                                    <TextBlock Text="ΝΕΑ ΔΙΕΥΘΥΝΣΗ ΠΕΛΑΤΗ" FontSize="11" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Neutral600}" Margin="0,0,0,10"/>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="90"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Διεύθυνση" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                                     Text="{Binding NewAddressStreet, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Αριθμός" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                                     Text="{Binding NewAddressNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <!-- Ίδιο autocomplete με το κύριο πεδίο διεύθυνσης παραπάνω, αλλά ξεχωριστή λίστα
+                                         (βλ. NewAddressSuggestions) ώστε να μην ανακατεύεται με τις προτάσεις της
+                                         τρέχουσας παραγγελίας όταν είναι και οι δύο φόρμες ορατές μαζί. -->
+                                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,10"
+                                            Background="{DynamicResource Bg}" Effect="{StaticResource SoftShadowSmall}"
+                                            Visibility="{Binding HasNewAddressSuggestions, Converter={StaticResource BoolToVis}}">
+                                        <ItemsControl ItemsSource="{Binding NewAddressSuggestions}" Margin="4">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:AddressSuggestionViewModel}">
+                                                    <Button Style="{StaticResource FlatButton}" BorderThickness="0"
+                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
+                                                            Command="{Binding DataContext.SelectNewAddressSuggestionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}">
+                                                        <DockPanel LastChildFill="True">
+                                                            <TextBlock DockPanel.Dock="Left" Text="📍" FontSize="12.5" Margin="0,0,8,0" VerticalAlignment="Top"/>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Primary}" FontSize="13" FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding Secondary}" FontSize="11" Foreground="{DynamicResource Neutral500}"
+                                                                           TextWrapping="Wrap" Margin="0,1,0,0"
+                                                                           Visibility="{Binding HasSecondary, Converter={StaticResource BoolToVis}}"/>
+                                                            </StackPanel>
+                                                        </DockPanel>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="90"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Περιοχή" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                                     Text="{Binding NewAddressArea, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Τ.Κ." FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                                     Text="{Binding NewAddressPostalCode, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="Όροφος" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                                     Text="{Binding NewAddressFloor, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Αποθήκευση" Style="{StaticResource PrimaryButton}"
+                                                FontSize="12" Padding="16,8" Margin="0,0,8,0"
+                                                Command="{Binding ConfirmAddCustomerAddressCommand}"/>
+                                        <Button Content="Άκυρο" Style="{StaticResource FlatButton}"
+                                                FontSize="12" Padding="16,8"
+                                                Command="{Binding CancelAddCustomerAddressCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="Σχόλια (π.χ. θέλει αναπάντητη)" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                            <TextBox Style="{StaticResource PosTextBox}" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
+                                     VerticalContentAlignment="Top" Padding="8,6"
+                                     Text="{Binding CustomerNotes, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+                <DockPanel Grid.Row="1" Margin="0,20,0,0" LastChildFill="False">
+                    <Button DockPanel.Dock="Left" Content="← Πίσω" Style="{StaticResource FlatButton}" Height="46"
+                            Padding="20,0" FontSize="13" Command="{Binding BackStep2Command}"/>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Height="46" Padding="24,0" FontSize="14"
+                            Visibility="{Binding ShowStep2ContinueButton, Converter={StaticResource BoolToVis}}"
+                            IsEnabled="{Binding Step2ContinueEnabled}" Command="{Binding ContinueStep2Command}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ΣΥΝΕΧΕΙΑ"/>
+                            <TextBlock Text="→" Margin="14,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                </DockPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ================= ΒΗΜΑ 3 — ΠΡΟΪΟΝΤΑ ================= -->
+        <views:ProductsView Grid.Row="3" DataContext="{Binding Products}">
+            <views:ProductsView.Style>
+                <Style TargetType="views:ProductsView" BasedOn="{StaticResource StepPanel}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DataContext.IsStep3, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </views:ProductsView.Style>
+        </views:ProductsView>
+
+        <!-- ================= ΒΗΜΑ 4 — ΔΙΑΝΟΜΗ ================= -->
+        <Grid Grid.Row="3">
+            <Grid.Style>
+                <Style TargetType="Grid" BasedOn="{StaticResource StepPanel}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsStep4}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid Width="560" Margin="0,40,0,30">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock Text="{Binding Step4Title}" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding Step4Sub}" FontSize="13" Foreground="{DynamicResource Neutral600}" Margin="0,0,0,22"/>
+                    <ItemsControl ItemsSource="{Binding PickupTimes}" MaxWidth="320" HorizontalAlignment="Left"
+                                  Visibility="{Binding IsPickupOrder, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Vertical"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PickupTimeViewModel}">
+                                <Button Margin="0,0,0,12" Padding="16,16" FontSize="14" FontWeight="ExtraBold"
+                                        Style="{StaticResource ChoiceCard}" Content="{Binding Label}"
+                                        HorizontalContentAlignment="Left" HorizontalAlignment="Stretch"
+                                        Command="{Binding DataContext.SelectPickupTimeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <Button Grid.Row="1" Content="← Πίσω" Style="{StaticResource FlatButton}" Height="46"
+                        Padding="20,0" FontSize="13" HorizontalAlignment="Left"
+                        Command="{Binding BackStep4Command}"/>
+            </Grid>
+        </Grid>
+
+        <!-- ================= ΒΗΜΑ 5 — ΕΚΤΥΠΩΣΗ ================= -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Style>
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource StepPanel}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsStep5}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
+            <StackPanel HorizontalAlignment="Center" Margin="0,34,0,20">
+                <Border x:Name="ReceiptCard" Width="420" BorderBrush="{DynamicResource Divider}" BorderThickness="2"
+                        Padding="24" Background="{DynamicResource Bg}">
+                    <StackPanel>
+                        <TextBlock Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontSize="16" FontWeight="ExtraBold"
+                                   Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,16">
+                            <TextBlock Text="ΠΑΡΑΓΓΕΛΙΑ #" FontSize="11" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding DisplayOrderNumber}" FontSize="11" Foreground="{DynamicResource Neutral600}"/>
+                        </StackPanel>
+                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,2" Padding="0,12" Margin="0,0,0,14">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ReceiptTypeLabel}" FontSize="12.5"
+                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                    <TextBlock Text="Τύπος" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
+                                </DockPanel>
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ReceiptWho}" FontSize="12.5"
+                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding ReceiptWhoLabel}" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+                        <ItemsControl ItemsSource="{Binding Products.Cart}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:CartLineViewModel}">
+                                    <DockPanel Margin="0,6">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="13"
+                                                   FontWeight="SemiBold" Foreground="{DynamicResource Ink}"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Quantity}" FontSize="13" Foreground="{DynamicResource Ink}"/>
+                                            <TextBlock Text="× " FontSize="13" Foreground="{DynamicResource Ink}"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{DynamicResource Ink}"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,2,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Products.TotalLabel}" FontSize="20"
+                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                <TextBlock Text="ΣΥΝΟΛΟ" FontSize="17" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                                           VerticalAlignment="Bottom"/>
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+                <Grid Width="420" Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="← Πίσω" Style="{StaticResource FlatButton}" Height="46" FontSize="13"
+                            HorizontalContentAlignment="Center" Command="{Binding BackStep5Command}"/>
+                    <Button Grid.Column="2" Content="ΝΕΑ ΠΑΡΑΓΓΕΛΙΑ" Style="{StaticResource PrimaryButton}" Height="46" FontSize="14"
+                            HorizontalContentAlignment="Center" Command="{Binding NewOrderCommand}"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ================= αστάλτες παραγγελίες (μόνο 2ο ταμείο) ================= -->
+        <!-- Μόνιμη, κόκκινη μπάρα στο κάτω μέρος όσο υπάρχει έστω μία παραγγελία που δεν έφτασε στο
+             κύριο ταμείο (βλ. PendingSyncService). Σκόπιμα σε ΚΑΘΕ βήμα και πάνω απ' όλα: το χαρτί
+             τυπώνεται κανονικά από τον τοπικό εκτυπωτή, οπότε χωρίς αυτό ο ταμίας δεν είχε κανένα
+             τρόπο να καταλάβει ότι η παραγγελία δεν καταχωρήθηκε πουθενά — το παλιό μήνυμα ήταν
+             κρυμμένο μέσα στις Ρυθμίσεις, που κανείς δεν ανοίγει στη βάρδια. Φεύγει μόνο του μόλις
+             επανέλθει η σύνδεση και σταλούν όλα. -->
+        <Border Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="300"
+                VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                Background="{DynamicResource Accent}" Padding="20,12"
+                DataContext="{x:Static services:PendingSyncService.Instance}"
+                Visibility="{Binding HasPending, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Text="⚠" FontSize="18" Foreground="White" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding WarningText}" FontSize="15" FontWeight="ExtraBold"
+                           Foreground="White" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ================= τρόπος πληρωμής — banner στη μέση, πάνω από όλα ================= -->
+        <!-- Σηκώνεται όταν ο ταμίας πατήσει το τελικό ΣΥΝΕΧΕΙΑ/ΟΛΟΚΛΗΡΩΣΗ για ΔΙΑΝΟΜΗ/BOX/ΠΑΡΑΛΑΒΗ χωρίς να
+             έχει διαλέξει ακόμα Μετρητά/Κάρτα (βλ. OrderWizardViewModel.ContinueStep3/NeedsPaymentMethod/
+             ShowPaymentPrompt). Υπάρχει και έξοδος («ΠΙΣΩ»): συχνά ο ταμίας θυμάται κάτι ξεχασμένο
+             ακριβώς εκείνη τη στιγμή, και χωρίς αυτήν έπρεπε να ολοκληρώσει και μετά να διορθώσει
+             ολόκληρη παραγγελία. Panel.ZIndex πάνω από την ειδοποίηση κλήσης (100).-->
+        <Grid Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="200"
+              Visibility="{Binding ShowPaymentPrompt, Converter={StaticResource BoolToVis}}">
+            <Border Background="#99000000"/>
+            <Border Width="440" Background="{DynamicResource Bg}"
+                    BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="22"
+                    Effect="{StaticResource SoftShadowSmall}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Margin="32,30,32,32">
+                    <!-- κόκκινο, στρογγυλό εικονίδιο-πινελιά της ταυτότητας του μαγαζιού -->
+                    <Border Width="60" Height="60" CornerRadius="30" Background="{DynamicResource Accent}"
+                            HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <TextBlock Text="💶" FontSize="26" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Τρόπος πληρωμής" FontSize="22" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                    <TextBlock Text="Πώς θα πληρώσει ο πελάτης τον διανομέα;" FontSize="13.5"
+                               Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,26"/>
+                    <UniformGrid Columns="2">
+                        <Button Content="💶 ΜΕΤΡΗΤΑ" Margin="0,0,10,0" Padding="18,20" FontSize="16" FontWeight="ExtraBold"
+                                Style="{StaticResource PaymentChoiceButton}" Command="{Binding SelectCashPaymentCommand}"/>
+                        <Button Content="💳 ΚΑΡΤΑ" Padding="18,20" FontSize="16" FontWeight="ExtraBold"
+                                Style="{StaticResource PaymentChoiceButton}" Command="{Binding SelectCardPaymentCommand}"/>
+                    </UniformGrid>
+                    <!-- Διακριτικό, όχι ισότιμο με τις δύο επιλογές: η κανονική ροή είναι να διαλέξει
+                         τρόπο πληρωμής — αυτό είναι η έξοδος διαφυγής, να μην πατιέται κατά λάθος. -->
+                    <Button Content="← ΠΙΣΩ ΣΤΗΝ ΠΑΡΑΓΓΕΛΙΑ" Margin="0,14,0,0" Padding="10,10" FontSize="13"
+                            FontWeight="Bold" HorizontalAlignment="Center"
+                            Style="{StaticResource FlatButton}"
+                            Command="{Binding CancelPaymentPromptCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

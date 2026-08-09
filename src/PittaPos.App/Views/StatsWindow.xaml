@@ -1,0 +1,533 @@
+<Window x:Class="PittaPos.App.Views.StatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        xmlns:lvcore="clr-namespace:LiveChartsCore;assembly=LiveChartsCore"
+        Title="ΣΤΑΤΙΣΤΙΚΑ ΠΩΛΗΣΕΩΝ" Height="800" Width="1280"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Flat μέρα ημερολογίου: κύκλος με accent χρώμα όταν επιλεγμένη, απαλό χρώμα στο hover -->
+        <Style x:Key="PosCalendarDayButton" TargetType="CalendarDayButton">
+            <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CalendarDayButton">
+                        <Border x:Name="bd" Background="Transparent" BorderThickness="1.5" BorderBrush="Transparent" CornerRadius="8" Margin="1.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                            </Trigger>
+                            <Trigger Property="IsToday" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsInactive" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource Neutral400}"/>
+                            </Trigger>
+                            <Trigger Property="IsBlackedOut" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource Neutral400}"/>
+                                <Setter Property="IsHitTestVisible" Value="False"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Επιλογή μήνα/έτους πλοήγησης -->
+        <Style x:Key="PosCalendarButton" TargetType="CalendarButton">
+            <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CalendarButton">
+                        <Border x:Name="bd" Background="Transparent" CornerRadius="8" Margin="2" Padding="6,8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Το ίδιο το ημερολόγιο (popup) -->
+        <Style x:Key="PosCalendar" TargetType="Calendar">
+            <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="CalendarDayButtonStyle" Value="{StaticResource PosCalendarDayButton}"/>
+            <Setter Property="CalendarButtonStyle" Value="{StaticResource PosCalendarButton}"/>
+        </Style>
+
+        <!-- Κουμπί-κουτί ημερομηνίας: δείχνει την επιλεγμένη μέρα, ανοίγει το ημερολόγιο από κάτω -->
+        <Style x:Key="DateBoxToggle" TargetType="ToggleButton">
+            <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+            <Setter Property="Background" Value="{DynamicResource Bg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Κουμπί καρτέλας (ΣΤΑΤΙΣΤΙΚΑ / ΔΙΑΓΡΑΜΜΑ, ΩΡΑ / ΗΜΕΡΑ / ΜΗΝΑΣ) -->
+        <Style x:Key="TabButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="ExtraBold"/>
+            <Setter Property="Padding" Value="14,8"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
+                       Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock DockPanel.Dock="Left" Text="ΣΤΑΤΙΣΤΙΚΑ ΠΩΛΗΣΕΩΝ" FontWeight="ExtraBold" FontSize="14"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding NowLabel}" FontSize="13" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <!-- main tabs: ΣΤΑΤΙΣΤΙΚΑ / ΔΙΑΓΡΑΜΜΑ -->
+        <Border Grid.Row="1" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="30,12">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="ΣΤΑΤΙΣΤΙΚΑ" Margin="0,0,8,0"
+                        Command="{Binding SelectOverviewTabCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowOverviewTab}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="ΔΙΑΓΡΑΜΜΑ"
+                        Command="{Binding SelectChartTabCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowChartTab}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="30,26" Visibility="{Binding ShowOverviewTab, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- summary tiles -->
+            <StackPanel Grid.Row="0">
+            <UniformGrid Columns="2" Margin="0,0,0,14">
+                <Grid Margin="0,0,14,0">
+                    <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="ΤΖΙΡΟΣ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding RevenueLabel}" FontSize="26" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Accent700}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <Grid>
+                    <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="ΜΕΣΗ ΠΑΡΑΓΓΕΛΙΑ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding AvgOrderLabel}" FontSize="26" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </UniformGrid>
+
+            <!-- morning / evening / total -->
+            <TextBlock Text="ΑΝΑ ΒΑΡΔΙΑ" FontSize="11" FontWeight="ExtraBold"
+                       Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+            <UniformGrid Columns="3" Margin="0,0,0,26">
+                <Grid Margin="0,0,14,0">
+                    <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="ΠΡΩΙ (ΕΩΣ 19:00)" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding MorningRevenueLabel}" FontSize="24" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding MorningCountLabel}" FontSize="11.5" Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <Grid Margin="0,0,14,0">
+                    <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Text="ΒΡΑΔΥ (19:00–03:00)" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding EveningRevenueLabel}" FontSize="24" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding EveningCountLabel}" FontSize="11.5" Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <Grid>
+                    <Border Background="{DynamicResource Accent100}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                    <Border BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="12" Padding="18,14" Background="{DynamicResource Accent100}">
+                        <StackPanel>
+                            <TextBlock Text="ΣΥΝΟΛΙΚΟ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"/>
+                            <TextBlock Text="{Binding TotalRevenueLabel}" FontSize="24" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Accent700}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding TotalCountLabel}" FontSize="11.5" Foreground="{DynamicResource Accent700}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </UniformGrid>
+
+            <!-- revenue per channel: always all six, morning/evening always shown together -->
+            <TextBlock Text="ΑΝΑ ΚΑΝΑΛΙ" FontSize="11" FontWeight="ExtraBold"
+                       Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+            <ItemsControl ItemsSource="{Binding ChannelRevenues}" Margin="0,0,-14,26">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="6"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:ChannelRevenueViewModel}">
+                        <Grid Margin="0,0,14,0">
+                            <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="14,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="10.5" FontWeight="ExtraBold"
+                                               Foreground="{Binding Brush}"/>
+                                    <TextBlock Text="{Binding RevenueLabel}" FontSize="19" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" Margin="0,3,0,0"/>
+                                    <TextBlock Text="{Binding CountLabel}" FontSize="10.5"
+                                               Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding MorningRevenueLabel}" FontSize="10"
+                                               Foreground="{DynamicResource Neutral500}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="{Binding EveningRevenueLabel}" FontSize="10"
+                                               Foreground="{DynamicResource Neutral500}" Margin="0,1,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            </StackPanel>
+
+            <!-- empty state -->
+            <TextBlock Grid.Row="1" Text="Καμία πώληση ακόμα — τα στατιστικά γεμίζουν με κάθε παραγγελία"
+                       FontSize="13" Foreground="{DynamicResource Neutral500}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Visibility="{Binding NoData, Converter={StaticResource BoolToVis}}"/>
+
+            <Grid Grid.Row="1" Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                <!-- per-product breakdown -->
+                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,12">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="ΤΖΙΡΟΣ" FontSize="11" FontWeight="ExtraBold"
+                                           Foreground="{DynamicResource Neutral600}" Width="90" TextAlignment="Right"/>
+                                <TextBlock DockPanel.Dock="Right" Text="% ΤΖΙΡΟΥ" FontSize="11" FontWeight="ExtraBold"
+                                           Foreground="{DynamicResource Neutral600}" Width="80" TextAlignment="Right"/>
+                                <TextBlock DockPanel.Dock="Right" Text="ΤΕΜΑΧΙΑ" FontSize="11" FontWeight="ExtraBold"
+                                           Foreground="{DynamicResource Neutral600}" Width="70" TextAlignment="Right"/>
+                                <TextBlock Text="ΠΡΟΪΟΝ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            </DockPanel>
+                        </Border>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ProductStats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ProductStatViewModel}">
+                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="18,10">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding RevenueLabel}" FontSize="13"
+                                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                                                               Width="90" TextAlignment="Right"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ShareLabel}" FontSize="13"
+                                                               Foreground="{DynamicResource Neutral600}"
+                                                               Width="80" TextAlignment="Right"/>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding QuantityLabel}" FontSize="13"
+                                                               FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"
+                                                               Width="70" TextAlignment="Right"/>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding RankLabel}" FontSize="12" FontWeight="ExtraBold"
+                                                                   Foreground="{DynamicResource Neutral500}" Width="28"/>
+                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource Ink}"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <ItemsControl ItemsSource="{Binding Variants}" Margin="28,6,0,0"
+                                                              Visibility="{Binding HasVariants, Converter={StaticResource BoolToVis}}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:ProductVariantStatViewModel}">
+                                                            <DockPanel Margin="0,0,0,3">
+                                                                <TextBlock DockPanel.Dock="Right" Text="{Binding RevenueLabel}" FontSize="11"
+                                                                           Foreground="{DynamicResource Neutral500}" Width="90" TextAlignment="Right"/>
+                                                                <TextBlock DockPanel.Dock="Left" Text="{Binding QuantityLabel}" FontSize="11"
+                                                                           FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"
+                                                                           Width="36"/>
+                                                                <TextBlock Text="{Binding DetailsLabel}" FontSize="11"
+                                                                           Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"/>
+                                                            </DockPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ΔΙΑΓΡΑΜΜΑ: πωλήσεις ανά ώρα/ημέρα/μήνα -->
+        <Grid Grid.Row="2" Margin="30,26" Visibility="{Binding ShowChartTab, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- toolbar: ανάλυση + πλοήγηση + ημερολόγιο -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+                <Button Content="ΩΡΑ" Margin="0,0,8,0"
+                        Command="{Binding SelectHourGranularityCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHourGranularity}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="ΗΜΕΡΑ" Margin="0,0,8,0"
+                        Command="{Binding SelectDayGranularityCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDayGranularity}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="ΜΗΝΑΣ" Margin="0,0,8,0"
+                        Command="{Binding SelectMonthGranularityCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMonthGranularity}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="ΧΡΟΝΟΣ" Margin="0,0,8,0"
+                        Command="{Binding SelectYearGranularityCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsYearGranularity}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="ΠΡΟΣΑΡΜΟΣΜΕΝΟ" Margin="0,0,24,0"
+                        Command="{Binding SelectCustomGranularityCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCustomGranularity}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <!-- ΩΡΑ/ΗΜΕΡΑ/ΜΗΝΑΣ/ΧΡΟΝΟΣ: ένα κουτί ημερομηνίας + βελάκια -->
+                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowAnchorPicker, Converter={StaticResource BoolToVis}}">
+                    <Button Content="◀" FontSize="14" FontWeight="ExtraBold" Width="40" Height="40"
+                            Style="{StaticResource GlyphButton}" Command="{Binding ChartPrevCommand}"/>
+
+                    <ToggleButton x:Name="ChartDateToggle" Style="{StaticResource DateBoxToggle}" Width="220" Margin="8,0" Height="40">
+                        <TextBlock Text="{Binding ChartAnchorLabel}" HorizontalAlignment="Center" FontWeight="Bold"/>
+                    </ToggleButton>
+                    <Popup PlacementTarget="{Binding ElementName=ChartDateToggle}"
+                           IsOpen="{Binding IsChecked, ElementName=ChartDateToggle, Mode=TwoWay}"
+                           StaysOpen="False" Placement="Bottom" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="{DynamicResource Divider}" BorderThickness="2">
+                            <Calendar Style="{StaticResource PosCalendar}" SelectedDate="{Binding ChartAnchor, Mode=TwoWay}"
+                                      SelectedDatesChanged="ChartCalendar_SelectedDatesChanged"/>
+                        </Border>
+                    </Popup>
+
+                    <Button Content="▶" FontSize="14" FontWeight="ExtraBold" Width="40" Height="40" Margin="0,0,12,0"
+                            Style="{StaticResource GlyphButton}" Command="{Binding ChartNextCommand}"/>
+                </StackPanel>
+
+                <!-- ΠΡΟΣΑΡΜΟΣΜΕΝΟ: Από/Έως, ίδιο στιλ με το Ιστορικό -->
+                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowRangePicker, Converter={StaticResource BoolToVis}}">
+                    <Button Content="◀" FontSize="14" FontWeight="ExtraBold" Width="40" Height="40"
+                            Style="{StaticResource GlyphButton}" Command="{Binding ChartPrevCommand}"/>
+
+                    <TextBlock Text="Από" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Neutral600}"
+                               VerticalAlignment="Center" Margin="8,0,6,0"/>
+                    <ToggleButton x:Name="CustomFromToggle" Style="{StaticResource DateBoxToggle}" Width="120" Height="40">
+                        <TextBlock Text="{Binding CustomFromDate, StringFormat={}{0:dd/MM/yyyy}}" HorizontalAlignment="Center" FontWeight="Bold"/>
+                    </ToggleButton>
+                    <Popup PlacementTarget="{Binding ElementName=CustomFromToggle}"
+                           IsOpen="{Binding IsChecked, ElementName=CustomFromToggle, Mode=TwoWay}"
+                           StaysOpen="False" Placement="Bottom" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="{DynamicResource Divider}" BorderThickness="2">
+                            <Calendar Style="{StaticResource PosCalendar}" SelectedDate="{Binding CustomFromDate, Mode=TwoWay}"
+                                      SelectedDatesChanged="CustomFromCalendar_SelectedDatesChanged"/>
+                        </Border>
+                    </Popup>
+
+                    <TextBlock Text="Έως" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Neutral600}"
+                               VerticalAlignment="Center" Margin="12,0,6,0"/>
+                    <ToggleButton x:Name="CustomToToggle" Style="{StaticResource DateBoxToggle}" Width="120" Height="40">
+                        <TextBlock Text="{Binding CustomToDate, StringFormat={}{0:dd/MM/yyyy}}" HorizontalAlignment="Center" FontWeight="Bold"/>
+                    </ToggleButton>
+                    <Popup PlacementTarget="{Binding ElementName=CustomToToggle}"
+                           IsOpen="{Binding IsChecked, ElementName=CustomToToggle, Mode=TwoWay}"
+                           StaysOpen="False" Placement="Bottom" AllowsTransparency="True">
+                        <Border Background="White" BorderBrush="{DynamicResource Divider}" BorderThickness="2">
+                            <Calendar Style="{StaticResource PosCalendar}" SelectedDate="{Binding CustomToDate, Mode=TwoWay}"
+                                      SelectedDatesChanged="CustomToCalendar_SelectedDatesChanged"/>
+                        </Border>
+                    </Popup>
+
+                    <Button Content="▶" FontSize="14" FontWeight="ExtraBold" Width="40" Height="40" Margin="8,0,12,0"
+                            Style="{StaticResource GlyphButton}" Command="{Binding ChartNextCommand}"/>
+                </StackPanel>
+
+                <Button Content="ΤΩΡΑ" Style="{StaticResource TabButton}" Margin="0,0,0,0"
+                        Command="{Binding ChartTodayCommand}"/>
+
+                <Button Content="📊 ΣΥΓΚΡΙΣΗ ΜΕ ΠΕΡΣΙ" Margin="12,0,0,0" Command="{Binding ToggleCompareCommand}"
+                        Visibility="{Binding CanCompare, Converter={StaticResource BoolToVis}}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CompareEnabled}" Value="True">
+                                    <Setter Property="Background" Value="#2f6fed"/>
+                                    <Setter Property="BorderBrush" Value="#2f6fed"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <TextBlock Text="{Binding ChartTotalLabel}" FontSize="20" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Accent700}" VerticalAlignment="Center" Margin="24,0,0,0"/>
+            </StackPanel>
+
+            <!-- empty state -->
+            <TextBlock Grid.Row="1" Text="Καμία πώληση στο επιλεγμένο διάστημα"
+                       FontSize="13" Foreground="{DynamicResource Neutral500}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Visibility="{Binding ChartNoData, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- bar chart -->
+            <Border Grid.Row="1" BorderBrush="{DynamicResource Divider}" BorderThickness="1" Padding="12,16"
+                    Visibility="{Binding ChartHasData, Converter={StaticResource BoolToVis}}">
+                <lvc:CartesianChart Series="{Binding Series}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}"
+                                    Background="Transparent"
+                                    TooltipPosition="Top" ZoomMode="None" LegendPosition="{Binding ChartLegendPosition}"
+                                    EasingFunction="{Binding Source={x:Static lvcore:EasingFunctions.EaseOut}}"
+                                    AnimationsSpeed="00:00:00.500"/>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

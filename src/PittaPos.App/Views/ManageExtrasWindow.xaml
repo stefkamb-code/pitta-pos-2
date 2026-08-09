@@ -1,0 +1,128 @@
+<Window x:Class="PittaPos.App.Views.ManageExtrasWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        Title="ΚΟΙΝΑ ΕΞΤΡΑ" Height="640" Width="480"
+        WindowStartupLocation="CenterOwner"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <TextBlock DockPanel.Dock="Left" Text="ΚΟΙΝΑ ΕΞΤΡΑ" FontWeight="ExtraBold" FontSize="14"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,20">
+                <TextBlock Text="Ο κοινός κατάλογος έξτρα υλικών — διαθέσιμα σε όλα τα customizable προϊόντα, εκτός αν κάποιο τα περιορίζει (βλ. φόρμα προϊόντος)."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,18"/>
+
+                <!-- double pita surcharge -->
+                <TextBlock Text="ΔΙΠΛΗ ΠΙΤΑ — ΧΡΕΩΣΗ ΑΝΑ ΚΑΤΗΓΟΡΙΑ" FontSize="12" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
+                <TextBlock Text="Η επιπλέον χρέωση όταν ο πελάτης ζητήσει διπλή πίτα, ξεχωριστή για ΤΥΛΙΧΤΑ και ΚΛΑΣΙΚΑ ΜΙΝΙ."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                <ItemsControl ItemsSource="{Binding DoublePitaRows}" Margin="0,0,0,20">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ExtraCatalogRowViewModel}">
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="36"
+                                             Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Grid.Column="4" Content="ΕΝΗΜΕΡΩΣΗ" Style="{StaticResource FlatButton}"
+                                            Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="10,0"
+                                            Command="{Binding DataContext.UpdateDoublePitaPriceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- add new -->
+                <Grid Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Νέο έξτρα" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox Style="{StaticResource PosTextBox}" Height="40"
+                                 Text="{Binding NewExtraName, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Τιμή (κενό=δωρεάν)" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                        <TextBox Style="{StaticResource PosTextBox}" Height="40"
+                                 Text="{Binding NewExtraPrice, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <Button Grid.Column="4" Content="+ ΠΡΟΣΘΗΚΗ" Style="{StaticResource PrimaryButton}"
+                            Height="40" FontSize="12.5" FontWeight="ExtraBold" Padding="14,0"
+                            VerticalAlignment="Bottom" Command="{Binding AddGlobalExtraCommand}"/>
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding ExtraCatalogRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ExtraCatalogRowViewModel}">
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="36"
+                                             Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Grid.Column="4" Content="ΕΝΗΜΕΡΩΣΗ" Style="{StaticResource FlatButton}"
+                                            Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="10,0"
+                                            Command="{Binding DataContext.UpdateExtraPriceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Grid.Column="6" Content="×" Style="{StaticResource GlyphButton}" FontSize="16"
+                                            Foreground="{DynamicResource Accent}" Width="30"
+                                            Command="{Binding DataContext.DeleteGlobalExtraCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{Binding StatusMessage}" FontSize="12" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Accent}" Margin="0,14,0,0"
+                           Visibility="{Binding HasStatus, Converter={StaticResource BoolToVis}}"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

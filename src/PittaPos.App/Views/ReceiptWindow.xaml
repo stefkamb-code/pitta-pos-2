@@ -1,0 +1,161 @@
+<Window x:Class="PittaPos.App.Views.ReceiptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svc="clr-namespace:PittaPos.App.Services"
+        Title="Απόδειξη" SizeToContent="WidthAndHeight"
+        ShowInTaskbar="False"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    <!--
+        Μόνο η απόδειξη — τίποτα άλλο από το ΙΣΤΟΡΙΚΟ (χωρίς λίστα παραγγελιών, χωρίς διαγραφή, χωρίς PIN).
+        Χρησιμοποιείται είτε εκτός οθόνης για σιωπηλή εκτύπωση (ReceiptPrinter), είτε ορατό για επανεκτύπωση
+        από το Ιστορικό. Όλες οι τιμές γεμίζουν από κώδικα (code-behind) — καμία σύνδεση (binding) σε
+        ολόκληρο ViewModel, ώστε να μην εκθέτει ποτέ κατά λάθος ενέργειες που κανονικά θέλουν κωδικό.
+    -->
+    <!-- Background σκόπιμα White (όχι {DynamicResource Bg}) — το PrintVisual τυπώνει ολόκληρο το visual
+         σαν εικόνα, όχι μόνο τα γράμματα· το θεματικό Bg (#f3f2f2) φαίνεται λευκό στην οθόνη αλλά ΔΕΝ
+         είναι καθαρό λευκό, οπότε ο θερμικός εκτυπωτής το dither-άρει σε ψιλές γκρι κουκκίδες σε όλο το
+         φόντο (φαίνεται σαν αχνές μαυρίλες παντού, όχι μόνο στα γράμματα). Καθαρό White τυπώνει σκέτο
+         λευκό χαρτί χωρίς κανένα dot εκτός από το ίδιο το κείμενο.
+
+         Για τον ΙΔΙΟ λόγο όλα τα χρώματα κειμένου/γραμμών εδώ είναι σκέτο Black, όχι τα θεματικά
+         Ink/Neutral600/Neutral700/Divider: το Ink είναι #201e1d (σκούρο γκριζοκαφέ, όχι καθαρό μαύρο)
+         και τα Neutral είναι ανοιχτά γκρι — ο θερμικός εκτυπωτής δεν έχει ενδιάμεσους τόνους, οπότε τα
+         σπάει σε αραιές κουκκίδες και τα γράμματα βγαίνουν ΑΧΝΑ. Μόνο το καθαρό μαύρο τυπώνεται συμπαγές.
+         Μπόνους: η απόδειξη δεν αλλάζει πια χρώματα αν αλλάξει θέμα η οθόνη του ταμείου.
+    -->
+    <!-- TextRenderingMode=Aliased: χωρίς εξομάλυνση άκρων. Το WPF κανονικά σχεδιάζει τα γράμματα με
+         γκρι αποχρώσεις στα περιγράμματα (ωραίο στην οθόνη) — ο θερμικός εκτυπωτής όμως δεν έχει γκρι,
+         οπότε κάθε τέτοιο pixel γίνεται αραιή κουκκίδα και το γράμμα αποκτά θολή, αχνή φράντζα. Έτσι
+         κάθε pixel βγαίνει ή καθαρό μαύρο ή λευκό — πιο κοφτά και πιο σκούρα γράμματα στο χαρτί.
+         TextFormattingMode=Display «κουμπώνει» τα γράμματα στο πλέγμα των pixel, για την ίδια δουλειά.
+         EdgeMode=Aliased κάνει το ίδιο για τις γραμμές/πλαίσια. -->
+    <!-- Χωρίς περίγραμμα: σε θερμικό χαρτί ένα μαύρο πλαίσιο γύρω-γύρω δεν προσφέρει τίποτα — τρώει
+         μελάνη, στενεύει το χρήσιμο πλάτος και το χαρτί κόβεται ούτως ή άλλως στην άκρη. -->
+    <Border x:Name="ReceiptCard" Width="420" BorderThickness="0"
+            Padding="24" Background="White"
+            TextOptions.TextRenderingMode="Aliased" TextOptions.TextFormattingMode="Display"
+            RenderOptions.EdgeMode="Aliased">
+        <StackPanel>
+            <!-- Κεφαλίδα σκόπιμα συμπαγής (λιγότερο χαρτί ανά απόδειξη): τίτλος, μετά κατάστημα ΚΑΙ
+                 ημερομηνία/ώρα στην ΙΔΙΑ γραμμή (πριν έπιαναν δύο), μετά ο αριθμός παραγγελίας. Η
+                 συνένωση γίνεται στο code-behind ώστε να μη μένει ορφανό «·» όταν λείπει το ένα από
+                 τα δύο (π.χ. κλειστή η ρύθμιση ημερομηνίας ή κενό «στοιχεία καταστήματος»). -->
+            <TextBlock x:Name="TitleText" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontSize="16" FontWeight="ExtraBold"
+                       Foreground="Black" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="InfoText" FontSize="11" Foreground="Black"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Margin="0,2,0,0" Visibility="Collapsed"/>
+            <!-- Τύπος/κανάλι (ΔΙΑΝΟΜΗ, WOLT, E-FOOD, BOX, ΤΡΑΠΕΖΙ…) ΠΑΝΩ, πριν τον αριθμό παραγγελίας και
+                 χωρίς ετικέτα «ΤΥΠΟΣ» — είναι το πρώτο που θέλει να δει ο υπάλληλος μόλις πιάσει το χαρτί,
+                 οπότε μπαίνει μεγάλο και κεντραρισμένο αντί για μια ακόμα γραμμή μέσα στα στοιχεία. -->
+            <TextBlock x:Name="TypeText" FontSize="15" FontWeight="ExtraBold" Foreground="Black"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Margin="0,6,0,10"/>
+            <Border x:Name="InfoBlock" BorderBrush="Black" BorderThickness="0,2" Padding="0,12" Margin="0,0,0,14">
+                <StackPanel>
+                    <!-- Όνομα ΚΑΙ τηλέφωνο στην ίδια γραμμή — πάνε μαζί («ποιον ψάχνω / πού τον παίρνω»)
+                         και γλιτώνει μια γραμμή χαρτί. Η ένωση γίνεται στο code-behind ώστε να μη μένει
+                         ορφανό «·» όταν δεν υπάρχει τηλέφωνο (π.χ. παραλαβή). -->
+                    <!-- Grid (Auto + *) αντί για DockPanel με σταθερό MaxWidth: το χαρτί μπορεί να είναι
+                         πολύ στενότερο απ' ό,τι δείχνει η οθόνη (π.χ. 72mm εκτυπώσιμα = 272 μονάδες αντί
+                         420). Με DockPanel, μια μεγάλη τιμή έπαιρνε ΟΛΟ το διαθέσιμο πλάτος και άφηνε
+                         μηδέν στην ετικέτα — το «ΠΕΛΑΤΗΣ» εξαφανιζόταν από το χαρτί. Έτσι η ετικέτα
+                         κρατάει πάντα τον χώρο της και η τιμή αναδιπλώνεται στον υπόλοιπο, σε
+                         οποιοδήποτε πλάτος χαρτιού. -->
+                    <Grid x:Name="CustomerRow">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="WhoLabelText" Grid.Column="0" Text="ΠΕΛΑΤΗΣ" FontSize="12.5"
+                                   Foreground="Black" Margin="0,0,8,0"/>
+                        <!-- Χωρίς έντονα: το όνομα/τηλέφωνο είναι απλή πληροφορία, δεν χρειάζεται να
+                             ξεχωρίζει περισσότερο από τα ίδια τα προϊόντα της παραγγελίας. -->
+                        <TextBlock x:Name="WhoText" Grid.Column="1" FontSize="12.5" TextAlignment="Right"
+                                   Foreground="Black" TextWrapping="Wrap"/>
+                    </Grid>
+                    <!-- Τρόπος πληρωμής — μόνο ΔΙΑΝΟΜΗ/BOX (βλ. CompletedOrder.HasPaymentMethod). -->
+                    <Grid x:Name="PaymentRow" Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="ΠΛΗΡΩΜΗ" FontSize="12.5" Foreground="Black"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock x:Name="PaymentText" Grid.Column="1" FontSize="12.5" TextAlignment="Right"
+                                   FontWeight="ExtraBold" Foreground="Black" TextWrapping="Wrap"/>
+                    </Grid>
+                    <!-- Στοιχεία παράδοσης — μόνο ΔΙΑΝΟΜΗ/BOX (βλ. CompletedOrder.HasDeliveryInfo). Τρεις
+                         ξεχωριστές, ετικετοποιημένες γραμμές (μικρή γκρι ετικέτα + έντονη μαύρη τιμή) αντί
+                         για μία ενιαία πρόταση όλα μαζί — δύσκολο να διαβαστεί γρήγορα από τον διανομέα. -->
+                    <StackPanel x:Name="AddressBlock" Margin="0,8,0,0">
+                        <TextBlock Text="ΔΙΕΥΘΥΝΣΗ" FontSize="10.5" FontWeight="Bold" Foreground="Black"/>
+                        <TextBlock x:Name="AddressText" FontSize="13" FontWeight="Bold" Foreground="Black"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <!-- Όροφος ΚΑΙ σχόλια μαζί, σε ένα μπλοκ — πριν έπιαναν τέσσερις γραμμές (δύο
+                         ετικέτες + δύο τιμές) για δύο σύντομες πληροφορίες. Η ετικέτα προσαρμόζεται σε
+                         ό,τι υπάρχει (βλ. code-behind), ώστε να μη γράφει «ΣΧΟΛΙΑ» όταν δεν υπάρχουν.
+                         Το «ΚΟΥΔΟΥΝΙ» έφυγε από την ετικέτα: το όνομα του πελάτη είναι ήδη πιο πάνω. -->
+                    <StackPanel x:Name="FloorNotesBlock" Margin="0,8,0,0">
+                        <TextBlock x:Name="FloorNotesLabel" FontSize="10.5" FontWeight="Bold" Foreground="Black"/>
+                        <TextBlock x:Name="FloorNotesText" FontSize="13" FontWeight="Bold" Foreground="Black"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <ItemsControl x:Name="LinesList">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type svc:SoldLine}">
+                        <StackPanel Margin="0,6">
+                            <DockPanel>
+                                <!-- Loaded: το πραγματικό μέγεθος μπαίνει όταν το στοιχείο μπει στο
+                                     δέντρο (βλ. ItemText_Loaded). Οι τιμές εδώ είναι απλώς η αφετηρία
+                                     σχεδίασης. -->
+                                <!-- Η τιμή πιο μικρή από το όνομα: το όνομα είναι αυτό που διαβάζει
+                                     βιαστικά ο υπάλληλος στην κουζίνα, το ποσό αφορά το ταμείο. -->
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding RevenueLabel}" FontSize="13"
+                                           FontWeight="SemiBold" Foreground="Black" Margin="6,0,0,0"
+                                           Loaded="PriceText_Loaded"/>
+                                <!-- TextWrapping: σε στενό χαρτί (72mm) ένα μεγάλο όνομα προϊόντος ΔΕΝ
+                                     χωράει σε μία γραμμή — χωρίς αναδίπλωση κοβόταν στην άκρη και ο
+                                     υπάλληλος έβλεπε μισό όνομα. Τώρα συνεχίζει από κάτω. -->
+                                <TextBlock Text="{Binding QtyNameLabel}" FontSize="13" Foreground="Black"
+                                           TextWrapping="Wrap" Loaded="ItemText_Loaded"/>
+                            </DockPanel>
+                            <!-- Καθαρό μαύρο, όχι γκρι — ο ταμίας ζήτησε ρητά «καθαρό λεπτό μαύρο» για το
+                                 ίδιο το υλικό (π.χ. «ντομάτα»), όχι bold εκεί· μόνο η λέξη-κλειδί
+                                 «ΧΩΡΙΣ»/«ΜΟΝΟ ΜΕ» γίνεται έντονη, στο DetailsText_Loaded (χρειάζεται
+                                 Runs — δεν γίνεται μερικώς-έντονο κείμενο με απλό binding σε XAML). -->
+                            <TextBlock Text="{Binding Details}" FontSize="10.5" Foreground="Black"
+                                       TextWrapping="Wrap" Loaded="DetailsText_Loaded"
+                                       Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border BorderBrush="Black" BorderThickness="0,2,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                <DockPanel>
+                    <!-- ✓ δίπλα στο ποσό = πληρωμένη με κάρτα, ο διανομέας δεν εισπράττει τίποτα.
+                         Μπαίνει ΠΡΩΤΟ στο DockPanel ώστε να καθίσει δεξιά από το σύνολο (το πρώτο
+                         docked-right παίρνει την πιο δεξιά θέση). -->
+                    <TextBlock x:Name="PaidMarkText" DockPanel.Dock="Right" Text="✓" FontSize="20"
+                               FontWeight="ExtraBold" Foreground="Black" Margin="6,0,0,0"
+                               Visibility="Collapsed"/>
+                    <TextBlock x:Name="TotalText" DockPanel.Dock="Right" FontSize="20"
+                               FontWeight="ExtraBold" Foreground="Black"/>
+                    <TextBlock x:Name="TotalLabelText" Text="ΣΥΝΟΛΟ" FontSize="17" FontWeight="ExtraBold" Foreground="Black"
+                               VerticalAlignment="Bottom"/>
+                </DockPanel>
+            </Border>
+            <!-- Μικρότερο κενό πριν το «Ευχαριστούμε»: κάθε περιττή γραμμή είναι χαρτί σε κάθε απόδειξη. -->
+            <TextBlock x:Name="FooterText" FontSize="12" Foreground="Black"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Margin="0,10,0,0" Visibility="Collapsed"/>
+        </StackPanel>
+    </Border>
+</Window>
