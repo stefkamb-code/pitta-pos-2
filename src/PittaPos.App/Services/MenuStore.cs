@@ -385,6 +385,24 @@ public class MenuStore
         Save();
     }
 
+    /// <summary>
+    /// Μετακινεί ένα έξτρα πάνω ή κάτω στον κοινό κατάλογο. Η σειρά της λίστας είναι και η σειρά που
+    /// βλέπει ο ταμίας στον customizer, οπότε το μαγαζί θέλει τα πολυχρησιμοποιημένα πρώτα — αλλιώς
+    /// κυνηγάει το «τυρί» στο τέλος δεκάδων σαλτσών σε κάθε παραγγελία.
+    /// </summary>
+    public void MoveExtra(string name, int delta)
+    {
+        var i = Extras.FindIndex(e => e.Name == name);
+        if (i < 0)
+            return;
+        var target = i + delta;
+        if (target < 0 || target >= Extras.Count)
+            return; // ήδη στην άκρη — τίποτα να κάνουμε
+
+        (Extras[i], Extras[target]) = (Extras[target], Extras[i]);
+        Save();
+    }
+
     /// <summary>Αλλαγή τιμής υπάρχοντος έξτρα — δεν αγγίζει ποια προϊόντα το επιτρέπουν.</summary>
     public void UpdateExtraPrice(string name, decimal price)
     {

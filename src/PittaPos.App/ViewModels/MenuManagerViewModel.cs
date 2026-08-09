@@ -272,6 +272,20 @@ public partial class MenuManagerViewModel : ObservableObject
         Flash("✓ Ενημερώθηκε η τιμή");
     }
 
+    /// <summary>Μετακίνηση έξτρα μία θέση πάνω — η σειρά εδώ είναι και η σειρά που τα βλέπει ο ταμίας
+    /// στον customizer, οπότε τα πιο συχνά μπαίνουν πρώτα.</summary>
+    [RelayCommand]
+    private void MoveExtraUp(ExtraCatalogRowViewModel extra) => MoveExtra(extra, -1);
+
+    [RelayCommand]
+    private void MoveExtraDown(ExtraCatalogRowViewModel extra) => MoveExtra(extra, +1);
+
+    private void MoveExtra(ExtraCatalogRowViewModel extra, int delta)
+    {
+        _store.MoveExtra(extra.Name, delta);
+        RebuildExtraToggles();
+    }
+
     [RelayCommand]
     private void DeleteGlobalExtra(ExtraCatalogRowViewModel extra)
     {

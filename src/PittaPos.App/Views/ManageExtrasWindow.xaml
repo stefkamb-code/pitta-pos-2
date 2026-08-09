@@ -93,6 +93,7 @@
                             <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="10"/>
                                         <ColumnDefinition Width="90"/>
@@ -101,15 +102,27 @@
                                         <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                    <!-- Βελάκια σειράς: η σειρά εδώ είναι ΑΚΡΙΒΩΣ η σειρά που βλέπει ο
+                                         ταμίας στα ΕΞΤΡΑ του customizer — τα πιο συχνά πάνω-πάνω. -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <Button Content="▲" Style="{StaticResource GlyphButton}" FontSize="11" Width="26" Height="26"
+                                                ToolTip="Πιο πάνω"
+                                                Command="{Binding DataContext.MoveExtraUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                        <Button Content="▼" Style="{StaticResource GlyphButton}" FontSize="11" Width="26" Height="26"
+                                                ToolTip="Πιο κάτω"
+                                                Command="{Binding DataContext.MoveExtraDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
                                                Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="36"
+                                    <TextBox Grid.Column="3" Style="{StaticResource PosTextBox}" Height="36"
                                              Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Grid.Column="4" Content="ΕΝΗΜΕΡΩΣΗ" Style="{StaticResource FlatButton}"
+                                    <Button Grid.Column="5" Content="ΕΝΗΜΕΡΩΣΗ" Style="{StaticResource FlatButton}"
                                             Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="10,0"
                                             Command="{Binding DataContext.UpdateExtraPriceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"/>
-                                    <Button Grid.Column="6" Content="×" Style="{StaticResource GlyphButton}" FontSize="16"
+                                    <Button Grid.Column="7" Content="×" Style="{StaticResource GlyphButton}" FontSize="16"
                                             Foreground="{DynamicResource Accent}" Width="30"
                                             Command="{Binding DataContext.DeleteGlobalExtraCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"/>
