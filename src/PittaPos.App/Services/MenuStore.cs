@@ -43,8 +43,14 @@ public class MenuStore
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "menu.json");
+        // Καταγραφή ΔΙΠΛΑ ΣΤΟ EXE, όχι στο %AppData%: αν το πρόβλημα είναι ο ίδιος ο φάκελος
+        // δεδομένων (δικαιώματα/ανακατεύθυνση), τότε και η κανονική καταγραφή χάνεται μαζί του και
+        // μένουμε χωρίς κανένα ίχνος — ακριβώς ό,τι συνέβαινε.
+        Trace($"φάκελος={dir} | IsClient={RemoteSync.IsClient} | NetworkMode={SettingsStore.Instance.Settings.NetworkMode} | Host='{SettingsStore.Instance.Settings.HostAddress}'");
+
         if (RemoteSync.IsClient)
         {
+            Trace("λειτουργία CLIENT — ο κατάλογος ΔΕΝ διαβάζεται τοπικά, τραβιέται από το κύριο ταμείο");
             RemoteSync.StartPolling(TimeSpan.FromSeconds(10), RefreshFromHostAsync);
             return;
         }
@@ -137,6 +143,20 @@ public class MenuStore
     /// έγραφε τον εργοστασιακό κατάλογο πάνω στον πραγματικό.</summary>
     public bool LoadFailed { get; private set; }
 
+    /// <summary>Γράφει δίπλα στο exe, σε διαδρομή που δεν εξαρτάται από τον φάκελο δεδομένων.</summary>
+    private static void Trace(string message)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "menu-diagnostic.txt"),
+                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {message}{Environment.NewLine}");
+        }
+        catch (Exception)
+        {
+            // Η διάγνωση δεν πρέπει ποτέ να ρίξει το ταμείο
+        }
+    }
+
     /// <summary>
     /// Διαβάζει τον κατάλογο από τον δίσκο.
     ///
@@ -175,7 +195,7 @@ public class MenuStore
             }
             catch (Exception ex)
             {
-                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.GetType().Name}: {ex.Message}");
+                Trace($"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.GetType().Name}: {ex.Message}");
                 Thread.Sleep(150);
             }
         }
@@ -183,7 +203,7 @@ public class MenuStore
         if (missing)
         {
             // Πρώτη εκκίνηση: εδώ και μόνο εδώ είναι σωστό να γραφτεί ο εργοστασιακός κατάλογος.
-            AppLog.Write("menu", $"δεν υπάρχει κατάλογος στο {_path} — στήνεται ο εργοστασιακός (πρώτη εκκίνηση)");
+            Trace($"δεν υπάρχει κατάλογος στο {_path} — στήνεται ο εργοστασιακός (πρώτη εκκίνηση)");
             Categories = SeedCopy();
             Extras = SeedExtrasCopy();
             DoublePitaPrices = SeedDoublePitaPrices();
@@ -207,7 +227,7 @@ public class MenuStore
                     DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
                     // Καταγράφεται και η επιτυχία: χωρίς αυτό, μια αναφορά «βλέπω λάθος κατάλογο» δεν
                     // ξεχωρίζει από «δεν άνοιξε καν η εφαρμογή» — δεν υπάρχει τίποτα στο αρχείο.
-                    AppLog.Write("menu", $"φορτώθηκε: {Categories.Count} κατηγορίες, {Extras.Count} έξτρα " +
+                    Trace($"φορτώθηκε: {Categories.Count} κατηγορίες, {Extras.Count} έξτρα " +
                         $"(πρώτη: {Categories[0].Name})");
                     return;
                 }
@@ -232,7 +252,7 @@ public class MenuStore
         // Υπάρχει αρχείο αλλά δεν βγάλαμε άκρη. Δείχνουμε τον εργοστασιακό για να δουλέψει το ταμείο,
         // ΧΩΡΙΣ όμως να τον γράψουμε πουθενά — ο πραγματικός κατάλογος μένει ανέπαφος στον δίσκο.
         LoadFailed = true;
-        AppLog.Write("menu", "ΠΡΟΣΟΧΗ: ο κατάλογος δεν φορτώθηκε· εμφανίζεται ο εργοστασιακός και οι αλλαγές δεν αποθηκεύονται");
+        Trace("ΠΡΟΣΟΧΗ: ο κατάλογος δεν φορτώθηκε· εμφανίζεται ο εργοστασιακός και οι αλλαγές δεν αποθηκεύονται");
         Categories = SeedCopy();
         Extras = SeedExtrasCopy();
         DoublePitaPrices = SeedDoublePitaPrices();
