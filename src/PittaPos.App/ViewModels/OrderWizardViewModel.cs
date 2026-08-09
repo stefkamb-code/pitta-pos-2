@@ -419,6 +419,48 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ReceiptWho))]
     private string _customerName = "";
 
+    /// <summary>
+    /// Το ονοματεπώνυμο σε δύο κελιά, μόνο για την οθόνη. Από κάτω παραμένει ΕΝΑ πεδίο
+    /// (<see cref="CustomerName"/>): έτσι αποθηκεύεται στους πελάτες, ψάχνεται στην αναζήτηση,
+    /// τυπώνεται στην απόδειξη και φαίνεται στον πίνακα παραγγελιών — τίποτα από όσα δουλεύουν ήδη
+    /// δεν χρειάστηκε να αλλάξει.
+    ///
+    /// Ο χωρισμός γίνεται στο πρώτο κενό: ό,τι είναι πριν είναι το όνομα, ό,τι μετά το επώνυμο. Έτσι
+    /// ένας παλιός πελάτης «Γιώργος Παπαδόπουλος» ανοίγει σωστά μοιρασμένος στα δύο κελιά.
+    /// </summary>
+    public string CustomerFirstName
+    {
+        get
+        {
+            var s = CustomerName.Trim();
+            var i = s.IndexOf(' ');
+            return i < 0 ? s : s[..i];
+        }
+        set => SetFullName(value, CustomerLastName);
+    }
+
+    public string CustomerLastName
+    {
+        get
+        {
+            var s = CustomerName.Trim();
+            var i = s.IndexOf(' ');
+            return i < 0 ? "" : s[(i + 1)..].TrimStart();
+        }
+        set => SetFullName(CustomerFirstName, value);
+    }
+
+    private void SetFullName(string first, string last) =>
+        CustomerName = string.Join(" ", new[] { first.Trim(), last.Trim() }.Where(s => s.Length > 0));
+
+    /// <summary>Όταν αλλάζει το ενιαίο όνομα (π.χ. επιλογή πελάτη από την αναζήτηση), ξαναδιαβάζονται
+    /// και τα δύο κελιά.</summary>
+    partial void OnCustomerNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(CustomerFirstName));
+        OnPropertyChanged(nameof(CustomerLastName));
+    }
+
     [ObservableProperty]
     private string _customerPhone = "";
 

@@ -582,9 +582,26 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </Border>
-                        <TextBlock Text="Ονοματεπώνυμο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                        <TextBox Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,12"
-                                 Text="{Binding CustomerName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <!-- Δύο κελιά για το ονοματεπώνυμο. Από κάτω παραμένει ΕΝΑ πεδίο (CustomerName)
+                             — έτσι αποθήκευση πελατών, αναζήτηση, απόδειξη και πίνακας παραγγελιών
+                             συνεχίζουν να δουλεύουν ακριβώς όπως πριν. -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Όνομα" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                         Text="{Binding CustomerFirstName, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Επώνυμο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                                <TextBox Style="{StaticResource PosTextBox}" Height="38"
+                                         Text="{Binding CustomerLastName, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
                         <TextBlock Text="Τηλέφωνο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
                         <TextBox Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,12"
                                  Text="{Binding CustomerPhone, UpdateSourceTrigger=PropertyChanged}"/>
