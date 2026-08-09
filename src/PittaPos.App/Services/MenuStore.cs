@@ -148,33 +148,47 @@ public class MenuStore
     /// </summary>
     private void Load()
     {
-        if (!File.Exists(_path))
+        // ΟΧΙ File.Exists εδώ: επιστρέφει «δεν υπάρχει» και όταν το αρχείο υπάρχει μεν, αλλά δεν είναι
+        // προσπελάσιμο (κλειδωμένο, δικαιώματα, ανακατεύθυνση φακέλου). Το ταμείο τότε νόμιζε ότι είναι
+        // πρώτη εγκατάσταση, έστηνε εργοστασιακό κατάλογο ΚΑΙ τον έγραφε πάνω στον πραγματικό — σιωπηλά,
+        // χωρίς ούτε γραμμή στην καταγραφή. Εδώ ανοίγουμε ρητά το αρχείο ώστε «λείπει» και «δεν το φτάνω»
+        // να είναι δύο ΞΕΧΩΡΙΣΤΕΣ περιπτώσεις.
+        string? text = null;
+        var missing = false;
+        for (var attempt = 1; attempt <= 5 && text is null; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                text = reader.ReadToEnd();
+            }
+            catch (FileNotFoundException)
+            {
+                missing = true;
+                break;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                missing = true;
+                break;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.GetType().Name}: {ex.Message}");
+                Thread.Sleep(150);
+            }
+        }
+
+        if (missing)
         {
             // Πρώτη εκκίνηση: εδώ και μόνο εδώ είναι σωστό να γραφτεί ο εργοστασιακός κατάλογος.
+            AppLog.Write("menu", $"δεν υπάρχει κατάλογος στο {_path} — στήνεται ο εργοστασιακός (πρώτη εκκίνηση)");
             Categories = SeedCopy();
             Extras = SeedExtrasCopy();
             DoublePitaPrices = SeedDoublePitaPrices();
             SaveToDisk();
             return;
-        }
-
-        string? text = null;
-        for (var attempt = 1; attempt <= 5 && text is null; attempt++)
-        {
-            try
-            {
-                text = File.ReadAllText(_path);
-            }
-            catch (IOException ex)
-            {
-                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.Message}");
-                Thread.Sleep(150);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                AppLog.Write("menu", $"το menu.json δεν διαβάστηκε (προσπάθεια {attempt}/5): {ex.Message}");
-                Thread.Sleep(150);
-            }
         }
 
         if (text is not null)
