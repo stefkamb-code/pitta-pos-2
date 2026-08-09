@@ -213,6 +213,7 @@ public class MenuStore
             Categories = SeedCopy();
             Extras = SeedExtrasCopy();
             DoublePitaPrices = SeedDoublePitaPrices();
+            Ingredients = SeedIngredientsCopy();
             SaveToDisk();
             return;
         }
@@ -231,6 +232,7 @@ public class MenuStore
                     Categories = data.Categories;
                     Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
                     DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
+                    Ingredients = data.Ingredients.Count > 0 ? data.Ingredients : SeedIngredientsCopy();
                     // Καταγράφεται και η επιτυχία: χωρίς αυτό, μια αναφορά «βλέπω λάθος κατάλογο» δεν
                     // ξεχωρίζει από «δεν άνοιξε καν η εφαρμογή» — δεν υπάρχει τίποτα στο αρχείο.
                     Trace($"φορτώθηκε: {Categories.Count} κατηγορίες, {Extras.Count} έξτρα " +
@@ -245,6 +247,7 @@ public class MenuStore
                     Categories = oldCategories;
                     Extras = SeedExtrasCopy();
                     DoublePitaPrices = SeedDoublePitaPrices();
+                    Ingredients = SeedIngredientsCopy();
                     SaveToDisk();
                     return;
                 }
@@ -262,6 +265,7 @@ public class MenuStore
         Categories = SeedCopy();
         Extras = SeedExtrasCopy();
         DoublePitaPrices = SeedDoublePitaPrices();
+        Ingredients = SeedIngredientsCopy();
         StartRecoveryRetries();
     }
 
@@ -298,6 +302,7 @@ public class MenuStore
             Categories = data.Categories;
             Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
             DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
+            Ingredients = data.Ingredients.Count > 0 ? data.Ingredients : SeedIngredientsCopy();
             LoadFailed = false;
             AppLog.Write("menu", $"ο κατάλογος ανακτήθηκε με την {attempts}η προσπάθεια: {Categories.Count} κατηγορίες");
             Changed?.Invoke();
