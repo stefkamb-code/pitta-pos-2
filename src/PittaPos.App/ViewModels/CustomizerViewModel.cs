@@ -77,8 +77,10 @@ public partial class CustomizerViewModel : ObservableObject
     /// <summary>Η ετικέτα του κουμπιού στην οθόνη. Γράφεται πεζά-κεφαλαία («Διπλή Πίττα») επειδή είναι
     /// επιλογή που διαβάζει ο ταμίας, όχι τίτλος. Το όνομα που τυπώνεται στην απόδειξη μένει κεφαλαίο
     /// («ΔΙΠΛΗ ΠΙΤΑ», βλ. MenuSeed.DoublePitaLabel) — εκεί ξεχωρίζει μέσα στη γραμμή.</summary>
+    /// Η τιμή γράφεται χωρίς παρενθέσεις: με αυτές η ετικέτα μάκραινε τόσο που το κουμπί δεν χωρούσε
+    /// πια δίπλα στα ψωμιά και έπεφτε σε δεύτερη σειρά, ψηλώνοντας άσκοπα τον customizer.
     public string DoublePitaOptionLabel => DoublePitaPrice > 0
-        ? "Διπλή Πίττα (+" + Order.FormatPrice(DoublePitaPrice) + ")"
+        ? "Διπλή Πίττα +" + Order.FormatPrice(DoublePitaPrice)
         : "Διπλή Πίττα";
 
     [ObservableProperty]
