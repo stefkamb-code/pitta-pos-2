@@ -79,10 +79,7 @@ public partial class MenuManagerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CategorySaveLabel))]
     private bool _isNewCategory;
 
-    /// <summary>Η μετονομασία κατηγορίας κρύβεται όσο δουλεύεις πάνω σε προϊόν: εκεί δεν έχει καμία
-    /// δουλειά και έσπρωχνε τη φόρμα του προϊόντος προς τα κάτω. Ξαναεμφανίζεται μόλις αφήσεις το
-    /// προϊόν (π.χ. «ΝΕΟ ΠΡΟΪΟΝ» ή αλλαγή κατηγορίας).</summary>
-    public bool ShowCategoryEditor => (HasCategory || IsNewCategory) && !IsEditingProduct;
+    public bool ShowCategoryEditor => HasCategory || IsNewCategory;
     public string CategoryFormTitle => IsNewCategory ? "ΝΕΑ ΚΑΤΗΓΟΡΙΑ" : "ΚΑΤΗΓΟΡΙΑ";
     public string CategorySaveLabel => IsNewCategory ? "ΔΗΜΙΟΥΡΓΙΑ ΚΑΤΗΓΟΡΙΑΣ" : "ΑΠΟΘΗΚΕΥΣΗ ΟΝΟΜΑΤΟΣ";
 
