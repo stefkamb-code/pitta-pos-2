@@ -54,9 +54,15 @@ public partial class ProductTileViewModel(Product product, bool customizable, de
         }
 
         var shortened = string.Join(" ", words);
-        // Μονολεκτικά ή ήδη κοντά ονόματα που παραμένουν μεγάλα: καλύτερα αποσιωπητικά παρά δεύτερη
-        // σειρά — το πλήρες όνομα φαίνεται ούτως ή άλλως στο tooltip.
-        return shortened.Length <= maxChars ? shortened : shortened[..(maxChars - 1)] + "…";
+        if (shortened.Length <= maxChars)
+            return shortened;
+
+        // Κόβεται η ΜΕΣΗ, όχι το τέλος. Τα ονόματα εδώ ξεχωρίζουν από την ουρά τους: «Πατάτες με τυρί
+        // & μπέικον» και «Πατάτες με τυρ, μπέικ. & μανιτάρια» έχουν ίδια αρχή, οπότε κόβοντας από πίσω
+        // έβγαιναν και τα δύο «Πατάτες με τυρ…» — ο ταμίας δεν μπορούσε να τα ξεχωρίσει καθόλου.
+        const int tail = 12;
+        var head = maxChars - tail - 1;
+        return shortened[..head] + "…" + shortened[^tail..];
     }
 
     public string NameEn => Product.NameEn ?? "";
