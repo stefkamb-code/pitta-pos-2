@@ -286,17 +286,16 @@
                     <TextBlock Text="Κενή τιμή εφαρμογών = ισχύει παντού η κανονική τιμή" FontSize="11"
                                Foreground="{DynamicResource Neutral500}" Margin="0,0,0,12"/>
 
-                    <CheckBox Content="Ανοίγει επιλογές υλικών (ψωμί / έξτρα / χωρίς)" FontSize="12.5"
-                              Foreground="{DynamicResource Ink}" Margin="0,0,0,12"
-                              IsChecked="{Binding ProductCustomizable}"/>
-
-                    <StackPanel Visibility="{Binding ProductCustomizable, Converter={StaticResource BoolToVis}}"
-                                Margin="0,0,0,18">
-                        <!-- Τα ΒΑΣΙΚΑ υλικά: ό,τι έχει ήδη μέσα το προϊόν και μπορεί να ζητηθεί «χωρίς».
-                             Μέχρι τώρα ήταν σταθερή λίστα για όλα τα προϊόντα, γραμμένη στον κώδικα —
-                             η ομελέτα έδειχνε «χωρίς κρεμμύδι» ακόμα κι αν δεν είχε. -->
+                    <!-- Τα ΒΑΣΙΚΑ υλικά φαίνονται ΠΑΝΤΑ, ασχέτως αν το προϊόν ανοίγει έξτρα: μπορεί να
+                         θέλεις να γράψεις τι έχει μέσα ένα προϊόν που δεν παίρνει καθόλου έξτρα. Πριν
+                         ήταν κλεισμένα μαζί με τα έξτρα στο ίδιο κρυφό πάνελ.
+                         Μέχρι πρόσφατα ήταν και σταθερή λίστα για όλα τα προϊόντα, γραμμένη στον
+                         κώδικα — η ομελέτα έδειχνε «χωρίς κρεμμύδι» ακόμα κι αν δεν είχε. -->
+                    <StackPanel Margin="0,0,0,18">
                         <TextBlock Text="Βασικά υλικά που έχει μέσα το προϊόν" FontSize="12"
-                                   Foreground="{DynamicResource Neutral700}" Margin="0,0,0,6"/>
+                                   Foreground="{DynamicResource Neutral700}" Margin="0,0,0,2"/>
+                        <TextBlock Text="Ξεχωριστά για κάθε προϊόν — δεν αλλάζουν τα υπόλοιπα" FontSize="11"
+                                   Foreground="{DynamicResource Neutral500}" Margin="0,0,0,6"/>
                         <ItemsControl ItemsSource="{Binding IngredientToggles}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -305,11 +304,13 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
+                                    <!-- Χωρίς κουτάκι επιλογής: ό,τι φαίνεται εδώ ΕΙΝΑΙ τα υλικά του
+                                         προϊόντος. Το × το βγάζει, το «+ ΥΛΙΚΟ» το προσθέτει. -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,14,8">
-                                        <CheckBox Content="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
-                                                  IsChecked="{Binding IsChecked}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
+                                                   VerticalAlignment="Center"/>
                                         <Button Content="×" Style="{StaticResource GlyphButton}" FontSize="12" Width="20" Height="20"
-                                                Margin="4,0,0,0" ToolTip="Διαγραφή από τον κατάλογο υλικών"
+                                                Margin="4,0,0,0" ToolTip="Αφαίρεση από ΑΥΤΟ το προϊόν"
                                                 Foreground="{DynamicResource Neutral500}"
                                                 Command="{Binding DataContext.RemoveIngredientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}"/>
@@ -329,7 +330,16 @@
                                     Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="12,0"
                                     Command="{Binding AddIngredientCommand}"/>
                         </Grid>
+                    </StackPanel>
 
+                    <!-- Ο διακόπτης κάθεται ΠΑΝΩ από αυτό που ελέγχει: πριν ήταν ψηλά, πάνω κι από τα
+                         βασικά υλικά, και έμοιαζε να τα αφορά κι εκείνα. -->
+                    <CheckBox Content="Ανοίγει τα έξτρα" FontSize="12.5"
+                              Foreground="{DynamicResource Ink}" Margin="0,0,0,12"
+                              IsChecked="{Binding ProductCustomizable}"/>
+
+                    <StackPanel Visibility="{Binding ProductCustomizable, Converter={StaticResource BoolToVis}}"
+                                Margin="0,0,0,18">
                         <TextBlock Text="Έξτρα που επιτρέπονται σε αυτό το προϊόν" FontSize="12"
                                    Foreground="{DynamicResource Neutral700}" Margin="0,0,0,6"/>
                         <ItemsControl ItemsSource="{Binding ExtraToggles}">

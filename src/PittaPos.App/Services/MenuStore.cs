@@ -398,34 +398,20 @@ public class MenuStore
         Save();
     }
 
-    /// <summary>Προσθήκη υλικού στον κοινό κατάλογο. Το νέο υλικό ΔΕΝ μπαίνει μόνο του σε όσα προϊόντα
-    /// δεν το ζήτησαν: προϊόν χωρίς δική του λίστα σημαίνει «όλα του καταλόγου», οπότε αν προσθέταμε
-    /// σκέτα το υλικό θα εμφανιζόταν στα 124 προϊόντα ταυτόχρονα. Γι' αυτό, πριν μπει, κάθε τέτοιο
-    /// προϊόν «κλειδώνει» ρητά τα υλικά που έχει αυτή τη στιγμή — μένουν ακριβώς όπως ήταν, και το νέο
-    /// υλικό το παίρνει μόνο όποιο προϊόν τσεκαριστεί ρητά (βλ. MenuManagerViewModel.AddIngredient).</summary>
-    public void AddIngredient(string name)
-    {
-        if (Ingredients.Contains(name))
-            return;
-        foreach (var product in Categories.SelectMany(c => c.Products))
-            product.Ingredients ??= [.. Ingredients];
-        Ingredients.Add(name);
-        Save();
-    }
+    // Δεν υπάρχουν πια AddIngredient/RemoveIngredient εδώ, ΕΠΙΤΗΔΕΣ: τα βασικά υλικά είναι ξεχωριστά
+    // για κάθε προϊόν και γράφονται μόνο στο Product.Ingredients (MenuManagerViewModel). Οι παλιές
+    // μέθοδοι πείραζαν τον κοινό κατάλογο ΚΑΙ όλα τα προϊόντα μαζί — μια διαγραφή υλικού σε ένα
+    // προϊόν το έσβηνε από όλα. Το MenuStore.Ingredients μένει μόνο ως λίστα έτοιμων επιλογών
+    // (και ως προεπιλογή για προϊόν που δεν ρυθμίστηκε ποτέ, βλ. IngredientsFor).
 
-    /// <summary>Διαγραφή υλικού — βγαίνει και από κάθε προϊόν που το είχε ρητά δηλωμένο, ώστε να μη
-    /// μείνει «ορφανό» όνομα που θα εμφανιζόταν στον customizer χωρίς να υπάρχει πια.</summary>
-    public void RemoveIngredient(string name)
-    {
-        Ingredients.Remove(name);
-        foreach (var product in Categories.SelectMany(c => c.Products))
-            product.Ingredients?.Remove(name);
-        Save();
-    }
-
-    /// <summary>Προσθήκη νέου έξτρα στον κοινό κατάλογο (Διαχείριση Καταλόγου).</summary>
+    /// <summary>Προσθήκη νέου έξτρα στον κοινό κατάλογο (Διαχείριση Καταλόγου). Τα έξτρα ΟΝΤΩΣ είναι
+    /// κοινός κατάλογος (έχουν τιμή), αλλά προϊόν με null ExtraNames σημαίνει «όλα του καταλόγου»,
+    /// οπότε ένα σκέτο Add θα εμφάνιζε το νέο έξτρα ταυτόχρονα σε ΟΛΑ τα προϊόντα. Κάθε τέτοιο προϊόν
+    /// κλειδώνει πρώτα ρητά τα έξτρα που έχει τώρα, ώστε το νέο να μπαίνει μόνο όπου το τσεκάρεις.</summary>
     public void AddExtra(string name, decimal price)
     {
+        foreach (var product in Categories.SelectMany(c => c.Products))
+            product.ExtraNames ??= [.. Extras.Select(e => e.Name)];
         Extras.Add(new ExtraItem { Name = name, Price = price });
         Save();
     }
