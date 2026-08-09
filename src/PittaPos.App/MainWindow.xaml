@@ -119,11 +119,14 @@
                 <Button DockPanel.Dock="Right" FontSize="12.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,8" Margin="0,0,14,0"
                         Click="OpenLiveOrders_Click">
+                    <!-- Η κουκκίδα και το σήμα κρατιούνται χαμηλότερα από το ύψος του κειμένου, ώστε
+                         το κουμπί να βγαίνει ακριβώς ίδιο σε ύψος με τα ΣΤΑΤΙΣΤΙΚΑ/ΙΣΤΟΡΙΚΟ δίπλα του
+                         (ίδιο FontSize και Padding έχουν ήδη· το σήμα των 20px ήταν που το φούσκωνε). -->
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="13" Height="13" Fill="#2e7d32" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <Ellipse Width="10" Height="10" Fill="#2e7d32" Margin="0,0,7,0" VerticalAlignment="Center"/>
                         <TextBlock Text="ΠΑΡΑΓΓΕΛΙΕΣ" VerticalAlignment="Center"/>
-                        <Border Background="{DynamicResource Accent}" CornerRadius="10" MinWidth="20" Height="20"
-                                Margin="7,0,0,0" Padding="4,0">
+                        <Border Background="{DynamicResource Accent}" CornerRadius="8" MinWidth="16" Height="16"
+                                Margin="7,0,0,0" Padding="4,0" VerticalAlignment="Center">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Style.Triggers>

@@ -14,11 +14,16 @@
              Η στήλη των υλικών κρατάει ΠΑΝΤΑ το πλάτος της, ακόμα και άδεια. Δοκιμάστηκε να μαζεύεται
              στο μηδέν όταν δεν υπάρχει επιλεγμένο φαγητό, αλλά τότε η λίστα φάρδαινε και στένευε σε
              κάθε άνοιγμα/κλείσιμο: τα ονόματα χοροπηδούσαν και ο ταμίας έχανε τη σειρά που κοίταζε. -->
+        <!-- Οι τρεις τελευταίες στήλες είναι αναλογικές (34/43/34), όσο δηλαδή πιάνουν σε οθόνη 1280:
+             όταν μεγαλώνει το παράθυρο μοιράζονται τον επιπλέον χώρο ΜΑΖΙ — φαγητά, υλικά ΚΑΙ δελτίο.
+             Μόνο οι κατηγορίες μένουν σταθερές: είναι σύντομες λέξεις, δεν κερδίζουν τίποτα από
+             παραπάνω πλάτος, και βοηθάει να βρίσκονται πάντα στο ίδιο σημείο.
+             Τα MinWidth κρατούν την οθόνη λειτουργική αν κάποιος μικρύνει πολύ το παράθυρο. -->
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="170"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="430"/>
-            <ColumnDefinition Width="340"/>
+            <ColumnDefinition Width="34*" MinWidth="300"/>
+            <ColumnDefinition Width="43*" MinWidth="410"/>
+            <ColumnDefinition Width="34*" MinWidth="320"/>
         </Grid.ColumnDefinitions>
 
         <!-- ================= Category rail ================= -->
@@ -84,7 +89,9 @@
                 </StackPanel>
             </Border>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <!-- Λίγος αέρας στο τέλος: χωρίς αυτόν η τελευταία σειρά κολλούσε στο κάτω χείλος και
+                 φαινόταν κομμένη στη μέση, σαν να λείπει προϊόν. -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,0,14">
                 <!-- Χωρίς ItemsPanel: το προεπιλεγμένο StackPanel του ItemsControl στοιβάζει ήδη
                      κάθετα, μια σειρά ανά φαγητό. -->
                 <ItemsControl ItemsSource="{Binding Tiles}" VerticalAlignment="Top">
@@ -111,8 +118,12 @@
                                     </Style>
                                 </Button.Style>
                                 <DockPanel LastChildFill="True">
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="16"
-                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                                    <!-- Πιο ελαφριά γράμματα, όπως στη μακέτα: με ExtraBold παντού η
+                                         λίστα έβγαινε συμπαγής μαύρη μάζα και δεν ξεχώριζε τίποτα.
+                                         Η τιμή πάει σε γκρι — τη διαβάζεις όταν τη γυρέψεις, δεν
+                                         διεκδικεί το μάτι από το όνομα του φαγητού. -->
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="14.5"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource Neutral600}"
                                                VerticalAlignment="Center" Margin="12,0,0,0"/>
                                     <Border DockPanel.Dock="Right" Width="26" Height="26" Margin="12,0,0,0"
                                             Background="{DynamicResource Accent}" CornerRadius="6"
@@ -126,7 +137,7 @@
                                         <!-- Το badge ποσότητας δίπλα τρώει λίγο πλάτος όταν εμφανίζεται·
                                              με αποσιωπητικά το όνομα κονταίνει καθαρά αντί να κόβεται
                                              στη μέση μιας λέξης. -->
-                                        <TextBlock Text="{Binding ShortName}" FontSize="15" FontWeight="ExtraBold"
+                                        <TextBlock Text="{Binding ShortName}" FontSize="15" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource Ink}"
                                                    TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Text="{Binding NameEn}" FontSize="11" Foreground="{DynamicResource Neutral500}"
@@ -564,10 +575,13 @@
                                                 <TextBlock Text="{Binding Name, Converter={StaticResource UpperCase}}" FontSize="14" FontWeight="ExtraBold"
                                                            Foreground="{DynamicResource Ink}" Margin="9,2,0,0" TextWrapping="Wrap"/>
                                             </DockPanel>
-                                            <TextBlock Text="{Binding DescLine1, Converter={StaticResource UpperCase}}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"
+                                            <!-- ...Inline: τα σχόλια σε μία αράδα, μόνο για την οθόνη.
+                                                 Η εκτύπωση τραβάει τα κανονικά DescLine1/DescLine2
+                                                 και τα κρατάει κάθετα, ένα ανά γραμμή. -->
+                                            <TextBlock Text="{Binding DescLine1Inline, Converter={StaticResource UpperCase}}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"
                                                        Margin="29,5,0,0" TextWrapping="Wrap"
                                                        Visibility="{Binding HasDesc, Converter={StaticResource BoolToVis}}"/>
-                                            <TextBlock Text="{Binding DescLine2, Converter={StaticResource UpperCase}}" FontSize="11.5" Foreground="{DynamicResource Accent700}"
+                                            <TextBlock Text="{Binding DescLine2Inline, Converter={StaticResource UpperCase}}" FontSize="11.5" Foreground="{DynamicResource Accent700}"
                                                        Margin="29,1,0,0" TextWrapping="Wrap"
                                                        Visibility="{Binding HasMods, Converter={StaticResource BoolToVis}}"/>
                                         </StackPanel>

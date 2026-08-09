@@ -46,12 +46,28 @@ public partial class CartLineViewModel : ObservableObject
     /// <summary>Ψωμί + σημείωση (πρώτη γκρίζα γραμμή).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDesc))]
+    [NotifyPropertyChangedFor(nameof(DescLine1Inline))]
     private string _descLine1 = "";
 
     /// <summary>Τροποποιήσεις — χωρίς/έξτρα/έκπτωση (δεύτερη κόκκινη γραμμή).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMods))]
+    [NotifyPropertyChangedFor(nameof(DescLine2Inline))]
     private string _descLine2 = "";
+
+    /// <summary>
+    /// Τα ίδια σχόλια, αλλά σε ΜΙΑ αράδα, χωρισμένα με τελείες — αυτά δείχνει η οθόνη.
+    ///
+    /// Στο χαρτί μένουν κάθετα, ένα ανά γραμμή: εκεί το πλάτος είναι 80mm, μια μακριά αράδα θα
+    /// τσακιζόταν σε τυχαία σημεία και ο ψήστης δεν θα ξεχώριζε τα «χωρίς» από τα «έξτρα». Στην
+    /// οθόνη όμως ισχύει το αντίστροφο: μια πίττα με τέσσερις τροποποιήσεις έπιανε πέντε σειρές και
+    /// το δελτίο γινόταν τόσο ψηλό που δεν φαινόταν ολόκληρη η παραγγελία με μια ματιά.
+    /// </summary>
+    public string DescLine1Inline => Flatten(DescLine1);
+    public string DescLine2Inline => Flatten(DescLine2);
+
+    private static string Flatten(string text) =>
+        string.Join(" · ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>Υπάρχει για customizable προϊόντα, ακόμη κι αν προστέθηκαν με απλό tap.</summary>
     public LineCustomization? Customization { get; set; }
