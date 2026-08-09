@@ -32,6 +32,18 @@ public class Product
     public required string Name { get; set; }
     /// <summary>Προαιρετικό αγγλικό όνομα (δεύτερη γραμμή στο tile).</summary>
     public string? NameEn { get; set; }
+
+    /// <summary>
+    /// Όνομα ΜΟΝΟ για το χαρτί. Κενό ή null σημαίνει «τύπωσε ό,τι λέει και η οθόνη».
+    ///
+    /// Υπάρχει γιατί τα δύο κοινά δεν είναι ίδια: στην οθόνη ο ταμίας θέλει το πλήρες όνομα για να
+    /// μην μπερδέψει δύο παρόμοια προϊόντα, ενώ στην απόδειξη μετράει το σύντομο που καταλαβαίνει ο
+    /// ψήστης — και το χαρτί έχει μόλις 80mm πλάτος.
+    /// </summary>
+    public string? PrintName { get; set; }
+
+    /// <summary>Το όνομα που πρέπει να τυπωθεί: το ειδικό αν έχει οριστεί, αλλιώς το κανονικό.</summary>
+    public string NameForPrint => string.IsNullOrWhiteSpace(PrintName) ? Name : PrintName!;
     /// <summary>Περιγραφή/υλικά όπως στον κατάλογο.</summary>
     public string? Description { get; set; }
     /// <summary>Κανονική τιμή (όρθιο/τραπέζι/διανομή).</summary>

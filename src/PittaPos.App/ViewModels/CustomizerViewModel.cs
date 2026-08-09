@@ -177,34 +177,29 @@ public partial class CustomizerViewModel : ObservableObject
         // ΤΥΛΙΧΤΑ: το ψωμί χωνεύεται στο ίδιο το όνομα («ΑΡ. Κοτόπουλο»). ΜΕΡΙΔΕΣ/ΜΕΡΙΔΕΣ ΠΑΠΠΟΥ: το
         // όνομα μένει ως έχει, το ψωμί γράφεται ολόγραφο σε ξεχωριστή γραμμή («Αραβική»), όπως πριν.
         // Άλλες customizable κατηγορίες: καμία αναφορά ψωμιού πουθενά.
-        string name;
-        string descLine1;
-        if (IsDoublePita && MenuStore.Instance.SupportsDoublePita(CategoryLabel))
-        {
-            name = MenuSeed.ComposeDoublePitaName(Product.Name, CategoryLabel, customization.Bread);
-            descLine1 = customization.Note;
-        }
-        else if (!HasBreadChoice)
-        {
-            name = Product.Name;
-            descLine1 = customization.Note;
-        }
-        else if (MenuStore.Instance.FuseBreadIntoName(CategoryLabel))
-        {
-            name = MenuSeed.ComposeCustomizedName(Product.Name, customization.Bread);
-            descLine1 = customization.Note;
-        }
-        else
-        {
-            name = Product.Name;
-            descLine1 = customization.Note.Length > 0
-                ? customization.Bread + "\n" + customization.Note
-                : customization.Bread;
-        }
+        // Η σύνθεση εξαρτάται μόνο από το όνομα-βάση, οπότε τρέχει δύο φορές: μία για την οθόνη και
+        // μία για το χαρτί. Έτσι το «όνομα εκτύπωσης» παίρνει κανονικά το ψωμί μπροστά και τη «ΔΙΠΛΗ
+        // ΠΙΤΑ», αντί να τυπώνεται σκέτο.
+        string Compose(string baseName) =>
+            IsDoublePita && MenuStore.Instance.SupportsDoublePita(CategoryLabel)
+                ? MenuSeed.ComposeDoublePitaName(baseName, CategoryLabel, customization.Bread)
+                : HasBreadChoice && MenuStore.Instance.FuseBreadIntoName(CategoryLabel)
+                    ? MenuSeed.ComposeCustomizedName(baseName, customization.Bread)
+                    : baseName;
+
+        var name = Compose(Product.Name);
+        var printName = Compose(Product.NameForPrint);
+
+        // Το ψωμί ολόγραφο σε δική του γραμμή μόνο όταν ΔΕΝ έχει μπει μέσα στο όνομα.
+        var breadOnOwnLine = HasBreadChoice && !MenuStore.Instance.FuseBreadIntoName(CategoryLabel)
+            && !(IsDoublePita && MenuStore.Instance.SupportsDoublePita(CategoryLabel));
+        var descLine1 = breadOnOwnLine
+            ? customization.Note.Length > 0 ? customization.Bread + "\n" + customization.Note : customization.Bread
+            : customization.Note;
 
         // Κάθε ιδιαιτερότητα (χωρίς/μόνο με/έξτρα/έκπτωση) σε δική της γραμμή αντί για μία αράδα με "·" —
         // πιο ευανάγνωστο στην απόδειξη όταν ένα προϊόν έχει πολλές τροποποιήσεις.
         _owner.CommitCustomizedLine(_editingLine, Product, customization, Quantity,
-            UnitPriceWithExtras, DiscountPct, NoCharge, name, descLine1, string.Join("\n", mods));
+            UnitPriceWithExtras, DiscountPct, NoCharge, name, descLine1, string.Join("\n", mods), printName);
     }
 }

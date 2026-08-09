@@ -69,6 +69,10 @@ public partial class CartLineViewModel : ObservableObject
     private static string Flatten(string text) =>
         string.Join(" · ", text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
 
+    /// <summary>Το όνομα που θα τυπωθεί στην απόδειξη — κενό σημαίνει «ίδιο με της οθόνης».
+    /// Ορίζεται ανά προϊόν από τη Διαχείριση Καταλόγου (βλ. Product.PrintName).</summary>
+    public string PrintName { get; set; } = "";
+
     /// <summary>Υπάρχει για customizable προϊόντα, ακόμη κι αν προστέθηκαν με απλό tap.</summary>
     public LineCustomization? Customization { get; set; }
     public bool CanEdit => Customization is not null;

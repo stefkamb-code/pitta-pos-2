@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Threading;
@@ -97,6 +97,8 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty] private string _productPrice = "";
     [ObservableProperty] private string _productDeliveryPrice = "";
     [ObservableProperty] private string _productDescription = "";
+    /// <summary>Κενό = τυπώνεται ό,τι λέει και το μενού (βλ. Product.PrintName).</summary>
+    [ObservableProperty] private string _productPrintName = "";
     [ObservableProperty] private bool _productCustomizable;
 
     /// <summary>Ένα κουτάκι ανά έξτρα του κοινού καταλόγου (_store.Extras) — ποια επιτρέπονται σε αυτό
@@ -171,6 +173,7 @@ public partial class MenuManagerViewModel : ObservableObject
         ProductPrice = value is null ? "" : value.Price.ToString("0.00", Greek);
         ProductDeliveryPrice = value?.DeliveryPrice?.ToString("0.00", Greek) ?? "";
         ProductDescription = value?.Description ?? "";
+        ProductPrintName = value?.PrintName ?? "";
         ProductCustomizable = value?.Customizable ?? false;
         RebuildExtraToggles();
     }
@@ -409,6 +412,7 @@ public partial class MenuManagerViewModel : ObservableObject
         }
 
         var description = ProductDescription.Trim();
+        var printName = ProductPrintName.Trim();
         // Αν είναι όλα τσεκαρισμένα μένει null («όλα») αντί για ρητή λίστα — έτσι ένα μελλοντικό νέο
         // έξτρα στο MenuSeed.Extras εμφανίζεται αυτόματα σε προϊόντα που δεν έχουν περιοριστεί σκόπιμα.
         var checkedExtras = ExtraToggles.Where(t => t.IsChecked).Select(t => t.Name).ToList();
@@ -423,6 +427,7 @@ public partial class MenuManagerViewModel : ObservableObject
                 Price = price,
                 DeliveryPrice = deliveryPrice,
                 Description = description.Length > 0 ? description : null,
+                PrintName = printName.Length > 0 ? printName : null,
                 Customizable = ProductCustomizable,
                 ExtraNames = extraNames,
             };
@@ -438,6 +443,7 @@ public partial class MenuManagerViewModel : ObservableObject
             SelectedProduct.Price = price;
             SelectedProduct.DeliveryPrice = deliveryPrice;
             SelectedProduct.Description = description.Length > 0 ? description : null;
+            SelectedProduct.PrintName = printName.Length > 0 ? printName : null;
             SelectedProduct.Customizable = ProductCustomizable;
             SelectedProduct.ExtraNames = extraNames;
             _store.Save();

@@ -126,7 +126,9 @@ public partial class ReceiptWindow : Window
         // ευανάγνωστο σε βιαστική ματιά από τον υπάλληλο, χωρίς να αλλάζει πώς φαίνονται αλλού (Ιστορικό/
         // Στατιστικά συνεχίζουν να δείχνουν τα δεδομένα όπως καταχωρήθηκαν).
         LinesList.ItemsSource = (s.ReceiptShowDetails ? order.Lines : order.Lines.Select(l => l with { Details = "" }))
-            .Select(l => l with { Name = MenuSeed.ToUpperGreek(l.Name), Details = MenuSeed.ToUpperGreek(l.Details) })
+            // NameForPrint: αν το προϊόν έχει δικό του «όνομα εκτύπωσης» στη Διαχείριση Καταλόγου,
+            // το χαρτί τυπώνει εκείνο· αλλιώς ό,τι δείχνει και η οθόνη.
+            .Select(l => l with { Name = MenuSeed.ToUpperGreek(l.NameForPrint), Details = MenuSeed.ToUpperGreek(l.Details) })
             .ToList();
 
         // Τέσσερις ανεξάρτητες ρυθμίσεις μεγέθους (όχι μία κοινή κλίμακα) — ώστε π.χ. να μεγαλώνει ο

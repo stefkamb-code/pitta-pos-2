@@ -330,7 +330,7 @@ public partial class OrderWizardViewModel : ObservableObject
             Lines = Products.Cart
                 .Select(l => new SoldLine(l.Name, l.Quantity, l.Total,
                     string.Join("\n", new[] { l.DescLine1, l.DescLine2 }.Where(s => s.Length > 0)), l.DiscountPct,
-                    l.ProductId, l.Customization))
+                    l.ProductId, l.Customization, l.PrintName))
                 .ToList(),
             OrderDiscountPct = Products.OrderDiscountPct,
             IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift,

@@ -137,6 +137,7 @@ public partial class ProductsViewModel : ObservableObject
                 Customization = customization,
                 DescLine1 = desc1,
                 DescLine2 = desc2,
+                PrintName = product.NameForPrint,
             });
         }
         if (skipped > 0)
@@ -396,6 +397,7 @@ public partial class ProductsViewModel : ObservableObject
         Cart.Add(new CartLineViewModel(this, key, tile.Product.Id, tile.Product.Name, tile.Price)
         {
             BasePrice = tile.Price,
+            PrintName = tile.Product.NameForPrint,
         });
         OnCartChanged();
     }
@@ -473,7 +475,7 @@ public partial class ProductsViewModel : ObservableObject
     /// την κατηγορία — βλ. MenuSeed.HasBreadChoice/FuseBreadIntoName).</summary>
     public void CommitCustomizedLine(CartLineViewModel? editingLine, Product product,
         LineCustomization customization, int quantity, decimal unitPrice, int discountPct,
-        bool noCharge, string name, string descLine1, string descLine2)
+        bool noCharge, string name, string descLine1, string descLine2, string printName = "")
     {
         var line = editingLine;
         if (line is null)
@@ -486,6 +488,7 @@ public partial class ProductsViewModel : ObservableObject
         }
 
         line.Name = name;
+        line.PrintName = printName;
         line.Customization = customization;
         line.UnitPrice = unitPrice;
         line.Quantity = quantity;
