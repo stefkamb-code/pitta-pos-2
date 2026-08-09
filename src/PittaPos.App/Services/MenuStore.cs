@@ -316,12 +316,12 @@ public class MenuStore
     private static List<ExtraItem> SeedExtrasCopy() =>
         MenuSeed.Extras.Select(e => new ExtraItem { Name = e.Name, Price = e.Price }).ToList();
 
-    /// <summary>Αρχικά καμία χρέωση καταχωρημένη — 0€ μέχρι να τη ρυθμίσει ο χρήστης από τη Διαχείριση
-    /// Καταλόγου (δεν μαντεύουμε τιμή για κάτι που αφορά τη δική του τιμολόγηση). Δεν προσχηματίζουμε
-    /// τα κλειδιά με τα ονόματα κατηγοριών του MenuSeed γιατί ένα ήδη υπάρχον κατάστημα μπορεί να έχει
-    /// μετονομάσει την κατηγορία στο δικό του menu.json (π.χ. «ΚΛΑΣΙΚΑ ΜΙΚΡΑ» αντί «ΚΛΑΣΙΚΑ ΜΙΝΙ») — τα
-    /// κλειδιά γράφονται με το πραγματικό, τρέχον όνομα όταν ο χρήστης ορίσει πρώτη φορά μια τιμή.</summary>
-    private static Dictionary<string, decimal> SeedDoublePitaPrices() => [];
+    /// <summary>Οι χρεώσεις διπλής πίτας του καταλόγου-βάσης. Τα κλειδιά είναι τα ονόματα κατηγοριών
+    /// του MenuSeed, οπότε ταιριάζουν εξ ορισμού σε μια καθαρή εγκατάσταση. Σε υπάρχον κατάστημα που
+    /// έχει μετονομάσει κατηγορία, το κλειδί απλώς δεν βρίσκεται και η χρέωση μένει 0 μέχρι να την
+    /// ορίσει ο χρήστης — ίδια συμπεριφορά με πριν, καμία λάθος χρέωση.</summary>
+    private static Dictionary<string, decimal> SeedDoublePitaPrices() =>
+        new(MenuSeed.DoublePitaPrices);
 
     /// <summary>Χρέωση διπλής πίτας για μια κατηγορία (0 αν δεν έχει ρυθμιστεί ή δεν υποστηρίζεται).</summary>
     public decimal DoublePitaPriceFor(string categoryLabel) => DoublePitaPrices.GetValueOrDefault(categoryLabel);
