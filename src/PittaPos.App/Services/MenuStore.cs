@@ -386,20 +386,21 @@ public class MenuStore
     }
 
     /// <summary>
-    /// Μετακινεί ένα έξτρα πάνω ή κάτω στον κοινό κατάλογο. Η σειρά της λίστας είναι και η σειρά που
-    /// βλέπει ο ταμίας στον customizer, οπότε το μαγαζί θέλει τα πολυχρησιμοποιημένα πρώτα — αλλιώς
-    /// κυνηγάει το «τυρί» στο τέλος δεκάδων σαλτσών σε κάθε παραγγελία.
+    /// Βάζει το έξτρα <paramref name="draggedName"/> στη θέση του <paramref name="targetName"/>, όπως
+    /// το σύρσιμο στη λίστα προϊόντων. Η σειρά της λίστας είναι και η σειρά που βλέπει ο ταμίας στον
+    /// customizer, οπότε το μαγαζί θέλει τα πολυχρησιμοποιημένα πρώτα — με 21 έξτρα, το να τα
+    /// μετακινείς ένα-ένα με βελάκια ήταν ανεφάρμοστο.
     /// </summary>
-    public void MoveExtra(string name, int delta)
+    public void MoveExtraTo(string draggedName, string targetName)
     {
-        var i = Extras.FindIndex(e => e.Name == name);
-        if (i < 0)
+        var from = Extras.FindIndex(e => e.Name == draggedName);
+        var to = Extras.FindIndex(e => e.Name == targetName);
+        if (from < 0 || to < 0 || from == to)
             return;
-        var target = i + delta;
-        if (target < 0 || target >= Extras.Count)
-            return; // ήδη στην άκρη — τίποτα να κάνουμε
 
-        (Extras[i], Extras[target]) = (Extras[target], Extras[i]);
+        var item = Extras[from];
+        Extras.RemoveAt(from);
+        Extras.Insert(to, item);
         Save();
     }
 

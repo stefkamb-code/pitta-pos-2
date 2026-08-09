@@ -90,7 +90,11 @@
                 <ItemsControl ItemsSource="{Binding ExtraCatalogRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ExtraCatalogRowViewModel}">
-                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
+                            <!-- Ολόκληρη η γραμμή είναι στόχος για ρίξιμο: σέρνεις τη λαβή «⠿» και
+                                 αφήνεις πάνω σε όποια γραμμή θες να πάει. Η σειρά εδώ είναι ΑΚΡΙΒΩΣ η
+                                 σειρά που βλέπει ο ταμίας στα ΕΞΤΡΑ του customizer. -->
+                            <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10"
+                                    Background="Transparent" AllowDrop="True" Drop="ExtraRow_Drop">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -102,18 +106,12 @@
                                         <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <!-- Βελάκια σειράς: η σειρά εδώ είναι ΑΚΡΙΒΩΣ η σειρά που βλέπει ο
-                                         ταμίας στα ΕΞΤΡΑ του customizer — τα πιο συχνά πάνω-πάνω. -->
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <Button Content="▲" Style="{StaticResource GlyphButton}" FontSize="11" Width="26" Height="26"
-                                                ToolTip="Πιο πάνω"
-                                                Command="{Binding DataContext.MoveExtraUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"/>
-                                        <Button Content="▼" Style="{StaticResource GlyphButton}" FontSize="11" Width="26" Height="26"
-                                                ToolTip="Πιο κάτω"
-                                                Command="{Binding DataContext.MoveExtraDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"/>
-                                    </StackPanel>
+                                    <Border Grid.Column="0" Width="28" Height="28" Margin="0,0,6,0"
+                                            Background="Transparent" Cursor="SizeAll" ToolTip="Σύρε για αλλαγή σειράς"
+                                            MouseLeftButtonDown="ExtraDragHandle_MouseLeftButtonDown">
+                                        <TextBlock Text="⠿" FontSize="15" Foreground="{DynamicResource Neutral400}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
                                                Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
                                     <TextBox Grid.Column="3" Style="{StaticResource PosTextBox}" Height="36"
