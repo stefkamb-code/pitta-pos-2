@@ -1,3 +1,4 @@
+﻿using System.IO;
 using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
@@ -76,6 +77,12 @@ public static class ReceiptPrinter
             var width = ticket.PageMediaSize?.Width ?? receiptSource.ReceiptCard.ActualWidth;
             ticket.PageMediaSize = new PageMediaSize(width, receiptSource.ReceiptCard.ActualHeight);
 
+            // Η στοίχιση της απόδειξης προκύπτει ΟΛΗ από αυτά τα νούμερα, που τα δίνει ο οδηγός του
+            // εκτυπωτή του κάθε μηχανήματος. Ίδιος κώδικας σε δύο υπολογιστές έβγαλε τέλεια απόδειξη
+            // στον έναν και στραβή στον άλλον — χωρίς να τα βλέπουμε, δεν υπάρχει τρόπος να ξέρουμε
+            // γιατί. Καταγράφονται δίπλα στο exe, ώστε να διαβάζονται και σε ξένο μηχάνημα.
+            LogPrintGeometry(printerName, queue, ticket, receiptSource.ReceiptCard);
+
             var dialog = new PrintDialog { PrintQueue = queue, PrintTicket = ticket };
             dialog.PrintVisual(receiptSource.ReceiptCard, "Απόδειξη #" + order.OrderNumber);
         }
@@ -133,6 +140,33 @@ public static class ReceiptPrinter
             // Οδηγός που δεν δίνει δυνατότητες — μένουμε στο πλάτος σελίδας
         }
         return Math.Max(printable * 0.5, printable - 6); // 6 μονάδες ≈ 1,6 mm
+    }
+
+    /// <summary>
+    /// Γράφει δίπλα στο exe τα νούμερα που καθορίζουν τη στοίχιση της απόδειξης. Όχι στο %AppData%:
+    /// σε ξένο μηχάνημα θέλουμε ένα αρχείο που βρίσκεται εύκολα, δίπλα στο πρόγραμμα.
+    /// </summary>
+    private static void LogPrintGeometry(string printerName, PrintQueue queue, PrintTicket ticket, FrameworkElement card)
+    {
+        try
+        {
+            double? imageable = null;
+            try { imageable = queue.GetPrintCapabilities(ticket).PageImageableArea?.ExtentWidth; }
+            catch (Exception) { /* οδηγός που δεν δίνει δυνατότητες */ }
+
+            static string Mm(double? diu) => diu is null ? "—" : (diu.Value * 25.4 / 96.0).ToString("0.0") + "mm";
+
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  εκτυπωτής={printerName} | " +
+                $"πλάτος σελίδας={Mm(ticket.PageMediaSize?.Width)} | " +
+                $"εκτυπώσιμο={Mm(imageable)} | " +
+                $"πλάτος απόδειξης={Mm(card.ActualWidth)} | ύψος={Mm(card.ActualHeight)}" +
+                Environment.NewLine;
+            File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "print-diagnostic.txt"), line);
+        }
+        catch (Exception)
+        {
+            // Η διάγνωση δεν πρέπει ποτέ να εμποδίσει μια εκτύπωση
+        }
     }
 
     private static void Fail(CompletedOrder order, string reason) =>
