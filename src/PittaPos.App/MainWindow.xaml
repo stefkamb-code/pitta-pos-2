@@ -545,9 +545,12 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:AppMethodViewModel}">
+                                    <!-- Διπλό κλικ = διάλεξε την πλατφόρμα ΚΑΙ προχώρα, εφόσον έχει
+                                         συμπληρωθεί ο αριθμός παραγγελίας — βλ. AppMethod_MouseDoubleClick. -->
                                     <Button Margin="0,0,12,12" Padding="18" FontSize="14" FontWeight="ExtraBold"
                                             Style="{StaticResource ChoiceCard}"
                                             Foreground="{Binding Color}" Content="{Binding Name}"
+                                            MouseDoubleClick="AppMethod_MouseDoubleClick"
                                             Command="{Binding DataContext.SelectAppMethodCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"/>
                                 </DataTemplate>

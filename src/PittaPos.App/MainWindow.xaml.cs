@@ -141,6 +141,24 @@ public partial class MainWindow : Window
         _tableDetail.Show();
     }
 
+    /// <summary>
+    /// Διπλό κλικ στην πλατφόρμα (Wolt / e-food / BOX) του Βήματος 2 = «διάλεξέ την ΚΑΙ προχώρα»,
+    /// χωρίς να ταξιδέψει το χέρι μέχρι το ΣΥΝΕΧΕΙΑ — μετράει σε ώρα αιχμής. Το πρώτο από τα δύο
+    /// κλικ έχει ήδη κάνει την επιλογή μέσω του SelectAppMethodCommand.
+    ///
+    /// Αν λείπει ο υποχρεωτικός αριθμός παραγγελίας της πλατφόρμας, δεν γίνεται τίποτα — ίδιος
+    /// ακριβώς κανόνας με το κουμπί ΣΥΝΕΧΕΙΑ (βλ. OrderWizardViewModel.Step2ContinueEnabled), ώστε
+    /// να μη γλιστράει μια παραγγελία Wolt/e-food χωρίς τον αριθμό της.
+    /// </summary>
+    private void AppMethod_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (!_wizard.Step2ContinueEnabled || !_wizard.ContinueStep2Command.CanExecute(null))
+            return;
+
+        _wizard.ContinueStep2Command.Execute(null);
+        e.Handled = true;
+    }
+
     private void OpenLiveOrders_Click(object sender, RoutedEventArgs e)
     {
         if (_liveOrders is null || !_liveOrders.IsLoaded)
