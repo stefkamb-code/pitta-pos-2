@@ -19,7 +19,8 @@ public sealed record MenuProductDto(
     string? NameEn,
     decimal Price,
     bool Customizable,
-    IReadOnlyList<string>? Ingredients = null);
+    IReadOnlyList<string>? Ingredients = null,
+    IReadOnlyList<string>? Extras = null);
 
 /// <summary>Κατηγορία όπως τη βλέπει η εφαρμογή κινητού, μαζί με τους κανόνες της.
 /// <para>Οι κανόνες ταξιδεύουν από το ταμείο αντί να τους ξέρει το κινητό: τα ίδια ονόματα κατηγοριών

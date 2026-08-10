@@ -439,11 +439,23 @@ public static class WaiterApiService
     private static List<MenuCategoryDto> GetMenu() =>
         MenuStore.Instance.Categories.Select(c => new MenuCategoryDto(c.Id, c.Name,
             c.Products.Select(p => new MenuProductDto(p.Id, p.Name, p.NameEn, p.Price, p.Customizable,
-                MenuStore.Instance.IngredientsFor(p))).ToList(),
+                MenuStore.Instance.IngredientsFor(p), ExtraNamesFor(p))).ToList(),
             MenuStore.Instance.HasBreadChoice(c.Name),
             MenuStore.Instance.FuseBreadIntoName(c.Name),
             MenuStore.Instance.SupportsDoublePita(c.Name),
             MenuStore.Instance.DoublePitaPriceFor(c.Name))).ToList();
+
+    /// <summary>Τα έξτρα ΤΟΥ προϊόντος, με τη σειρά που τα έχει το ίδιο (Product.ExtraNames, οριζόμενη
+    /// με σύρσιμο από τη Διαχείριση Καταλόγου). Το κινητό έδειχνε τον κοινό κατάλογο σε όλα: αγνοούσε
+    /// και τη σειρά και τον περιορισμό, οπότε ένα προϊόν με τρία επιτρεπτά έξτρα εμφάνιζε και τα 21.
+    /// Ονόματα που δεν υπάρχουν πια στον κατάλογο πετιούνται — το κινητό αντλεί τιμές από εκεί.</summary>
+    private static List<string> ExtraNamesFor(Product product)
+    {
+        var catalog = MenuStore.Instance.Extras;
+        return product.ExtraNames is { } names
+            ? names.Where(n => catalog.Any(e => e.Name == n)).ToList()
+            : catalog.Select(e => e.Name).ToList();
+    }
 
     private static CustomizerOptionsDto GetCustomizerOptions() => new(
         MenuSeed.BreadOptions,
