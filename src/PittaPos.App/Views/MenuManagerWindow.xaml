@@ -309,8 +309,14 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <!-- Χωρίς κουτάκι επιλογής: ό,τι φαίνεται εδώ ΕΙΝΑΙ τα υλικά του
-                                         προϊόντος. Το × το βγάζει, το «+ ΥΛΙΚΟ» το προσθέτει. -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,8">
+                                         προϊόντος. Το × το βγάζει, το «+ ΥΛΙΚΟ» το προσθέτει.
+                                         Η λαβή «⠿» αλλάζει τη σειρά ΜΟΝΟ σε αυτό το προϊόν. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,8" Background="Transparent"
+                                                AllowDrop="True" Drop="IngredientChip_Drop">
+                                        <TextBlock Text="⠿" FontSize="12" Margin="0,0,5,0" Cursor="SizeAll"
+                                                   VerticalAlignment="Center" ToolTip="Σύρε για αλλαγή σειράς"
+                                                   Foreground="{DynamicResource Neutral500}"
+                                                   MouseLeftButtonDown="IngredientHandle_MouseLeftButtonDown"/>
                                         <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
                                                    VerticalAlignment="Center"/>
                                         <Button Content="×" Style="{StaticResource GlyphButton}" FontSize="12" Width="20" Height="20"
@@ -354,8 +360,17 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <CheckBox Content="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
-                                              IsChecked="{Binding IsChecked}" Margin="0,0,16,8"/>
+                                    <!-- Η λαβή «⠿» αλλάζει τη σειρά των έξτρα ΜΟΝΟ σε αυτό το προϊόν —
+                                         ο κοινός κατάλογος από κάτω έχει τη δική του, ανεξάρτητη σειρά. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,8" Background="Transparent"
+                                                AllowDrop="True" Drop="ExtraChip_Drop">
+                                        <TextBlock Text="⠿" FontSize="12" Margin="0,0,5,0" Cursor="SizeAll"
+                                                   VerticalAlignment="Center" ToolTip="Σύρε για αλλαγή σειράς"
+                                                   Foreground="{DynamicResource Neutral500}"
+                                                   MouseLeftButtonDown="ExtraHandle_MouseLeftButtonDown"/>
+                                        <CheckBox Content="{Binding Name}" FontSize="12" Foreground="{DynamicResource Ink}"
+                                                  IsChecked="{Binding IsChecked}"/>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

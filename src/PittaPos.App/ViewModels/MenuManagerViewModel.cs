@@ -258,20 +258,58 @@ public partial class MenuManagerViewModel : ObservableObject
         // Μαζί και τα βασικά υλικά: χωρίς αυτό χτίζονταν μόνο όταν πρόσθετε κανείς υλικό, οπότε
         // ανοίγοντας ένα προϊόν η λίστα φαινόταν άδεια σαν να μην είχε κανένα.
         RebuildIngredientToggles();
-        foreach (var extra in _store.Extras)
+
+        // Η σειρά είναι ΤΟΥ ΠΡΟΪΟΝΤΟΣ: πρώτα τα δικά του έξτρα με τη σειρά που τα έχει σύρει ο ταμίας
+        // (ExtraNames), μετά όσα του κοινού καταλόγου δεν έχει — ξετσεκάριστα, στη σειρά του καταλόγου.
+        // Προϊόν χωρίς ρητή λίστα (null) παίρνει ολόκληρο τον κοινό κατάλογο με τη σειρά του, όπως πάντα.
+        var ordered = value?.ExtraNames is { } names
+            ? names.Where(n => _store.Extras.Any(e => e.Name == n))
+                .Concat(_store.Extras.Select(e => e.Name).Where(n => !names.Contains(n)))
+                .ToList()
+            : _store.Extras.Select(e => e.Name).ToList();
+
+        foreach (var name in ordered)
         {
+            var extra = _store.Extras.First(e => e.Name == name);
             ExtraToggles.Add(new ExtraToggleViewModel
             {
                 Name = extra.Name,
                 PriceLabel = extra.Price > 0 ? Order.FormatPrice(extra.Price) : "δωρεάν",
                 IsChecked = value?.ExtraNames is null || value.ExtraNames.Contains(extra.Name),
             });
+        }
+
+        // Ο κοινός κατάλογος μένει στη ΔΙΚΗ του σειρά — είναι άλλη λίστα, ανεξάρτητη από το προϊόν.
+        foreach (var extra in _store.Extras)
+        {
             ExtraCatalogRows.Add(new ExtraCatalogRowViewModel
             {
                 Name = extra.Name,
                 PriceText = extra.Price.ToString("0.00", Greek),
             });
         }
+    }
+
+    /// <summary>Βάζει το συρμένο υλικό στη θέση του υλικού-στόχου, μέσα στο ΕΠΙΛΕΓΜΕΝΟ προϊόν. Η σειρά
+    /// που βλέπεις εδώ είναι αυτή που θα δει ο ταμίας και ο σερβιτόρος στον customizer.</summary>
+    public void MoveIngredientTo(ExtraToggleViewModel dragged, ExtraToggleViewModel target) =>
+        MoveWithin(IngredientToggles, dragged, target);
+
+    /// <summary>Ίδιο για τα έξτρα του προϊόντος. Οριστικοποιείται με την ΑΠΟΘΗΚΕΥΣΗ, όπως όλα τα άλλα
+    /// της φόρμας — μέχρι τότε αλλάζει μόνο ό,τι βλέπεις στην οθόνη.</summary>
+    public void MoveExtraTo(ExtraToggleViewModel dragged, ExtraToggleViewModel target) =>
+        MoveWithin(ExtraToggles, dragged, target);
+
+    private static void MoveWithin(ObservableCollection<ExtraToggleViewModel> list,
+        ExtraToggleViewModel dragged, ExtraToggleViewModel target)
+    {
+        if (ReferenceEquals(dragged, target))
+            return;
+        var from = list.IndexOf(dragged);
+        var to = list.IndexOf(target);
+        if (from < 0 || to < 0)
+            return;
+        list.Move(from, to);
     }
 
     /// <summary>Μία γραμμή ανά κατηγορία που πραγματικά υποστηρίζει διπλή πίτα, με το τρέχον όνομά
@@ -501,7 +539,13 @@ public partial class MenuManagerViewModel : ObservableObject
         // Αν είναι όλα τσεκαρισμένα μένει null («όλα») αντί για ρητή λίστα — έτσι ένα μελλοντικό νέο
         // έξτρα στο MenuSeed.Extras εμφανίζεται αυτόματα σε προϊόντα που δεν έχουν περιοριστεί σκόπιμα.
         var checkedExtras = ExtraToggles.Where(t => t.IsChecked).Select(t => t.Name).ToList();
-        var extraNames = checkedExtras.Count == ExtraToggles.Count ? null : checkedExtras;
+        // Μένει null ΜΟΝΟ αν είναι όλα τσεκαρισμένα ΚΑΙ με τη σειρά του κοινού καταλόγου. Πριν αρκούσε
+        // το «όλα τσεκαρισμένα», οπότε μια αλλαγή σειράς σε προϊόν με όλα τα έξτρα δεν αποθηκευόταν
+        // ποτέ — το προϊόν ξαναδιάβαζε την κοινή σειρά και το σύρσιμο έμοιαζε να μην πιάνει.
+        var catalogOrder = _store.Extras.Select(e => e.Name).ToList();
+        var extraNames = checkedExtras.Count == ExtraToggles.Count && checkedExtras.SequenceEqual(catalogOrder)
+            ? null
+            : checkedExtras;
         // ΑΝΤΙΘΕΤΑ με τα έξτρα: τα βασικά υλικά γράφονται ΠΑΝΤΑ ρητά, ποτέ null. Το null σημαίνει
         // «ό,τι λέει ο κοινός κατάλογος», οπότε ένα προϊόν που είχε τσεκαρισμένα όλα ξαναγύριζε σε
         // «όλα» και μάζευε μόνο του κάθε μελλοντικό υλικό. Τα υλικά είναι ανά προϊόν — το καθένα

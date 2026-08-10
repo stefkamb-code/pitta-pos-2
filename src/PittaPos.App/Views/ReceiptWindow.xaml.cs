@@ -46,9 +46,15 @@ public partial class ReceiptWindow : Window
         var tableDigits = order.Type == Core.Models.OrderType.Table
             ? new string(order.Who.Where(char.IsDigit).ToArray())
             : "";
-        var typeLine = tableDigits.Length > 0
-            ? MenuSeed.ToUpperGreek(order.TypeLabel) + " #" + tableDigits
-            : MenuSeed.ToUpperGreek(order.TypeLabel) + " #" + order.DisplayNumber;
+        // ΟΡΘΙΟΣ: σκέτη η λέξη, χωρίς αριθμό. Ο πελάτης στέκεται μπροστά και περιμένει — ο εσωτερικός
+        // μετρητής (#1046) δεν του λέει τίποτα και δεν τον φωνάζει κανείς με αυτόν.
+        var label = MenuSeed.ToUpperGreek(order.TypeLabel);
+        var typeLine = order.Type switch
+        {
+            Core.Models.OrderType.Pickup => label,
+            _ when tableDigits.Length > 0 => label + " #" + tableDigits,
+            _ => label + " #" + order.DisplayNumber,
+        };
         // Μόνο στο τέλος, στη θέση που είχε το «Ευχαριστούμε»: πάνω το σκέπαζε το θηλύκωμα όταν κρεμιέται
         // η απόδειξη. Ίδιο έντονο μαύρο και ίδιο μέγεθος με πριν, απλώς στην άλλη άκρη του χαρτιού.
         FooterText.Text = typeLine;

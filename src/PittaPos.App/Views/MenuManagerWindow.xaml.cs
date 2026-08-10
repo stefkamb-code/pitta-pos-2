@@ -39,6 +39,40 @@ public partial class MenuManagerWindow : Window
         (DataContext as MenuManagerViewModel)?.MoveProductTo(dragged, target);
     }
 
+    /// <summary>Σειρά βασικών υλικών ΤΟΥ ΕΠΙΛΕΓΜΕΝΟΥ προϊόντος — ίδιο σύρσιμο από λαβή με τα προϊόντα.</summary>
+    private void IngredientHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        StartChipDrag(sender, e);
+
+    private void IngredientChip_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(ExtraToggleViewModel)) is not ExtraToggleViewModel dragged
+            || ((FrameworkElement)sender).DataContext is not ExtraToggleViewModel target)
+            return;
+        // Αν σύρθηκε ταμπελάκι έξτρα πάνω σε υλικό, το MoveIngredientTo δεν το βρίσκει στη λίστα και
+        // δεν κάνει τίποτα — οι δύο λίστες κρατούν τον ίδιο τύπο, οπότε ο έλεγχος γίνεται εκεί.
+        (DataContext as MenuManagerViewModel)?.MoveIngredientTo(dragged, target);
+    }
+
+    /// <summary>Σειρά έξτρα ΤΟΥ ΕΠΙΛΕΓΜΕΝΟΥ προϊόντος — δεν αγγίζει τον κοινό κατάλογο.</summary>
+    private void ExtraHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        StartChipDrag(sender, e);
+
+    private void ExtraChip_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(ExtraToggleViewModel)) is not ExtraToggleViewModel dragged
+            || ((FrameworkElement)sender).DataContext is not ExtraToggleViewModel target)
+            return;
+        (DataContext as MenuManagerViewModel)?.MoveExtraTo(dragged, target);
+    }
+
+    private static void StartChipDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not ExtraToggleViewModel dragged)
+            return;
+        e.Handled = true; // να μη φτάσει το πάτημα στο κουτάκι επιλογής από δίπλα
+        DragDrop.DoDragDrop((FrameworkElement)sender, dragged, DragDropEffects.Move);
+    }
+
     /// <summary>Εξαγωγή όλου του καταλόγου σε Excel — για γέφυρες πλατφορμών (Wolt κ.λπ.).</summary>
     private void ExportExcel_Click(object sender, RoutedEventArgs e)
     {

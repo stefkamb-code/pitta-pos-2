@@ -35,10 +35,17 @@ public partial class CustomizerViewModel : ObservableObject
             MenuStore.Instance.IngredientsFor(product).Select(n => new IngredientViewModel(this, n)));
         // null ExtraNames = όλα επιτρεπτά (βλ. MenuManagerViewModel) — μόνο τα ρητά περιορισμένα προϊόντα
         // βλέπουν υποσύνολο του (επεξεργάσιμου, βλ. MenuStore.Extras) κοινού καταλόγου έξτρα.
+        // Η ΣΕΙΡΑ είναι του προϊόντος, όχι του κοινού καταλόγου: το ExtraNames είναι λίστα με σειρά, την
+        // οποία ορίζει ο ταμίας σέρνοντας μέσα στο προϊόν (βλ. MenuManagerViewModel.MoveExtraTo). Πριν
+        // φιλτραριζόταν ο κοινός κατάλογος, οπότε η σειρά έβγαινε ίδια παντού όσο κι αν την άλλαζες.
         var catalogExtras = MenuStore.Instance.Extras;
         var allowedExtras = product.ExtraNames is null
             ? catalogExtras
-            : catalogExtras.Where(e => product.ExtraNames.Contains(e.Name)).ToList();
+            : product.ExtraNames
+                .Select(n => catalogExtras.FirstOrDefault(e => e.Name == n))
+                .Where(e => e is not null)
+                .Select(e => e!)
+                .ToList();
         Extras = new ObservableCollection<ExtraViewModel>(
             allowedExtras.Select(e => new ExtraViewModel(this, e)));
 
