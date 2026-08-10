@@ -81,6 +81,13 @@ public partial class ProductTileViewModel(Product product, bool customizable, de
     /// με ποια σειρά αντιστοιχεί ό,τι βλέπεις δίπλα.</summary>
     [ObservableProperty]
     private bool _isOpen;
+
+    /// <summary>Η σειρά που πατήθηκε τελευταία. Το σημάδι το έδινε μόνο το <see cref="IsOpen"/>, που
+    /// ανάβει όταν ανοίγουν υλικά — οπότε τα προϊόντα ΧΩΡΙΣ υλικά (ποτά, σαλάτες, μίνι) δεν κοκκίνιζαν
+    /// ποτέ και το ένα κλικ έμοιαζε να μην πιάνει. Τώρα που τίποτα δεν μπαίνει με ένα κλικ, το σημάδι
+    /// είναι η μόνη επιβεβαίωση ότι πάτησες τη σωστή σειρά.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
 }
 
 /// <summary>Επιλογή ψωμιού στο segmented control του customizer.</summary>

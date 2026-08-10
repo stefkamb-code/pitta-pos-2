@@ -384,6 +384,11 @@ public partial class ProductsViewModel : ObservableObject
             return;
         }
 
+        // Σημαδεύεται ΠΑΝΤΑ η σειρά που πατήθηκε, ακόμα κι όταν δεν έχει υλικά να ανοίξει — αλλιώς σε
+        // ποτά/σαλάτες/μίνι το ένα κλικ δεν άφηνε κανένα ίχνος και έμοιαζε σαν να μην πιάνει.
+        foreach (var t in Tiles)
+            t.IsSelected = ReferenceEquals(t, tile);
+
         if (tile.Customizable)
             OpenCustomizer(tile);
     }

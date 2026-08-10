@@ -41,6 +41,12 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Style.Triggers>
+                <!-- Πατημένη σειρά χωρίς υλικά (ποτά, σαλάτες, μίνι): ίδιο σημάδι με το IsOpen, ώστε
+                     το ένα κλικ να φαίνεται παντού — γράφεται πρώτο ώστε το IsOpen να το υπερισχύει. -->
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsOpen}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource Accent100}"/>
                     <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
