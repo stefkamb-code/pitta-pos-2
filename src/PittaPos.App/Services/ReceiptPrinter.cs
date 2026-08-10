@@ -15,6 +15,16 @@ public static class ReceiptPrinter
 {
     public static void PrintOrder(CompletedOrder order)
     {
+        // Δεύτερο ταμείο: ο εκτυπωτής είναι δεμένος στο κύριο, δεν υπάρχει δεύτερος. Η απόδειξη φεύγει
+        // εκεί και τυπώνεται από εκείνο. Ο έλεγχος μπαίνει ΕΔΩ και όχι στα σημεία που καλούν, ώστε να
+        // ισχύει παντού με μία κίνηση: αυτόματη εκτύπωση παραγγελίας, επανεκτύπωση από το Ιστορικό,
+        // παραγγελία από το κινητό του σερβιτόρου.
+        if (RemoteSync.IsClient)
+        {
+            _ = SendToHostAsync(order);
+            return;
+        }
+
         var printerName = SettingsStore.Instance.Settings.PrinterName;
         if (printerName.Length == 0)
         {
@@ -167,6 +177,18 @@ public static class ReceiptPrinter
         {
             // Η διάγνωση δεν πρέπει ποτέ να εμποδίσει μια εκτύπωση
         }
+    }
+
+    /// <summary>Στέλνει την απόδειξη στο κύριο ταμείο για εκτύπωση. Αν δεν φτάσει (κλειστό ταμείο,
+    /// πεσμένο δίκτυο) μπαίνει στην ίδια ουρά με τις παραγγελίες και ξαναφεύγει μόλις επανέλθει —
+    /// τυπώνεται τότε με καθυστέρηση, αλλά δεν χάνεται. Ο σερβιτόρος/ταμίας δεν περιμένει: η αποστολή
+    /// γίνεται στο παρασκήνιο, όπως ακριβώς και η συγχρονισμένη καταχώρηση της παραγγελίας.</summary>
+    private static async Task SendToHostAsync(CompletedOrder order)
+    {
+        if (await RemoteSync.PostAsync("/api/sync/print/order", order))
+            return;
+        PendingSyncService.Instance.Enqueue("/api/sync/print/order", order,
+            $"Απόδειξη #{order.OrderNumber} προς εκτύπωση");
     }
 
     private static void Fail(CompletedOrder order, string reason) =>

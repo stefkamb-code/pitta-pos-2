@@ -208,6 +208,19 @@ public static class WaiterApiService
             var number = OnUi(() => SalesStatsService.Instance.Record(req));
             return Results.Json(number);
         });
+        // ---- εκτύπωση για λογαριασμό του δεύτερου ταμείου ----
+        // Ένας εκτυπωτής στο μαγαζί, δεμένος σε ΑΥΤΟΝ τον υπολογιστή. Το δεύτερο ταμείο δεν τον βλέπει
+        // καθόλου, οπότε στέλνει εδώ την απόδειξη και την τυπώνει το κύριο ταμείο. Αν εδώ είναι κλειστό,
+        // η απόδειξη μπαίνει στην ουρά του δεύτερου (PendingSyncService) και ξαναστέλνεται μόλις ανοίξει.
+        app.MapPost("/api/sync/print/order", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<CompletedOrder>();
+            if (req is null)
+                return Results.Ok();
+            OnUi(() => { ReceiptPrinter.PrintOrder(req); return 0; });
+            return Results.Ok();
+        });
+
         app.MapPost("/api/sync/orders/clear", () =>
         {
             OnUi(() => { SalesStatsService.Instance.Clear(); return 0; });
