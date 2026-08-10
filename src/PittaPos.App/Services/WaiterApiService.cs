@@ -434,18 +434,26 @@ public static class WaiterApiService
             return x.l.Revenue / units * unpaid;
         }));
 
+    // Τα υλικά στέλνονται ήδη λυμένα ανά προϊόν (IngredientsFor), όχι ως «null = τα κοινά»: το κινητό
+    // δεν χρειάζεται να ξέρει τον κανόνα προεπιλογής και μια μελλοντική αλλαγή του δεν θα απαιτεί νέο APK.
     private static List<MenuCategoryDto> GetMenu() =>
         MenuStore.Instance.Categories.Select(c => new MenuCategoryDto(c.Id, c.Name,
-            c.Products.Select(p => new MenuProductDto(p.Id, p.Name, p.NameEn, p.Price, p.Customizable)).ToList())).ToList();
+            c.Products.Select(p => new MenuProductDto(p.Id, p.Name, p.NameEn, p.Price, p.Customizable,
+                MenuStore.Instance.IngredientsFor(p))).ToList(),
+            MenuStore.Instance.HasBreadChoice(c.Name),
+            MenuStore.Instance.FuseBreadIntoName(c.Name),
+            MenuStore.Instance.SupportsDoublePita(c.Name),
+            MenuStore.Instance.DoublePitaPriceFor(c.Name))).ToList();
 
     private static CustomizerOptionsDto GetCustomizerOptions() => new(
         MenuSeed.BreadOptions,
-        // Ο κοινός κατάλογος υλικών (όχι πια σταθερός στον κώδικα). Το κινητό δείχνει ακόμα τον κοινό
-        // για όλα τα προϊόντα — τα ανά προϊόν υλικά χρειάζονται αλλαγή και στο πρωτόκολλο.
+        // Ο κοινός κατάλογος υλικών (όχι πια σταθερός στον κώδικα). Μένει εδώ ως εφεδρεία για προϊόν που
+        // ήρθε χωρίς δικά του υλικά· τα ανά προϊόν υλικά ταξιδεύουν πλέον στο MenuProductDto.Ingredients.
         MenuStore.Instance.Ingredients,
         MenuStore.Instance.Extras.Select(e => new ExtraOptionDto(e.Name, e.Price)).ToList(),
         MenuStore.Instance.Categories.Where(c => MenuStore.Instance.SupportsDoublePita(c.Name))
-            .ToDictionary(c => c.Name, c => MenuStore.Instance.DoublePitaPriceFor(c.Name)));
+            .ToDictionary(c => c.Name, c => MenuStore.Instance.DoublePitaPriceFor(c.Name)),
+        MenuSeed.BreadOptions.ToDictionary(b => b, MenuSeed.BreadAbbreviation));
 
     /// <summary>Ό,τι έχει ήδη παραγγελθεί στο τραπέζι από τότε που άνοιξε — για την οθόνη λεπτομερειών του κινητού.</summary>
     private static List<TableOrderDto> GetTableOrders(int table)

@@ -5,9 +5,37 @@ namespace PittaPos.App.Services;
 /// <summary>Τραπέζι όπως το βλέπει η εφαρμογή κινητού — ίδια δεδομένα με την κάτοψη του ταμείου.</summary>
 public sealed record TableDto(int Number, bool IsOpen, decimal Total, int RoundCount, string? LastOrderTime);
 
-public sealed record MenuProductDto(string Id, string Name, string? NameEn, decimal Price, bool Customizable);
+/// <summary>Προϊόν όπως το βλέπει η εφαρμογή κινητού.
+/// <para><paramref name="Ingredients"/> = τα βασικά υλικά ΤΟΥ ΣΥΓΚΕΚΡΙΜΕΝΟΥ προϊόντος, ήδη λυμένα μέσω
+/// <see cref="MenuStore.IngredientsFor"/> (άδεια λίστα = προϊόν χωρίς βασικά υλικά). Πριν υπάρξει αυτό το
+/// πεδίο το κινητό έδειχνε παντού τον κοινό κατάλογο του <see cref="CustomizerOptionsDto.Ingredients"/>,
+/// οπότε ο σερβιτόρος ξετσέκαρε υλικά που το προϊόν δεν είχε καν και το ταμείο — που μετράει το «σκέτο»
+/// με τα υλικά του προϊόντος — τύπωνε ΣΚΕΤΟ σε παραγγελία που δεν το ζήτησε.
+/// Μένει nullable: παλιό κινητό αγνοεί το πεδίο, νέο κινητό σε ταμείο που δεν το στέλνει πέφτει πίσω
+/// στον κοινό κατάλογο και δουλεύει όπως πριν.</para></summary>
+public sealed record MenuProductDto(
+    string Id,
+    string Name,
+    string? NameEn,
+    decimal Price,
+    bool Customizable,
+    IReadOnlyList<string>? Ingredients = null);
 
-public sealed record MenuCategoryDto(string Id, string Name, List<MenuProductDto> Products);
+/// <summary>Κατηγορία όπως τη βλέπει η εφαρμογή κινητού, μαζί με τους κανόνες της.
+/// <para>Οι κανόνες ταξιδεύουν από το ταμείο αντί να τους ξέρει το κινητό: τα ίδια ονόματα κατηγοριών
+/// ήταν γραμμένα και μέσα στο APK, οπότε μια μετονομασία από τη Διαχείριση Καταλόγου (ΤΥΛΙΧΤΑ → ΠΙΤΤΕΣ)
+/// έκανε το κινητό να μη δείχνει ούτε επιλογή ψωμιού ούτε διπλή πίτα — και δεν διορθωνόταν χωρίς νέο APK.
+/// Πηγή είναι οι ιδιότητες της κατηγορίας (MenuStore.HasBreadChoice/FuseBreadIntoName/SupportsDoublePita),
+/// οι ίδιες που χρησιμοποιεί ο customizer του ταμείου, ώστε οι δύο οθόνες να μη διαφέρουν ποτέ.</para>
+/// <para>Nullable: κινητό νεότερο από το ταμείο πέφτει πίσω στους δικούς του κανόνες αντί να μείνει χωρίς.</para></summary>
+public sealed record MenuCategoryDto(
+    string Id,
+    string Name,
+    List<MenuProductDto> Products,
+    bool? HasBread = null,
+    bool? FuseBreadIntoName = null,
+    bool? SupportsDoublePita = null,
+    decimal? DoublePitaPrice = null);
 
 /// <summary>Έξτρα υλικό όπως το βλέπει η εφαρμογή κινητού.</summary>
 public sealed record ExtraOptionDto(string Name, decimal Price);
@@ -19,7 +47,12 @@ public sealed record CustomizerOptionsDto(
     IReadOnlyList<string> Breads,
     IReadOnlyList<string> Ingredients,
     IReadOnlyList<ExtraOptionDto> Extras,
-    IReadOnlyDictionary<string, decimal> DoublePitaPrices);
+    IReadOnlyDictionary<string, decimal> DoublePitaPrices,
+    /// <summary>Η συντομογραφία κάθε ψωμιού («Αραβική» → «ΑΡ.»), όπως τη βγάζει το ταμείο
+    /// (MenuSeed.BreadAbbreviation) — μπαίνει μπροστά στο όνομα της γραμμής στις κατηγορίες που
+    /// χωνεύουν το ψωμί. Ταξιδεύει αντί να την υπολογίζει το κινητό: αν αλλάξουν τα ψωμιά ή οι
+    /// συντομογραφίες τους, το καλάθι του σερβιτόρου δεν γράφει άλλα από την απόδειξη.</summary>
+    IReadOnlyDictionary<string, string>? BreadAbbreviations = null);
 
 public sealed record OrderLineRequest(
     string ProductId,
