@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PittaPos.App.Controls;
 using PittaPos.App.Services;
 using PittaPos.Core.Data;
 using PittaPos.Core.Models;
@@ -183,6 +184,7 @@ public partial class MenuManagerViewModel : ObservableObject
 
         IngredientToggles.Add(new ExtraToggleViewModel { Name = name, PriceLabel = "", IsChecked = true });
         NewIngredientName = "";
+        RebuildSuggestions(); // ό,τι μπήκε στο προϊόν φεύγει από τις προτάσεις
         Flash("✓ Προστέθηκε — πάτα ΑΠΟΘΗΚΕΥΣΗ");
     }
 
@@ -192,6 +194,7 @@ public partial class MenuManagerViewModel : ObservableObject
     private void RemoveIngredient(ExtraToggleViewModel ingredient)
     {
         IngredientToggles.Remove(ingredient);
+        RebuildSuggestions(); // ξαναγίνεται πρόταση, σε περίπτωση που το έβγαλες κατά λάθος
         Flash("✓ Αφαιρέθηκε — πάτα ΑΠΟΘΗΚΕΥΣΗ");
     }
 
@@ -288,7 +291,70 @@ public partial class MenuManagerViewModel : ObservableObject
                 PriceText = extra.Price.ToString("0.00", Greek),
             });
         }
+
+        RebuildSuggestions();
     }
+
+    // ---- προτάσεις καθώς γράφεις (βλ. Controls/AutoComplete.cs) ----
+    //
+    // Τίποτα από αυτά δεν αποθηκεύεται χωριστά: οι προτάσεις βγαίνουν από τον ΙΔΙΟ τον κατάλογο, από
+    // ό,τι έχει ήδη γραφτεί σε προϊόντα και κατηγορίες. Έτσι δεν υπάρχει δεύτερη λίστα να ξεσυγχρονιστεί,
+    // και ένα υλικό που δεν το χρησιμοποιεί πια κανένα προϊόν παύει μόνο του να προτείνεται.
+
+    /// <summary>Κάθε βασικό υλικό που υπάρχει σε οποιοδήποτε προϊόν — εκτός από όσα έχει ήδη αυτό εδώ.</summary>
+    public IReadOnlyList<string> IngredientSuggestions { get; private set; } = [];
+
+    /// <summary>Ονόματα γνωστά ως βασικά υλικά που ΔΕΝ υπάρχουν ακόμα στον κοινό κατάλογο έξτρα — δηλαδή
+    /// ακριβώς όσα έχει νόημα να γίνουν έξτρα.</summary>
+    public IReadOnlyList<string> ExtraSuggestions { get; private set; } = [];
+
+    public IReadOnlyList<string> ProductNameSuggestions { get; private set; } = [];
+    public IReadOnlyList<string> ProductPrintNameSuggestions { get; private set; } = [];
+    public IReadOnlyList<string> CategoryNameSuggestions { get; private set; } = [];
+
+    private void RebuildSuggestions()
+    {
+        var products = _store.Categories.SelectMany(c => c.Products).ToList();
+        // Ο κοινός κατάλογος μπαίνει κι αυτός μέσα: τα προϊόντα που δεν ρυθμίστηκαν ποτέ έχουν
+        // Ingredients = null και τα υλικά τους ζουν μόνο εκεί.
+        var everyIngredient = products.Where(p => p.Ingredients is not null)
+            .SelectMany(p => p.Ingredients!)
+            .Concat(_store.Ingredients)
+            .ToList();
+
+        var onThisProduct = IngredientToggles.Select(t => AutoComplete.Normalize(t.Name)).ToHashSet();
+        IngredientSuggestions = ByFrequency(everyIngredient)
+            .Where(name => !onThisProduct.Contains(AutoComplete.Normalize(name)))
+            .ToList();
+
+        var alreadyExtra = _store.Extras.Select(e => AutoComplete.Normalize(e.Name)).ToHashSet();
+        ExtraSuggestions = ByFrequency(everyIngredient)
+            .Where(name => !alreadyExtra.Contains(AutoComplete.Normalize(name)))
+            .ToList();
+
+        ProductNameSuggestions = ByFrequency(products.Select(p => p.Name));
+        // Και τα κανονικά ονόματα: το όνομα εκτύπωσης συνήθως ξεκινά σαν το κανονικό και μετά κόβεται.
+        ProductPrintNameSuggestions = ByFrequency(products.Select(p => p.PrintName!)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Concat(products.Select(p => p.Name)));
+        CategoryNameSuggestions = ByFrequency(_store.Categories.Select(c => c.Name));
+
+        OnPropertyChanged(nameof(IngredientSuggestions));
+        OnPropertyChanged(nameof(ExtraSuggestions));
+        OnPropertyChanged(nameof(ProductNameSuggestions));
+        OnPropertyChanged(nameof(ProductPrintNameSuggestions));
+        OnPropertyChanged(nameof(CategoryNameSuggestions));
+    }
+
+    /// <summary>Τα πολυχρησιμοποιημένα πρώτα — σε 124 προϊόντα, το «κρεμμύδι» πρέπει να βγαίνει πριν από
+    /// ένα υλικό που γράφτηκε μία φορά. Ονόματα που διαφέρουν μόνο σε τόνο/πεζά μετρούν ως ένα.</summary>
+    private static List<string> ByFrequency(IEnumerable<string> names) =>
+        names.Where(name => !string.IsNullOrWhiteSpace(name))
+            .GroupBy(AutoComplete.Normalize)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.CurrentCulture)
+            .Select(group => group.First().Trim())
+            .ToList();
 
     /// <summary>Βάζει το συρμένο υλικό στη θέση του υλικού-στόχου, μέσα στο ΕΠΙΛΕΓΜΕΝΟ προϊόν. Η σειρά
     /// που βλέπεις εδώ είναι αυτή που θα δει ο ταμίας και ο σερβιτόρος στον customizer.</summary>
@@ -647,5 +713,6 @@ public partial class MenuManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(Categories));
         OnPropertyChanged(nameof(Products));
         RebuildDoublePitaRows();
+        RebuildSuggestions();
     }
 }

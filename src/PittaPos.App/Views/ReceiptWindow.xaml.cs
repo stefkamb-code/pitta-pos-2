@@ -55,8 +55,9 @@ public partial class ReceiptWindow : Window
             _ when tableDigits.Length > 0 => label + " #" + tableDigits,
             _ => label + " #" + order.DisplayNumber,
         };
-        // Μόνο στο τέλος, στη θέση που είχε το «Ευχαριστούμε»: πάνω το σκέπαζε το θηλύκωμα όταν κρεμιέται
-        // η απόδειξη. Ίδιο έντονο μαύρο και ίδιο μέγεθος με πριν, απλώς στην άλλη άκρη του χαρτιού.
+        // Και στις ΔΥΟ άκρες του χαρτιού, με το ίδιο ακριβώς κείμενο: όταν κρεμιέται η απόδειξη, το
+        // θηλύκωμα σκεπάζει τη μία — έτσι ο αριθμός διαβάζεται πάντα από την άλλη, χωρίς ξεκρέμασμα.
+        TypeText.Text = typeLine;
         FooterText.Text = typeLine;
         TotalText.Text = order.TotalLabel;
 
@@ -161,7 +162,9 @@ public partial class ReceiptWindow : Window
         WhoLabelText.FontSize = s.ReceiptMetaFontSize;
         WhoText.FontSize = s.ReceiptMetaFontSize;
         PaymentText.FontSize = s.ReceiptMetaFontSize;
-        // Ίδιο μέγεθος με την κορυφή: είναι ο ίδιος αριθμός, για να διαβάζεται κρεμασμένη η απόδειξη.
+        // Ίδιο μέγεθος πάνω και κάτω: είναι ο ίδιος αριθμός, για να διαβάζεται κρεμασμένη η απόδειξη
+        // από όποια άκρη μείνει ακάλυπτη.
+        TypeText.FontSize = s.ReceiptTitleFontSize;
         FooterText.FontSize = s.ReceiptTitleFontSize;
 
         UpdateLayout();

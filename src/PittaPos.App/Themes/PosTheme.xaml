@@ -284,6 +284,34 @@
         </Setter>
     </Style>
 
+    <!-- Γραμμή στη λίστα προτάσεων που πέφτει κάτω από ένα πεδίο (Controls/AutoComplete.cs) — ίδιο
+         flat look με το dropdown του PosComboBox, ώστε να μη μοιάζει με ξένο control των Windows. -->
+    <Style x:Key="SuggestItem" TargetType="ListBoxItem">
+        <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="bd" Background="Transparent" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Accent100}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="SectionLabel" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
         <Setter Property="FontSize" Value="11"/>

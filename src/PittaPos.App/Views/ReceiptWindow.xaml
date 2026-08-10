@@ -49,9 +49,13 @@
             <TextBlock x:Name="InfoText" FontSize="11" Foreground="Black"
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                        Margin="0,2,0,0" Visibility="Collapsed"/>
-            <!-- Ο τύπος/κανάλι με τον αριθμό (ΔΙΑΝΟΜΗ, WOLT, ΤΡΑΠΕΖΙ…) ΔΕΝ μπαίνει πια εδώ πάνω: η
-                 απόδειξη κρεμιέται και το θηλύκωμα σκέπαζε ακριβώς αυτή τη γραμμή. Τυπώνεται μία φορά,
-                 στο τέλος (FooterText), με το ίδιο έντονο μαύρο που είχε εδώ. -->
+            <!-- Ο τύπος/κανάλι με τον αριθμό (ΔΙΑΝΟΜΗ, WOLT, ΤΡΑΠΕΖΙ…) τυπώνεται ΚΑΙ ΕΔΩ ΠΑΝΩ ΚΑΙ ΣΤΟ
+                 ΤΕΛΟΣ (FooterText), ίδιο κείμενο και ίδιο μέγεθος. Η απόδειξη κρεμιέται και το θηλύκωμα
+                 σκεπάζει τη μία της άκρη — όποια κι αν είναι αυτή, ο αριθμός διαβάζεται από την άλλη.
+                 Κοστίζει μία γραμμή χαρτί, γλιτώνει το ξεκρέμασμα κάθε απόδειξης για να δεις ποια είναι. -->
+            <TextBlock x:Name="TypeText" FontSize="15" FontWeight="ExtraBold" Foreground="Black"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                       Margin="0,8,0,0"/>
             <Border x:Name="InfoBlock" BorderBrush="Black" BorderThickness="0,2" Padding="0,12" Margin="0,10,0,14">
                 <StackPanel>
                     <!-- Όνομα ΚΑΙ τηλέφωνο στην ίδια γραμμή — πάνε μαζί («ποιον ψάχνω / πού τον παίρνω»)
