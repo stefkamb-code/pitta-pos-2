@@ -390,7 +390,15 @@ public partial class ProductsViewModel : ObservableObject
             t.IsSelected = ReferenceEquals(t, tile);
 
         if (tile.Customizable)
+        {
             OpenCustomizer(tile);
+            return;
+        }
+
+        // Προϊόν χωρίς υλικά: κλείνουν τα υλικά που τυχόν ήταν ανοιχτά από προηγούμενο προϊόν. Αλλιώς
+        // έμεναν κοκκινισμένες ΔΥΟ σειρές — η παλιά από το IsOpen, η νέα από το IsSelected — και η
+        // διπλανή στήλη έδειχνε τα υλικά ενός προϊόντος που δεν είναι πια αυτό που πατάς.
+        Customizer = null;
     }
 
     /// <summary>Βάζει ένα απλό προϊόν (χωρίς υλικά) στο δελτίο ή αυξάνει την ποσότητά του.</summary>
