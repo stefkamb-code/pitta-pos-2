@@ -65,8 +65,11 @@ public class AppSettings
     public string ReceiptTitle { get; set; } = "ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ";
     /// <summary>Στοιχεία καταστήματος κάτω από τον τίτλο (διεύθυνση/τηλ./ΑΦΜ) — πολλαπλές γραμμές.</summary>
     public string ReceiptInfo { get; set; } = "";
-    /// <summary>Μήνυμα στο τέλος της απόδειξης.</summary>
-    public string ReceiptFooter { get; set; } = "Ευχαριστούμε!";
+    /// <summary>ΔΕΝ χρησιμοποιείται πια στην απόδειξη — στο τέλος τυπώνεται αυτόματα ο τύπος και ο
+    /// αριθμός («ΤΡΑΠΕΖΙ #6»), βλ. ReceiptWindow. Η ιδιότητα μένει ώστε τα υπάρχοντα settings.json και
+    /// το SharedSettingsDto (συγχρονισμός με το άλλο ταμείο) να διαβάζονται όπως πριν· αν έφευγε, ένα
+    /// ταμείο παλιότερης έκδοσης θα έστελνε πεδίο που δεν υπάρχει.</summary>
+    public string ReceiptFooter { get; set; } = "";
     public bool ReceiptShowDateTime { get; set; } = true;
     public bool ReceiptShowCustomer { get; set; } = true;
     /// <summary>Λεπτομέρειες προϊόντων (ψωμί/έξτρα/χωρίς).</summary>
@@ -362,13 +365,14 @@ public class SettingsStore
         PushSharedSettingsIfClient();
     }
 
-    public void SetReceipt(string title, string info, string footer,
+    /// <summary>Το υποσέλιδο δεν περνιέται πια: στη θέση του τυπώνεται αυτόματα ο τύπος και ο αριθμός
+    /// της παραγγελίας (βλ. ReceiptWindow), οπότε δεν υπάρχει τίποτα να ρυθμίσει ο χρήστης.</summary>
+    public void SetReceipt(string title, string info,
         bool showDateTime, bool showCustomer, bool showDetails,
         double titleFontSize, double itemsFontSize, double totalFontSize, double metaFontSize)
     {
         Settings.ReceiptTitle = title.Trim();
         Settings.ReceiptInfo = info.Trim();
-        Settings.ReceiptFooter = footer.Trim();
         Settings.ReceiptShowDateTime = showDateTime;
         Settings.ReceiptShowCustomer = showCustomer;
         Settings.ReceiptShowDetails = showDetails;

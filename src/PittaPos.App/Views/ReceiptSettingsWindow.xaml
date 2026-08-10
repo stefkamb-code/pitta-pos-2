@@ -45,9 +45,8 @@
                              TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top" Padding="8,6"
                              TextChanged="Receipt_Changed"/>
 
-                    <TextBlock Text="Υποσέλιδο" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                    <TextBox x:Name="ReceiptFooterBox" Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,16"
-                             TextChanged="Receipt_Changed"/>
+                    <!-- Το «Υποσέλιδο» έφυγε: στη θέση του τυπώνεται πλέον αυτόματα ο τύπος και ο
+                         αριθμός της παραγγελίας (ΤΡΑΠΕΖΙ #6), οπότε δεν υπάρχει τίποτα να ρυθμιστεί. -->
 
                     <CheckBox x:Name="ShowDateTimeCheck" Content="Ημερομηνία και ώρα" FontSize="12.5"
                               Foreground="{DynamicResource Ink}" Margin="0,0,0,8"
@@ -171,7 +170,9 @@
                                         <TextBlock x:Name="PvTotalLabel" Text="ΣΥΝΟΛΟ" FontSize="17" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" VerticalAlignment="Bottom"/>
                                     </DockPanel>
                                 </Border>
-                                <TextBlock x:Name="PvFooter" FontSize="12" Foreground="{DynamicResource Ink}"
+                                <!-- Δείγμα: στο χαρτί μπαίνει ο πραγματικός τύπος/αριθμός της παραγγελίας. -->
+                                <TextBlock x:Name="PvFooter" Text="ΤΡΑΠΕΖΙ #6" FontSize="15" FontWeight="ExtraBold"
+                                           Foreground="{DynamicResource Ink}"
                                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,12,0,0"/>
                             </StackPanel>
                         </Border>

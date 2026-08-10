@@ -23,7 +23,6 @@ public partial class ReceiptSettingsWindow : Window
         _metaFontSize = s.ReceiptMetaFontSize;
         ReceiptTitleBox.Text = s.ReceiptTitle;
         ReceiptInfoBox.Text = s.ReceiptInfo;
-        ReceiptFooterBox.Text = s.ReceiptFooter;
         ShowDateTimeCheck.IsChecked = s.ReceiptShowDateTime;
         ShowCustomerCheck.IsChecked = s.ReceiptShowCustomer;
         ShowDetailsCheck.IsChecked = s.ReceiptShowDetails;
@@ -53,8 +52,7 @@ public partial class ReceiptSettingsWindow : Window
         PvTitle.Text = ReceiptTitleBox.Text;
         PvInfo.Text = ReceiptInfoBox.Text;
         PvInfo.Visibility = ReceiptInfoBox.Text.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        PvFooter.Text = ReceiptFooterBox.Text;
-        PvFooter.Visibility = ReceiptFooterBox.Text.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Το υποσέλιδο δεν ρυθμίζεται πια — δείχνει πάντα δείγμα του τύπου/αριθμού (βλ. ReceiptWindow).
         PvDateTime.Visibility = ShowDateTimeCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PvCustomer.Visibility = ShowCustomerCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PvDetails.Visibility = ShowDetailsCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -80,12 +78,12 @@ public partial class ReceiptSettingsWindow : Window
         PvTypeValue.FontSize = _metaFontSize * (12.5 / 11.0);
         PvWhoLabel.FontSize = _metaFontSize * (12.5 / 11.0);
         PvWhoValue.FontSize = _metaFontSize * (12.5 / 11.0);
-        PvFooter.FontSize = _metaFontSize * (12.0 / 11.0);
+        PvFooter.FontSize = _titleFontSize;
     }
 
     private void SaveReceipt_Click(object sender, RoutedEventArgs e)
     {
-        _store.SetReceipt(ReceiptTitleBox.Text, ReceiptInfoBox.Text, ReceiptFooterBox.Text,
+        _store.SetReceipt(ReceiptTitleBox.Text, ReceiptInfoBox.Text,
             ShowDateTimeCheck.IsChecked == true, ShowCustomerCheck.IsChecked == true,
             ShowDetailsCheck.IsChecked == true,
             _titleFontSize, _itemsFontSize, _totalFontSize, _metaFontSize);

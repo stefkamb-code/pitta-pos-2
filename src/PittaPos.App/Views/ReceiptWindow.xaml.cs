@@ -24,8 +24,6 @@ public partial class ReceiptWindow : Window
         // ρυθμίσεις μένουν όπως γράφτηκαν.
         var s = SettingsStore.Instance.Settings;
         TitleText.Text = MenuSeed.ToUpperGreek(s.ReceiptTitle);
-        FooterText.Text = MenuSeed.ToUpperGreek(s.ReceiptFooter);
-        FooterText.Visibility = s.ReceiptFooter.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Κατάστημα + ημερομηνία/ώρα σε ΜΙΑ γραμμή (μία γραμμή λιγότερη χαρτί ανά απόδειξη). Ενώνονται
         // εδώ και όχι στο XAML, ώστε να μη μένει ορφανός διαχωριστής όταν λείπει το ένα από τα δύο.
@@ -48,9 +46,12 @@ public partial class ReceiptWindow : Window
         var tableDigits = order.Type == Core.Models.OrderType.Table
             ? new string(order.Who.Where(char.IsDigit).ToArray())
             : "";
-        TypeText.Text = tableDigits.Length > 0
+        var typeLine = tableDigits.Length > 0
             ? MenuSeed.ToUpperGreek(order.TypeLabel) + " #" + tableDigits
             : MenuSeed.ToUpperGreek(order.TypeLabel) + " #" + order.DisplayNumber;
+        // Μόνο στο τέλος, στη θέση που είχε το «Ευχαριστούμε»: πάνω το σκέπαζε το θηλύκωμα όταν κρεμιέται
+        // η απόδειξη. Ίδιο έντονο μαύρο και ίδιο μέγεθος με πριν, απλώς στην άλλη άκρη του χαρτιού.
+        FooterText.Text = typeLine;
         TotalText.Text = order.TotalLabel;
 
         // Όνομα και τηλέφωνο μαζί στη γραμμή ΠΕΛΑΤΗΣ — μία γραμμή λιγότερη. Το «·» μπαίνει μόνο όταν
@@ -149,14 +150,13 @@ public partial class ReceiptWindow : Window
         TotalLabelText.FontSize = s.ReceiptTotalFontSize * (17.0 / 20.0);
 
         InfoText.FontSize = s.ReceiptMetaFontSize;
-        // Ο τύπος/αριθμός στην κορυφή ακολουθεί τον τίτλο, όχι τα μικρά meta — είναι επικεφαλίδα.
-        TypeText.FontSize = s.ReceiptTitleFontSize;
         // ΠΕΛΑΤΗΣ/ΠΛΗΡΩΜΗ στο απλό μέγεθος meta (όχι μεγεθυμένο): είναι δευτερεύουσα πληροφορία δίπλα
         // στα προϊόντα — μεγεθυμένα ΚΑΙ έντονα τραβούσαν το μάτι περισσότερο απ' την ίδια την παραγγελία.
         WhoLabelText.FontSize = s.ReceiptMetaFontSize;
         WhoText.FontSize = s.ReceiptMetaFontSize;
         PaymentText.FontSize = s.ReceiptMetaFontSize;
-        FooterText.FontSize = s.ReceiptMetaFontSize * (12.0 / 11.0);
+        // Ίδιο μέγεθος με την κορυφή: είναι ο ίδιος αριθμός, για να διαβάζεται κρεμασμένη η απόδειξη.
+        FooterText.FontSize = s.ReceiptTitleFontSize;
 
         UpdateLayout();
     }

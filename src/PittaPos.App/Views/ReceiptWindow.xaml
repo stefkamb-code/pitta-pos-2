@@ -49,13 +49,10 @@
             <TextBlock x:Name="InfoText" FontSize="11" Foreground="Black"
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                        Margin="0,2,0,0" Visibility="Collapsed"/>
-            <!-- Τύπος/κανάλι (ΔΙΑΝΟΜΗ, WOLT, E-FOOD, BOX, ΤΡΑΠΕΖΙ…) ΠΑΝΩ, πριν τον αριθμό παραγγελίας και
-                 χωρίς ετικέτα «ΤΥΠΟΣ» — είναι το πρώτο που θέλει να δει ο υπάλληλος μόλις πιάσει το χαρτί,
-                 οπότε μπαίνει μεγάλο και κεντραρισμένο αντί για μια ακόμα γραμμή μέσα στα στοιχεία. -->
-            <TextBlock x:Name="TypeText" FontSize="15" FontWeight="ExtraBold" Foreground="Black"
-                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
-                       Margin="0,6,0,10"/>
-            <Border x:Name="InfoBlock" BorderBrush="Black" BorderThickness="0,2" Padding="0,12" Margin="0,0,0,14">
+            <!-- Ο τύπος/κανάλι με τον αριθμό (ΔΙΑΝΟΜΗ, WOLT, ΤΡΑΠΕΖΙ…) ΔΕΝ μπαίνει πια εδώ πάνω: η
+                 απόδειξη κρεμιέται και το θηλύκωμα σκέπαζε ακριβώς αυτή τη γραμμή. Τυπώνεται μία φορά,
+                 στο τέλος (FooterText), με το ίδιο έντονο μαύρο που είχε εδώ. -->
+            <Border x:Name="InfoBlock" BorderBrush="Black" BorderThickness="0,2" Padding="0,12" Margin="0,10,0,14">
                 <StackPanel>
                     <!-- Όνομα ΚΑΙ τηλέφωνο στην ίδια γραμμή — πάνε μαζί («ποιον ψάχνω / πού τον παίρνω»)
                          και γλιτώνει μια γραμμή χαρτί. Η ένωση γίνεται στο code-behind ώστε να μη μένει
@@ -152,10 +149,11 @@
                                VerticalAlignment="Bottom"/>
                 </DockPanel>
             </Border>
-            <!-- Μικρότερο κενό πριν το «Ευχαριστούμε»: κάθε περιττή γραμμή είναι χαρτί σε κάθε απόδειξη. -->
-            <TextBlock x:Name="FooterText" FontSize="12" Foreground="Black"
+            <!-- Ο τύπος και ο αριθμός ΞΑΝΑ στο τέλος (πριν εδώ ήταν το «Ευχαριστούμε»). Έντονα και στο
+                 μέγεθος της κορυφής: η απόδειξη κρεμιέται και το θηλύκωμα κρύβει τη μια της άκρη. -->
+            <TextBlock x:Name="FooterText" FontSize="15" FontWeight="ExtraBold" Foreground="Black"
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
-                       Margin="0,10,0,0" Visibility="Collapsed"/>
+                       Margin="0,10,0,0"/>
         </StackPanel>
     </Border>
 </Window>
