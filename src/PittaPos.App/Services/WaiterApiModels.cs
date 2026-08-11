@@ -3,7 +3,10 @@ using PittaPos.Core.Models;
 namespace PittaPos.App.Services;
 
 /// <summary>Τραπέζι όπως το βλέπει η εφαρμογή κινητού — ίδια δεδομένα με την κάτοψη του ταμείου.</summary>
-public sealed record TableDto(int Number, bool IsOpen, decimal Total, int RoundCount, string? LastOrderTime);
+/// <summary><paramref name="Persons"/> = πόσα άτομα δηλώθηκαν στο άνοιγμα, δηλαδή <b>πόσες αποδείξεις
+/// θα κοπούν</b> στην ταμειακή. 0 = δεν ρωτήθηκε ακόμα (ή πληρώνουν μαζί) — τότε το κινητό ρωτάει.</summary>
+public sealed record TableDto(int Number, bool IsOpen, decimal Total, int RoundCount, string? LastOrderTime,
+    int Persons = 0);
 
 /// <summary>Προϊόν όπως το βλέπει η εφαρμογή κινητού.
 /// <para><paramref name="Ingredients"/> = τα βασικά υλικά ΤΟΥ ΣΥΓΚΕΚΡΙΜΕΝΟΥ προϊόντος, ήδη λυμένα μέσω
@@ -62,18 +65,36 @@ public sealed record OrderLineRequest(
     List<string>? RemovedIngredients = null,
     Dictionary<string, int>? Extras = null,
     string? Note = null,
-    bool DoublePita = false);
+    bool DoublePita = false,
+    /// <summary>Σε ποιο άτομο του τραπεζιού χρεώνεται η γραμμή (0-based: 0 = «Α»). null = σε κανέναν
+    /// ακόμα — παλιό APK, ή τραπέζι που πληρώνει μαζί. Το μαγαζί κόβει ΜΙΑ ΑΠΟΔΕΙΞΗ ΑΝΑ ΑΤΟΜΟ στην
+    /// ταμειακή του, γι' αυτό το κινητό ρωτά «πόσα άτομα;» μόλις ανοίξει το τραπέζι και ο σερβιτόρος
+    /// γράφει την παραγγελία ανά άτομο (βλ. TablePersonsService).</summary>
+    int? Person = null);
 
-public sealed record SubmitOrderRequest(int Table, string Pin, List<OrderLineRequest> Lines, string? Note = null);
+/// <summary><paramref name="PrintNow"/> = να τυπωθεί δελτίο κουζίνας τώρα. Σε τραπέζι που παραγγέλνει
+/// ανά άτομο, το κινητό στέλνει <c>false</c> για κάθε άτομο εκτός από το τελευταίο: οι παραγγελίες
+/// καταχωρούνται κανονικά μία-μία (μία απόδειξη ανά άτομο), αλλά η κουζίνα παίρνει <b>ΕΝΑ</b> δελτίο
+/// με όλο το τραπέζι μαζί, όταν κλείσει και το τελευταίο άτομο. Προεπιλογή true, ώστε παλιό APK και
+/// κάθε άλλη παραγγελία να τυπώνουν όπως πάντα.</summary>
+public sealed record SubmitOrderRequest(int Table, string Pin, List<OrderLineRequest> Lines, string? Note = null,
+    bool PrintNow = true);
 
 /// <summary>Μία γραμμή από ήδη καταχωρημένη παραγγελία τραπεζιού.</summary>
-public sealed record TableOrderLineDto(int LineIndex, string Name, int Quantity, decimal Revenue, string Details, bool IsSettled);
+/// <summary><paramref name="Person"/> = σε ποιο άτομο του τραπεζιού χρεώνεται (0-based, null = σε
+/// κανέναν). Έτσι η καρτέλα του τραπεζιού — και στο κινητό και στο ταμείο — δείχνει «ΑΤΟΜΟ Α: αυτά,
+/// ΑΤΟΜΟ Β: αυτά», δηλαδή ακριβώς τι θα γραφτεί σε κάθε απόδειξη.</summary>
+public sealed record TableOrderLineDto(int LineIndex, string Name, int Quantity, decimal Revenue, string Details,
+    bool IsSettled, int? Person = null);
 
 /// <summary>Ένας γύρος παραγγελίας για το τραπέζι — ό,τι έχει ήδη παραγγελθεί.</summary>
 public sealed record TableOrderDto(int OrderNumber, string TimeLabel, decimal Total, List<TableOrderLineDto> Lines, string Note = "");
 
 /// <summary>Εξόφληση ενός προϊόντος ξεχωριστά (π.χ. πλήρωσε μόνο ένας από την παρέα) — PIN όπως στις παραγγελίες.</summary>
 public sealed record SettleLineRequest(string Pin, int OrderNumber, int LineIndex);
+
+/// <summary>«Πόσα άτομα;» από το κινητό — ένα άτομο = μία απόδειξη στην ταμειακή του μαγαζιού.</summary>
+public sealed record SetPersonsRequest(string Pin, int Count);
 
 /// <summary>Πληρωμή/κλείσιμο ολόκληρου τραπεζιού από το κινητό.</summary>
 public sealed record CloseTableRequest(string Pin);
@@ -120,6 +141,8 @@ public sealed record TableCountSyncRequest(int Count);
 public sealed record TableSettleSyncRequest(int Table, int OrderNumber, int LineIndex, int Unit = -1,
     string Method = "cash", decimal Amount = 0);
 public sealed record TableOrderSyncRequest(int Table, int OrderNumber);
+public sealed record TablePersonsCountRequest(int Table, int Count);
+public sealed record TablePersonAssignRequest(int Table, int OrderNumber, int LineIndex, int Unit, int Person);
 public sealed record TableShiftSyncRequest(int Table, int OrderNumber, int RemovedIndex);
 public sealed record OrderNumberRequest(int OrderNumber, string CancelledBy = "");
 public sealed record OrderNumberLineRequest(int OrderNumber, int LineIndex);

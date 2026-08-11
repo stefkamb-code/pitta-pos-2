@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         DataContext = _wizard;
         _wizard.AutoPrintRequested += AutoPrintReceipt;
         _wizard.TableDetailRequested += OpenTableDetail;
+        _wizard.PersonsAskRequested += table => PersonsDialog.Ask(this, table);
 
         // Φέρνει το ταμείο μπροστά μόλις χτυπήσει το τηλέφωνο, ακόμη κι αν ο ταμίας είναι σε άλλο παράθυρο/εφαρμογή.
         IncomingCallService.Instance.PropertyChanged += (_, e) =>

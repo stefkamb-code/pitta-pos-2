@@ -577,6 +577,55 @@
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16,0">
                     <StackPanel>
+                        <!-- Ποιανού γράφεται τώρα η παραγγελία. Φαίνεται μόνο σε τραπέζι που πληρώνει
+                             χωριστά (ένα άτομο = μία απόδειξη στην ταμειακή) — αλλιώς δεν υπάρχει καν. -->
+                        <!-- Τα άτομα που έχουν ήδη περάσει, με τα προϊόντα τους — ξεθωριασμένα, γιατί
+                             είναι ήδη καταχωρημένα και δεν αλλάζουν από εδώ. Ο ταμίας βλέπει ΟΛΟ το
+                             τραπέζι όσο γράφει, ώστε να μη ρωτήσει δεύτερη φορά τον ίδιο άνθρωπο. -->
+                        <ItemsControl ItemsSource="{Binding DataContext.SentPersons, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Πατιέται: γυρνάς σε αυτό το άτομο και ό,τι βάλεις τώρα χρεώνεται
+                                         στη δική του απόδειξη — για όταν κάποιος αλλάξει γνώμη. -->
+                                    <StackPanel Margin="0,0,0,10" Background="Transparent" Cursor="Hand"
+                                                ToolTip="Πάτησέ το για να προσθέσεις κι άλλα σε αυτό το άτομο">
+                                        <StackPanel.InputBindings>
+                                            <MouseBinding MouseAction="LeftClick"
+                                                          Command="{Binding DataContext.SelectSentPersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding}"/>
+                                        </StackPanel.InputBindings>
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="11.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                            <TextBlock Text="{Binding Header}" FontSize="11.5" FontWeight="ExtraBold"
+                                                       Foreground="{DynamicResource Neutral600}"/>
+                                        </DockPanel>
+                                        <ItemsControl ItemsSource="{Binding Lines}" Margin="10,3,0,0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,1">
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="11"
+                                                                   Foreground="{DynamicResource Neutral500}"/>
+                                                        <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource Neutral500}"/>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Ποιανού γράφεται τώρα η παραγγελία. Φαίνεται μόνο σε τραπέζι που πληρώνει
+                             χωριστά (ένα άτομο = μία απόδειξη στην ταμειακή) — αλλιώς δεν υπάρχει καν. -->
+                        <Border Background="{DynamicResource Accent100}" Padding="10,6" Margin="0,4,0,0"
+                                Visibility="{Binding DataContext.IsSplittingTable, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding DataContext.PersonProgressLabel, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       FontSize="12.5" FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"
+                                       HorizontalAlignment="Center"/>
+                        </Border>
                         <TextBlock Text="Άδεια παραγγελία" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
                                    HorizontalAlignment="Center" Margin="0,24"
                                    Visibility="{Binding CartEmpty, Converter={StaticResource BoolToVis}}"/>

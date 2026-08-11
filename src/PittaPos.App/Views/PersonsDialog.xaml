@@ -1,0 +1,49 @@
+<Window x:Class="PittaPos.App.Views.PersonsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ΑΤΟΜΑ" Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}"
+        KeyDown="Window_KeyDown">
+    <StackPanel Margin="24">
+        <TextBlock x:Name="TitleText" Text="ΤΡΑΠΕΖΙ — πόσα άτομα;" FontSize="15" FontWeight="ExtraBold"
+                   Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+
+        <TextBlock Text="Κάθε άτομο = μία απόδειξη στην ταμειακή" FontSize="12"
+                   Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center" Margin="0,6,0,16"/>
+
+        <UniformGrid x:Name="Numbers" Columns="4">
+            <Button Content="1"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="2"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="3"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="4"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="5"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="6"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="7"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="8"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="9"  Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="10" Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <Button Content="11" Click="Number_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+            <!-- Πάνω από 11 είναι εκδήλωση, όχι τραπέζι: δεν γεμίζουμε την οθόνη με νούμερα που δεν
+                 πατιούνται ποτέ. Το «+» ανοίγει πεδίο για τον ακριβή αριθμό. -->
+            <Button Content="＋" Click="More_Click" Style="{StaticResource FlatButton}" Height="56" FontSize="19" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+        </UniformGrid>
+
+        <StackPanel x:Name="MorePanel" Visibility="Collapsed" Margin="0,4,0,0">
+            <TextBlock Text="Πόσα άτομα;" FontSize="12" FontWeight="ExtraBold"
+                       Foreground="{DynamicResource Neutral600}" Margin="3,0,0,6"/>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="ΟΚ" Click="MoreOk_Click" Style="{StaticResource PrimaryButton}"
+                        Height="52" Width="96" FontSize="15" HorizontalContentAlignment="Center" Margin="8,0,3,0"/>
+                <TextBox x:Name="MoreBox" Height="52" FontSize="20" FontWeight="ExtraBold" Margin="3,0,0,0"
+                         VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                         MaxLength="2" PreviewTextInput="MoreBox_PreviewTextInput"/>
+            </DockPanel>
+        </StackPanel>
+
+        <Button Content="ΜΑΖΙ — μία απόδειξη" Click="Together_Click" Style="{StaticResource FlatButton}"
+                Height="52" FontSize="14" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3,12,3,0"/>
+    </StackPanel>
+</Window>

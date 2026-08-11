@@ -99,6 +99,8 @@ public class TableStatusService
             return;
         }
         TableSettlementService.Instance.ClearTable(table);
+        // Και ο χωρισμός σε άτομα: ανήκει στην παρέα που μόλις έφυγε, όχι στο τραπέζι.
+        TablePersonsService.Instance.ClearTable(table);
         if (!_openSince.Remove(table))
             return;
         Save();
@@ -120,7 +122,10 @@ public class TableStatusService
         if (_openSince.Count == 0)
             return;
         foreach (var table in _openSince.Keys.ToList())
+        {
             TableSettlementService.Instance.ClearTable(table);
+            TablePersonsService.Instance.ClearTable(table);
+        }
         _openSince.Clear();
         Save();
         Changed?.Invoke();
@@ -141,6 +146,7 @@ public class TableStatusService
         foreach (var table in stale)
         {
             TableSettlementService.Instance.ClearTable(table);
+            TablePersonsService.Instance.ClearTable(table);
             _openSince.Remove(table);
         }
         Save();

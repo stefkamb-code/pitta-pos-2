@@ -82,6 +82,28 @@ public static class WaiterApiService
                 return Results.Json(body, statusCode: status);
             });
 
+            // «Πόσα άτομα;» — η ερώτηση που κάνει ο σερβιτόρος μόλις ανοίξει το τραπέζι. Ένα άτομο =
+            // μία απόδειξη στην ταμειακή, οπότε αυτός ο αριθμός ΕΙΝΑΙ ο αριθμός των αποδείξεων.
+            app.MapPost("/api/tables/{table:int}/persons", async (HttpContext ctx, int table) =>
+            {
+                var req = await ctx.Request.ReadFromJsonAsync<SetPersonsRequest>();
+                if (req is null)
+                    return Results.BadRequest(new { error = "Άκυρο αίτημα" });
+                if (!SettingsStore.Instance.VerifyPin(req.Pin))
+                    return Results.Json(new { error = "Λάθος κωδικός" }, statusCode: 401);
+                OnUi(() => { TablePersonsService.Instance.SetCount(table, req.Count); return 0; });
+                return Results.Json(new { persons = OnUi(() => TablePersonsService.Instance.CountFor(table)) });
+            });
+
+            // Δικλείδα: ο σερβιτόρος βγήκε στη μέση της σειράς των ατόμων, οπότε δεν ήρθε ποτέ το
+            // «τελευταίο άτομο» που θα τύπωνε. Ό,τι έχει μείνει στην ουρά βγαίνει τώρα, να μη μείνει
+            // η κουζίνα χωρίς δελτίο για φαγητό που έχει ήδη καταχωρηθεί.
+            app.MapPost("/api/tables/{table:int}/print-pending", (int table) =>
+            {
+                OnUi(() => { FlushPendingPrint(table); return 0; });
+                return Results.Ok();
+            });
+
             // Δέχεται την ειδοποίηση «χτυπάει το τηλέφωνο» από το Event Notification του Grandstream
             // UCM — GET με ?caller=NUMBER (πιο εύκολο να ρυθμιστεί στο UCM) ή POST με JSON.
             app.MapGet("/api/incoming-call", (HttpContext ctx) =>
@@ -195,6 +217,37 @@ public static class WaiterApiService
         {
             var req = await ctx.Request.ReadFromJsonAsync<TableShiftSyncRequest>();
             if (req is not null) OnUi(() => { TableSettlementService.Instance.ShiftAfterRemoval(req.Table, req.OrderNumber, req.RemovedIndex); return 0; });
+            return Results.Ok();
+        });
+
+        // ---- άτομα ανά τραπέζι (πόσες αποδείξεις και ποιος πήρε τι) ----
+        // Ίδιο μοτίβο με τις εξοφλήσεις από πάνω: το δεύτερο ταμείο δεν κρατά δική του αλήθεια, στέλνει
+        // τη μεταβολή εδώ και μετά ξαναδιαβάζει — αλλιώς οι δύο ταμειακές θα έδειχναν άλλα ποσά ανά άτομο.
+        app.MapGet("/api/sync/table-persons", () =>
+            Results.Json(OnUi(() => TablePersonsService.Instance.Snapshot())));
+        app.MapPost("/api/sync/table-persons/count", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<TablePersonsCountRequest>();
+            if (req is not null) OnUi(() => { TablePersonsService.Instance.SetCount(req.Table, req.Count); return 0; });
+            return Results.Ok();
+        });
+        app.MapPost("/api/sync/table-persons/assign", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<TablePersonAssignRequest>();
+            if (req is not null)
+                OnUi(() => { TablePersonsService.Instance.Assign(req.Table, req.OrderNumber, req.LineIndex, req.Unit, req.Person); return 0; });
+            return Results.Ok();
+        });
+        app.MapPost("/api/sync/table-persons/clear-order", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<TableOrderSyncRequest>();
+            if (req is not null) OnUi(() => { TablePersonsService.Instance.ClearOrder(req.Table, req.OrderNumber); return 0; });
+            return Results.Ok();
+        });
+        app.MapPost("/api/sync/table-persons/shift-after-removal", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<TableShiftSyncRequest>();
+            if (req is not null) OnUi(() => { TablePersonsService.Instance.ShiftAfterRemoval(req.Table, req.OrderNumber, req.RemovedIndex); return 0; });
             return Results.Ok();
         });
 
@@ -432,7 +485,8 @@ public static class WaiterApiService
                 ? orders.Where(o => o.Who == "Τραπέζι " + n && o.PlacedAt >= since).ToList()
                 : [];
             list.Add(new TableDto(n, isOpen, OutstandingTotal(n, mine), mine.Count,
-                mine.Count > 0 ? mine.Max(o => o.PlacedAt).ToString("HH:mm") : null));
+                mine.Count > 0 ? mine.Max(o => o.PlacedAt).ToString("HH:mm") : null,
+                TablePersonsService.Instance.CountFor(n)));
         }
         return list;
     }
@@ -490,7 +544,10 @@ public static class WaiterApiService
             .OrderBy(o => o.PlacedAt)
             .Select(o => new TableOrderDto(o.OrderNumber, o.TimeLabel, o.Total,
                 o.Lines.Select((l, i) => new TableOrderLineDto(i, l.Name, l.Quantity, l.Revenue, l.Details,
-                    TableSettlementService.Instance.IsSettled(table, o.OrderNumber, i))).ToList(), o.Note))
+                    TableSettlementService.Instance.IsSettled(table, o.OrderNumber, i),
+                    // Το άτομο του ΠΡΩΤΟΥ τεμαχίου: μια γραμμή γεννιέται πάντα από έναν γύρο ενός
+                    // ατόμου, οπότε όλα της τα τεμάχια έχουν το ίδιο (βλ. AssignPersons).
+                    TablePersonsService.Instance.PersonFor(table, o.OrderNumber, i, 0))).ToList(), o.Note))
             .ToList();
     }
 
@@ -567,7 +624,15 @@ public static class WaiterApiService
                 var number = SalesStatsService.Instance.Record(order);
                 if (number != order.OrderNumber)
                     order = SalesStatsService.WithOrderNumber(order, number);
-                ReceiptPrinter.PrintOrder(order);
+                // ΜΕΤΑ την οριστικοποίηση του αριθμού: τα άτομα κλειδώνονται με κλειδί
+                // «παραγγελία:γραμμή:τεμάχιο», οπότε με τον προσωρινό αριθμό θα κρέμονταν στο κενό.
+                AssignPersons(req.Table, order, built.Persons);
+                // Η ΕΚΤΥΠΩΣΗ ΔΕΝ ΚΡΑΤΑΕΙ ΤΗΝ ΑΠΑΝΤΗΣΗ. Πριν τυπωνόταν εδώ, μέσα στην κλήση, οπότε ο
+                // σερβιτόρος περίμενε στο κινητό όσο δούλευε ο εκτυπωτής — δευτερόλεπτα, με το κουμπί
+                // «...». Με μία παραγγελία ανά ΑΤΟΜΟ αυτό συμβαίνει 3-4 φορές σε κάθε τραπέζι και έγινε
+                // αμέσως αισθητό. Η παραγγελία είναι ήδη καταχωρημένη σε αυτό το σημείο· το δελτίο
+                // μπαίνει στην ουρά του UI thread και τυπώνεται αμέσως μετά, με την ίδια σειρά.
+                PrintOrQueue(req.Table, order, req.PrintNow);
                 return (200, (object)new { order.OrderNumber });
             });
 
@@ -581,16 +646,20 @@ public static class WaiterApiService
         if (finalNumber != clientOrder.OrderNumber)
             clientOrder = SalesStatsService.WithOrderNumber(clientOrder, finalNumber);
 
-        OnUi(() => { ReceiptPrinter.PrintOrder(clientOrder); return 0; });
+        OnUi(() => { AssignPersons(req.Table, clientOrder, clientBuilt.Persons); return 0; });
+        OnUi(() => { PrintOrQueue(req.Table, clientOrder, req.PrintNow); return 0; });
         return (200, new { clientOrder.OrderNumber });
     }
 
-    private static (int Status, object Body, CompletedOrder? Order) BuildTableOrder(SubmitOrderRequest req)
+    /// <summary><paramref name="req"/> → έτοιμη παραγγελία. Το <c>Persons</c> που επιστρέφεται είναι
+    /// παράλληλο με τις γραμμές της παραγγελίας (ΟΧΙ με τις γραμμές του αιτήματος — κάποιες μπορεί να
+    /// αγνοηθούν) και λέει σε ποιο άτομο χρεώνεται η καθεμιά.</summary>
+    private static (int Status, object Body, CompletedOrder? Order, List<int?> Persons) BuildTableOrder(SubmitOrderRequest req)
     {
         if (!SettingsStore.Instance.VerifyPin(req.Pin))
-            return (401, new { error = "Λάθος κωδικός" }, null);
+            return (401, new { error = "Λάθος κωδικός" }, null, []);
         if (req.Table < 1 || req.Table > SettingsStore.Instance.Settings.TableCount)
-            return (400, new { error = "Άκυρο τραπέζι" }, null);
+            return (400, new { error = "Άκυρο τραπέζι" }, null, []);
 
         var products = MenuStore.Instance.Categories.SelectMany(c => c.Products).ToDictionary(p => p.Id);
         var categoryOf = MenuStore.Instance.Categories
@@ -598,6 +667,7 @@ public static class WaiterApiService
             .ToDictionary(x => x.Id, x => x.Category);
         var extraPrices = MenuStore.Instance.Extras.ToDictionary(e => e.Name, e => e.Price);
         var lines = new List<SoldLine>();
+        var persons = new List<int?>();
         var skipped = 0;
         decimal total = 0;
         foreach (var l in req.Lines ?? [])
@@ -628,6 +698,7 @@ public static class WaiterApiService
                     : p.Name;
             lines.Add(new SoldLine(name, l.Quantity, lineTotal, BuildDetails(p, l, extras, category, bread),
                 ProductId: p.Id));
+            persons.Add(l.Person);
         }
         if (skipped > 0)
             AppLog.Write("waiter-api",
@@ -635,7 +706,7 @@ public static class WaiterApiService
                 $"ή μηδενική ποσότητα) — καταχωρήθηκαν {lines.Count}.");
 
         if (lines.Count == 0)
-            return (400, new { error = "Άδεια παραγγελία" }, null);
+            return (400, new { error = "Άδεια παραγγελία" }, null, []);
 
         // Πρέπει να ανοίξει ΠΡΙΝ καταγραφεί η παραγγελία — αλλιώς η ώρα ανοίγματος μπορεί να βγει
         // (λόγω I/O) ελάχιστα μετά το PlacedAt της ίδιας της παραγγελίας και να μη μετρήσει στο σύνολο.
@@ -651,7 +722,83 @@ public static class WaiterApiService
             Note = req.Note?.Trim() ?? "",
             IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift,
         };
-        return (200, new { }, order);
+        return (200, new { }, order, persons);
+    }
+
+    /// <summary>
+    /// Χρεώνει κάθε ΤΕΜΑΧΙΟ της παραγγελίας στο άτομο που το παρήγγειλε — μία απόδειξη ανά άτομο.
+    /// Ανά τεμάχιο και όχι ανά γραμμή, γιατί έτσι δουλεύει και η εξόφληση (βλ. TableSettlementService):
+    /// αν ο Β πάρει δύο ίδιες πίττες, είναι δύο τεμάχια στη μερίδα του Β.
+    /// Γραμμή χωρίς άτομο (παλιό APK, ή τραπέζι που πληρώνει μαζί) μένει αχρέωτη και φαίνεται ως τέτοια
+    /// στο ταμείο — δεν μαντεύουμε άτομο, θα έβγαζε λάθος ποσά σε απόδειξη.
+    /// </summary>
+    /// <summary>Καταχωρημένες παραγγελίες τραπεζιού που περιμένουν να τυπωθούν μαζί, ανά τραπέζι.
+    /// Μόνο στη μνήμη: αν πέσει το ταμείο στη μέση, οι παραγγελίες είναι ήδη καταγεγραμμένες και το
+    /// δελτίο ξανατυπώνεται από το Ιστορικό — δεν χάνεται πώληση, μόνο ένα χαρτί.</summary>
+    private static readonly Dictionary<int, List<CompletedOrder>> PendingPrints = [];
+
+    /// <summary>
+    /// Τυπώνει, ή κρατά για αργότερα. Το τραπέζι που παραγγέλνει ανά άτομο στέλνει μία παραγγελία για
+    /// τον καθένα (μία απόδειξη ανά άτομο), αλλά η κουζίνα πρέπει να πάρει <b>ΕΝΑ</b> δελτίο με όλο το
+    /// τραπέζι — αλλιώς ο ψήστης παίρνει 4 χαρτιά για το ίδιο τραπέζι και τα ψήνει σε 4 δόσεις.
+    /// <para>Το δελτίο βγαίνει ΑΚΡΙΒΩΣ όπως πριν: σκέτα προϊόντα, χωρίς αναφορά σε άτομα — αυτά
+    /// αφορούν τις αποδείξεις της ταμειακής, όχι την κουζίνα.</para>
+    /// </summary>
+    private static void PrintOrQueue(int table, CompletedOrder order, bool printNow)
+    {
+        if (!printNow)
+        {
+            if (!PendingPrints.TryGetValue(table, out var waiting))
+                PendingPrints[table] = waiting = [];
+            waiting.Add(order);
+            return;
+        }
+
+        var all = PendingPrints.Remove(table, out var pending) ? pending : [];
+        all.Add(order);
+        var ticket = all.Count == 1 ? order : MergeForPrinting(all);
+        // Η εκτύπωση δεν κρατάει την απάντηση: ο σερβιτόρος περίμενε στο κινητό όσο δούλευε ο εκτυπωτής.
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => ReceiptPrinter.PrintOrder(ticket));
+    }
+
+    /// <summary>Τυπώνει ό,τι έχει μείνει στην ουρά για το τραπέζι — δικλείδα για την περίπτωση που ο
+    /// σερβιτόρος βγήκε στη μέση της σειράς των ατόμων και δεν ήρθε ποτέ το «τελευταίο άτομο».</summary>
+    private static void FlushPendingPrint(int table)
+    {
+        if (!PendingPrints.TryGetValue(table, out var waiting) || waiting.Count == 0)
+            return;
+        PendingPrints.Remove(table);
+        var ticket = waiting.Count == 1 ? waiting[0] : MergeForPrinting(waiting);
+        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => ReceiptPrinter.PrintOrder(ticket));
+    }
+
+    /// <summary>Ένα εικονικό «μαζεμένο» δελτίο για εκτύπωση — ΔΕΝ καταχωρείται πουθενά, οι πραγματικές
+    /// παραγγελίες έχουν ήδη γραφτεί ξεχωριστά (τζίρος, ιστορικό και άτομα μένουν ανέπαφα).</summary>
+    private static CompletedOrder MergeForPrinting(List<CompletedOrder> orders)
+    {
+        var last = orders[^1];
+        return new CompletedOrder
+        {
+            OrderNumber = last.OrderNumber,
+            Type = last.Type,
+            Who = last.Who,
+            Total = orders.Sum(o => o.Total),
+            Lines = orders.SelectMany(o => o.Lines).ToList(),
+            Note = string.Join(" · ", orders.Select(o => o.Note).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()),
+            IsEveningShift = last.IsEveningShift,
+        };
+    }
+
+    private static void AssignPersons(int table, CompletedOrder order, List<int?> persons)
+    {
+        for (var i = 0; i < order.Lines.Count && i < persons.Count; i++)
+        {
+            if (persons[i] is not { } person || person < 0)
+                continue;
+            var units = Math.Max(1, order.Lines[i].Quantity);
+            for (var u = 0; u < units; u++)
+                TablePersonsService.Instance.Assign(table, order.OrderNumber, i, u, person);
+        }
     }
 
     /// <summary>Ίδιο στυλ κειμένου με τον customizer του ταμείου — κάθε ιδιαιτερότητα σε δική της γραμμή.

@@ -315,17 +315,33 @@ public class MenuStore
         timer.Start();
     }
 
-    /// <summary>Βαθύ αντίγραφο του αρχικού μενού ώστε οι αλλαγές να μην αγγίζουν το seed.</summary>
+    /// <summary>
+    /// Βαθύ αντίγραφο του αρχικού μενού ώστε οι αλλαγές να μην αγγίζουν το seed.
+    ///
+    /// Αντιγράφονται ΟΛΑ τα πεδία. Πριν έμεναν έξω τα βασικά υλικά του προϊόντος, το όνομα εκτύπωσης,
+    /// τα επιτρεπτά έξτρα και οι τρεις ιδιότητες της κατηγορίας — δηλαδή όσο σωστά κι αν ήταν γραμμένα
+    /// στον MenuSeed, κάθε ΝΕΑ εγκατάσταση ξεκινούσε με όλα τα έξτρα σε όλα τα προϊόντα (κόκα-κόλα με
+    /// μπέικον) και χωρίς υλικά ανά προϊόν. Οι ιδιότητες κατηγορίας γέμιζαν μετά από το
+    /// <see cref="MigrateCategoryFlags"/> μαντεύοντάς τες από το ΟΝΟΜΑ, που έτυχε να συμφωνεί — μέχρι
+    /// την πρώτη μετονομασία κατηγορίας μέσα στον βασικό κατάλογο.
+    /// </summary>
     private static List<MenuCategory> SeedCopy() =>
         MenuSeed.Categories.Select(c => new MenuCategory
         {
             Id = c.Id,
             Name = c.Name,
+            HasBread = c.HasBread,
+            FuseBreadIntoName = c.FuseBreadIntoName,
+            SupportsDoublePita = c.SupportsDoublePita,
             Products = c.Products.Select(p => new Product
             {
-                Id = p.Id, Name = p.Name, NameEn = p.NameEn,
+                Id = p.Id, Name = p.Name, NameEn = p.NameEn, PrintName = p.PrintName,
                 Description = p.Description, Price = p.Price, DeliveryPrice = p.DeliveryPrice,
                 Customizable = p.Customizable,
+                // ΝΕΕΣ λίστες, όχι οι ίδιες αναφορές: ο MenuSeed είναι στατικός και ζει όσο η εφαρμογή,
+                // οπότε μια διαγραφή έξτρα/υλικού από τη Διαχείριση θα τον πείραζε μόνιμα.
+                ExtraNames = p.ExtraNames is null ? null : [.. p.ExtraNames],
+                Ingredients = p.Ingredients is null ? null : [.. p.Ingredients],
             }).ToList(),
         }).ToList();
 

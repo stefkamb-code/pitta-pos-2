@@ -31,6 +31,25 @@ public partial class TableLineViewModel : ObservableObject
     private bool _isSelected;
 }
 
+/// <summary>
+/// Ένα άτομο του τραπεζιού με ό,τι πήρε — <b>μία ομάδα = μία απόδειξη</b> στην ταμειακή του μαγαζιού.
+/// Το «ΑΧΡΕΩΤΑ» (Person = -1) μαζεύει ό,τι δεν χρεώθηκε σε κανέναν: παραγγελία γραμμένη από το ταμείο
+/// πριν μπουν τα άτομα, ή κοινό πιάτο. Φαίνεται ξεχωριστά ώστε να μην ξεφύγει από την καταμέτρηση.
+/// </summary>
+public class TablePersonGroupViewModel
+{
+    public required int Person { get; init; }
+    public required string Label { get; init; }
+    public required ObservableCollection<TableLineViewModel> Lines { get; init; }
+    /// <summary>Πόσα οφείλει ακόμα — αυτό είναι και το ποσό που θα πληκτρολογηθεί στην ταμειακή.</summary>
+    public required decimal Outstanding { get; init; }
+
+    public string OutstandingLabel => Order.FormatPrice(Outstanding);
+    public bool CanSettle => Outstanding > 0;
+    /// <summary>Η απόδειξή του έχει ήδη κοπεί (όλα του πληρωμένα).</summary>
+    public bool IsPaid => Outstanding == 0 && Lines.Count > 0;
+}
+
 /// <summary>Παράμετρος για το CancelRoundCommand — ποια παραγγελία και ποιος την ακυρώνει.</summary>
 public record CancelRoundRequest(int OrderNumber, string CancelledBy);
 
@@ -80,6 +99,45 @@ public partial class TableDetailViewModel : ObservableObject
 
     public ObservableCollection<TableRoundViewModel> Rounds { get; } = [];
 
+    /// <summary>Το τραπέζι χωρισμένο σε άτομα — μία ομάδα ανά απόδειξη. Άδειο όταν πληρώνουν μαζί.</summary>
+    public ObservableCollection<TablePersonGroupViewModel> Persons { get; } = [];
+
+    public bool HasPersons => Persons.Count > 0;
+
+    /// <summary>Η παλιά λίστα ανά γύρο εμφανίζεται ΜΟΝΟ όταν δεν υπάρχει χωρισμός σε άτομα — αλλιώς
+    /// τα ίδια προϊόντα θα φαίνονταν δύο φορές στην ίδια οθόνη.</summary>
+    public bool ShowRounds => !HasPersons;
+
+    /// <summary>«ΘΑ ΚΟΠΟΥΝ 4 ΑΠΟΔΕΙΞΕΙΣ · 2 κομμένες» — το ζητούμενο με μία ματιά.</summary>
+    public string ReceiptsHeader
+    {
+        get
+        {
+            var withItems = Persons.Where(p => p.Lines.Count > 0).ToList();
+            var paid = withItems.Count(p => p.IsPaid);
+            var word = withItems.Count == 1 ? "ΑΠΟΔΕΙΞΗ" : "ΑΠΟΔΕΙΞΕΙΣ";
+            return paid == 0
+                ? $"ΘΑ ΚΟΠΟΥΝ {withItems.Count} {word}"
+                : $"{withItems.Count} {word} · {paid} κομμένες";
+        }
+    }
+
+    [RelayCommand]
+    private void SettlePersonCash(TablePersonGroupViewModel person) => SettlePerson(person, PaymentMethod.Cash);
+
+    [RelayCommand]
+    private void SettlePersonCard(TablePersonGroupViewModel person) => SettlePerson(person, PaymentMethod.Card);
+
+    /// <summary>Εξοφλεί ΟΛΑ όσα χρωστά το άτομο με ένα πάτημα — μία πληρωμή, μία απόδειξη.</summary>
+    private void SettlePerson(TablePersonGroupViewModel person, PaymentMethod method)
+    {
+        // ToList πριν τον βρόχο: το Settle σηκώνει Changed που ξαναχτίζει τις λίστες από κάτω μας.
+        foreach (var l in person.Lines.Where(l => !l.IsSettled).ToList())
+            _settlement.Settle(_table, l.OrderNumber, l.LineIndex, l.Unit, method, l.Revenue);
+        Refresh();
+        AutoCloseIfNothingOwed();
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OutstandingTotalLabel))]
     private decimal _outstandingTotal;
@@ -106,8 +164,18 @@ public partial class TableDetailViewModel : ObservableObject
     /// <summary>Το τραπέζι έκλεισε (ελευθερώθηκε) — το παράθυρο πρέπει να κλείσει.</summary>
     public event Action? TableClosed;
 
+    /// <summary>Σε τραπέζι χωρισμένο σε άτομα, η προσθήκη σημαίνει «ήρθε κι άλλος».</summary>
+    public string NewRoundLabel => HasPersons ? "+ ΠΡΟΣΘΗΚΗ ΑΤΟΜΟΥ" : "+ ΠΡΟΣΘΗΚΗ";
+
     [RelayCommand]
-    private void RequestNewRound() => NewRoundRequested?.Invoke();
+    private void RequestNewRound()
+    {
+        // Νέο άτομο στην παρέα: παίρνει το επόμενο γράμμα και δική του απόδειξη. Η παραγγελιοληψία
+        // ξεκινά μόνη της από αυτόν, γιατί είναι ο πρώτος που δεν έχει παραγγείλει ακόμα.
+        if (HasPersons)
+            TablePersonsService.Instance.SetCount(_table, TablePersonsService.Instance.CountFor(_table) + 1);
+        NewRoundRequested?.Invoke();
+    }
 
     /// <summary>Κλικ πάνω σε προϊόν — toggle επιλογής· μπορούν να μείνουν επιλεγμένα πολλά μαζί.</summary>
     [RelayCommand]
@@ -162,6 +230,8 @@ public partial class TableDetailViewModel : ObservableObject
         foreach (var (orderNumber, lineIndex) in toRemove)
         {
             _settlement.ShiftAfterRemoval(_table, orderNumber, lineIndex);
+            // Και οι χρεώσεις ανά άτομο μετακινούνται μαζί — αλλιώς «του Β» θα κολλούσε σε άλλο προϊόν.
+            TablePersonsService.Instance.ShiftAfterRemoval(_table, orderNumber, lineIndex);
             _stats.RemoveLine(orderNumber, lineIndex, cancelledBy, cancelledAt);
         }
         AutoCloseIfNothingOwed();
@@ -172,6 +242,7 @@ public partial class TableDetailViewModel : ObservableObject
     private void CancelRound(CancelRoundRequest request)
     {
         _settlement.ClearOrder(_table, request.OrderNumber);
+        TablePersonsService.Instance.ClearOrder(_table, request.OrderNumber);
         _stats.RemoveOrder(request.OrderNumber, request.CancelledBy);
         AutoCloseIfNothingOwed();
     }
@@ -269,7 +340,53 @@ public partial class TableDetailViewModel : ObservableObject
             Rounds.Add(new TableRoundViewModel { OrderNumber = o.OrderNumber, TimeLabel = o.TimeLabel, Lines = lines, Note = o.Note });
         }
         OutstandingTotal = outstanding;
+        BuildPersonGroups();
         OnPropertyChanged(nameof(NoRounds));
         RecomputeSelection();
+    }
+
+    /// <summary>
+    /// Ξαναχτίζει το «ΑΤΟΜΟ Α αυτά, ΑΤΟΜΟ Β αυτά». Οι ΙΔΙΕΣ γραμμές με τους γύρους — δεν αντιγράφονται,
+    /// ώστε επιλογή και κατάσταση πληρωμής να είναι κοινές όπου κι αν τις δει ο ταμίας.
+    /// </summary>
+    private void BuildPersonGroups()
+    {
+        Persons.Clear();
+        var svc = TablePersonsService.Instance;
+        var all = Rounds.SelectMany(r => r.Lines).ToList();
+
+        if (svc.IsSplit(_table) && all.Count > 0)
+        {
+            for (var p = 0; p < svc.CountFor(_table); p++)
+            {
+                var mine = all.Where(l => svc.PersonFor(_table, l.OrderNumber, l.LineIndex, l.Unit) == p).ToList();
+                if (mine.Count == 0)
+                    continue; // άτομο που δεν πήρε τίποτα δεν κόβει απόδειξη
+                Persons.Add(new TablePersonGroupViewModel
+                {
+                    Person = p,
+                    Label = "ΑΤΟΜΟ " + TablePersonsService.Label(p),
+                    Lines = new ObservableCollection<TableLineViewModel>(mine),
+                    Outstanding = mine.Where(l => !l.IsSettled).Sum(l => l.Revenue),
+                });
+            }
+
+            var orphans = all.Where(l => svc.PersonFor(_table, l.OrderNumber, l.LineIndex, l.Unit) is null).ToList();
+            if (orphans.Count > 0)
+            {
+                Persons.Add(new TablePersonGroupViewModel
+                {
+                    Person = -1,
+                    Label = "ΑΧΡΕΩΤΑ",
+                    Lines = new ObservableCollection<TableLineViewModel>(orphans),
+                    Outstanding = orphans.Where(l => !l.IsSettled).Sum(l => l.Revenue),
+                });
+            }
+        }
+
+        OnPropertyChanged(nameof(HasPersons));
+        OnPropertyChanged(nameof(ShowRounds));
+        OnPropertyChanged(nameof(NewRoundLabel));
+        OnPropertyChanged(nameof(ReceiptsHeader));
     }
 }

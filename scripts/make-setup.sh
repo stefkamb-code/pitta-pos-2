@@ -2,6 +2,13 @@
 # Χτίζει self-contained single-file publish και ξαναφτιάχνει το PittaPOS-Setup.bat στην Επιφάνεια
 # (ίδιο self-extracting bat wrapper — βλ. :PAYLOAD, base64-encoded zip του publish output).
 # Δεύτερο βήμα του release flow, μετά το bump-version.sh, πριν το git commit.
+#
+#   ./scripts/make-setup.sh                     -> σκέτο setup, ΔΕΝ αγγίζει τον κατάλογο (κανονική έκδοση)
+#   ./scripts/make-setup.sh /c/.../menu.json    -> κουβαλάει ΚΑΙ κατάλογο, τον βάζει ΜΙΑ φορά
+#
+# Το δεύτερο είναι η εξαίρεση, όχι ο κανόνας: ένα setup ξανατρέχει (νέο PC, «ας το ξαναβάλω») και ένα
+# setup που κουβαλά μενού θα έσβηνε τότε ό,τι έχει αλλάξει το μαγαζί στο μεταξύ. Γι' αυτό ο κατάλογος
+# μπαίνει μόνο αν δεν έχει ήδη μπει (σημάδι menu-version.txt) και πάντα με αντίγραφο του παλιού.
 set -e
 cd "$(dirname "$0")/.."
 
@@ -12,6 +19,14 @@ BAT="$DESKTOP/PittaPOS2-Setup-v$VERSION.bat"
 TMP_ZIP="$(cygpath -w "$(mktemp -u)").zip"
 TMP_B64="$(mktemp)"
 
+MENU_SRC="${1:-}"
+MENUID=""
+if [ -n "$MENU_SRC" ]; then
+  [ -f "$MENU_SRC" ] || { echo "ΛΑΘΟΣ: δεν βρέθηκε ο κατάλογος '$MENU_SRC'" >&2; exit 1; }
+  grep -q '"Categories"' "$MENU_SRC" || { echo "ΛΑΘΟΣ: το '$MENU_SRC' δεν μοιάζει με menu.json" >&2; exit 1; }
+  MENUID="v$VERSION"
+fi
+
 # Καθαρίζει παλιά setup.bat στην Επιφάνεια (και το παλιό όνομα χωρίς έκδοση) — ώστε να μένει πάντα
 # μόνο ΕΝΑ, με το σωστό όνομα, χωρίς σύγχυση για το ποιο είναι το τρέχον.
 rm -f "$DESKTOP"/PittaPOS2-Setup-v*.bat
@@ -19,6 +34,11 @@ rm -f "$DESKTOP"/PittaPOS2-Setup-v*.bat
 echo "Publishing (self-contained, single-file)..."
 dotnet publish src/PittaPos.App/PittaPos.App.csproj -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$PUBLISH_DIR"
+
+if [ -n "$MENU_SRC" ]; then
+  echo "Bundling catalogue from $MENU_SRC ..."
+  cp "$MENU_SRC" "$PUBLISH_DIR/katalogos.json"
+fi
 
 echo "Zipping publish output..."
 powershell -NoProfile -Command "Compress-Archive -Path '$(cygpath -w "$PUBLISH_DIR")\*' -DestinationPath '$TMP_ZIP' -Force"
@@ -29,10 +49,12 @@ powershell -NoProfile -Command "[Convert]::ToBase64String([IO.File]::ReadAllByte
 echo "Writing $BAT ..."
 # UTF-8 BOM + CRLF wrapper, byte-identical header to the existing installer (πέρα από το version label).
 printf '\xEF\xBB\xBF' > "$BAT"
-sed "s/{{VERSION}}/$VERSION/" <<'HEADER' | sed 's/$/\r/' >> "$BAT"
+sed -e "s/{{VERSION}}/$VERSION/" -e "s/{{MENUID}}/$MENUID/" <<'HEADER' | sed 's/$/\r/' >> "$BAT"
 @echo off
 chcp 65001 >nul
 title Pitta POS 2 - Εγκατάσταση (v{{VERSION}})
+rem  Άδειο = το setup ΔΕΝ αγγίζει τον κατάλογο του μαγαζιού (ο κανόνας).
+set "MENUID={{MENUID}}"
 echo.
 echo   Pitta POS 2 - Εγκατάσταση (v{{VERSION}})
 echo   ------------------------
@@ -49,6 +71,22 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+if "%MENUID%"=="" goto :meta_katalogo
+echo Τοποθέτηση του καταλόγου...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference='Stop'; try { $id='%MENUID%'; $src='C:\PittaPOS2\katalogos.json'; if (-not (Test-Path $src)) { exit 2 }; $dir=Join-Path $env:AppData 'PittaPos2'; New-Item -ItemType Directory -Force -Path $dir | Out-Null; $marker=Join-Path $dir 'menu-version.txt'; if ((Test-Path $marker) -and ((Get-Content -LiteralPath $marker -Raw).Trim() -eq $id)) { exit 2 }; $cur=Join-Path $dir 'menu.json'; if (Test-Path $cur) { Copy-Item -LiteralPath $cur -Destination ($cur + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmm')) -Force }; Copy-Item -LiteralPath $src -Destination $cur -Force; Set-Content -LiteralPath $marker -Value $id -Encoding utf8; exit 0 } catch { Write-Host ('SFALMA: ' + $_.Exception.Message); exit 1 } }"
+if errorlevel 2 goto :katalogos_idi
+if errorlevel 1 goto :katalogos_apotyxia
+echo   - ο νέος κατάλογος μπήκε ^(ο παλιός φυλάχτηκε δίπλα του ως menu.json.bak-...^)
+goto :meta_katalogo
+:katalogos_idi
+echo   - ο κατάλογος αυτής της έκδοσης είχε ήδη μπει, δεν άλλαξε τίποτα
+goto :meta_katalogo
+:katalogos_apotyxia
+echo.
+echo   ΠΡΟΣΟΧΗ: το πρόγραμμα εγκαταστάθηκε κανονικά, αλλά ο ΚΑΤΑΛΟΓΟΣ δεν μπήκε.
+echo   Ο παλιός κατάλογος είναι ανέπαφος. Δες το μήνυμα παραπάνω.
+echo.
+:meta_katalogo
 echo.
 echo   Ολοκληρώθηκε! Βρες το εικονίδιο "Pitta POS 2" στην Επιφάνεια Εργασίας.
 echo.

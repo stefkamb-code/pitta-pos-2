@@ -1,6 +1,6 @@
-using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
+using PittaPos.App.Services;
 using PittaPos.App.ViewModels;
 
 namespace PittaPos.App.Views;
@@ -36,17 +36,13 @@ public partial class HistoryWindow : Window
     {
         if (_vm.SelectedOrder is null)
             return;
-        var dialog = new PrintDialog();
-        if (dialog.ShowDialog() == true)
-        {
-            // Ίδιο πρόβλημα/διόρθωση με το ReceiptPrinter (αυτόματη εκτύπωση) — χωρίς αυτό ο εκτυπωτής
-            // τροφοδοτεί/κόβει ολόκληρο μήκος σελίδας αντί για το πραγματικό ύψος της απόδειξης.
-            var ticket = dialog.PrintTicket;
-            var width = ticket.PageMediaSize?.Width ?? ReceiptCard.ActualWidth;
-            ticket.PageMediaSize = new PageMediaSize(width, ReceiptCard.ActualHeight);
-            dialog.PrintTicket = ticket;
-            dialog.PrintVisual(ReceiptCard, "Απόδειξη #" + _vm.SelectedOrder.OrderNumber);
-        }
+
+        // ΤΥΠΩΝΕΙ ΑΠΟ ΤΟ ΙΔΙΟ ΜΟΝΟΠΑΤΙ ΜΕ ΤΗΝ ΑΥΤΟΜΑΤΗ ΕΚΤΥΠΩΣΗ, επίτηδες. Πριν τυπωνόταν το ίδιο το
+        // ReceiptCard της οθόνης, που παίρνει τα χρώματα του ΘΕΜΑΤΟΣ (Background="{DynamicResource Bg}")
+        // — με σκούρο θέμα έβγαινε κατάμαυρο χαρτί, με μαύρο μελάνι πάνω σε μαύρο φόντο. Το
+        // ReceiptPrinter φτιάχνει καθαρό παράθυρο απόδειξης και ρυθμίζει και το ύψος σελίδας σωστά,
+        // οπότε η επανεκτύπωση βγαίνει ολόιδια με την αρχική.
+        ReceiptPrinter.PrintOrder(_vm.SelectedOrder);
     }
 
     /// <summary>Πραγματική διαγραφή παραγγελίας — βγαίνει από τον τζίρο, μόνο με ονομαστικό κωδικό.</summary>
