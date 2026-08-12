@@ -122,8 +122,11 @@ public sealed class SentPersonViewModel
     /// άλλα, όταν κάποιος αλλάξει γνώμη.</summary>
     public required int Person { get; init; }
     public required string Header { get; init; }
-    public required string TotalLabel { get; init; }
+    /// <summary>Το σύνολο ΟΛΩΝ όσων έχει πάρει το άτομο — και από δεύτερη/τρίτη προσθήκη.</summary>
+    public required decimal Total { get; init; }
     public required List<SentPersonLineViewModel> Lines { get; init; }
+
+    public string TotalLabel => Order.FormatPrice(Total);
 }
 
 /// <summary>Μία γραμμή ενός ήδη περασμένου ατόμου.</summary>
@@ -747,7 +750,23 @@ public partial class OrderWizardViewModel : ObservableObject
     /// με ονομαστικό κωδικό, όπως κάθε ακύρωση στο ταμείο.</para>
     /// </summary>
     [RelayCommand]
-    private void SelectSentPerson(SentPersonViewModel sent) => TablePerson = sent.Person;
+    private void SelectSentPerson(SentPersonViewModel sent)
+    {
+        if (sent.Person == TablePerson)
+            return;
+
+        // ΦΡΑΓΗ: με γεμάτο καλάθι, η αλλαγή ατόμου θα χρέωνε τα προϊόντα που μόλις έγραψες σε ΑΛΛΟΝ —
+        // λάθος απόδειξη, σιωπηλά. Ολοκληρώνεις ή αδειάζεις πρώτα, μετά αλλάζεις άτομο.
+        if (Products.Cart.Count > 0)
+        {
+            MessageBox.Show(
+                $"Έχεις προϊόντα στο καλάθι για το ΑΤΟΜΟ {TablePersonsService.Label(TablePerson)}.\n\n" +
+                "Ολοκλήρωσέ τα ή άδειασε το καλάθι πριν πας σε άλλο άτομο — αλλιώς θα χρεώνονταν σε λάθος απόδειξη.",
+                "Αλλαγή ατόμου", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        TablePerson = sent.Person;
+    }
 
     /// <summary>Ξεκινά καθαρή σειρά ατόμων για το τραπέζι (καλείται μόλις επιλεγεί).</summary>
     private void BeginPersonSequence(int table)
@@ -1346,16 +1365,25 @@ public partial class OrderWizardViewModel : ObservableObject
                     TablePersonsService.Instance.Assign(table, order.OrderNumber, i, u, TablePerson);
             _tableRounds.Add(order);
             _personsDone.Add(TablePerson);
-            SentPersons.Add(new SentPersonViewModel
+
+            // ΕΝΑ μπλοκ ανά άτομο, όχι ένα ανά γύρο: αν ο Α ζητήσει κι άλλο αργότερα, μπαίνει κάτω από
+            // το ίδιο «ΑΤΟΜΟ Α» με ενημερωμένο σύνολο — έτσι το βλέπεις όπως θα βγει και η απόδειξή του.
+            var newLines = order.Lines
+                .Select(l => new SentPersonLineViewModel(
+                    (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Revenue)))
+                .ToList();
+            var existing = SentPersons.FirstOrDefault(s => s.Person == TablePerson);
+            var merged = new SentPersonViewModel
             {
                 Person = TablePerson,
                 Header = "✓ ΑΤΟΜΟ " + TablePersonsService.Label(TablePerson),
-                TotalLabel = Order.FormatPrice(order.Total),
-                Lines = order.Lines
-                    .Select(l => new SentPersonLineViewModel(
-                        (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Revenue)))
-                    .ToList(),
-            });
+                Total = (existing?.Total ?? 0m) + order.Total,
+                Lines = existing is null ? newLines : [.. existing.Lines, .. newLines],
+            };
+            if (existing is null)
+                SentPersons.Add(merged);
+            else
+                SentPersons[SentPersons.IndexOf(existing)] = merged;
 
             // Επόμενο άτομο = το πρώτο που δεν έχει περάσει ακόμα. Δεν είναι απλώς «+1», γιατί ο ταμίας
             // μπορεί να γύρισε πίσω σε κάποιον που είχε ήδη παραγγείλει (άλλαξε γνώμη) — τότε συνεχίζουμε
