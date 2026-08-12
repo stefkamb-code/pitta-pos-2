@@ -52,13 +52,9 @@ public class ChannelRevenueViewModel
     public required System.Windows.Media.Brush Brush { get; init; }
     public required int OrderCount { get; init; }
     public required decimal Revenue { get; init; }
-    public required decimal MorningRevenue { get; init; }
-    public required decimal EveningRevenue { get; init; }
 
     public string RevenueLabel => Order.FormatPrice(Revenue);
     public string CountLabel => OrderCount + (OrderCount == 1 ? " παραγγελία" : " παραγγελίες");
-    public string MorningRevenueLabel => "Πρωί " + Order.FormatPrice(MorningRevenue);
-    public string EveningRevenueLabel => "Βράδυ " + Order.FormatPrice(EveningRevenue);
 }
 
 /// <summary>Στατιστικά ημέρας — τροφοδοτείται ζωντανά από το SalesStatsService.</summary>
@@ -371,10 +367,117 @@ public partial class StatsViewModel : ObservableObject
     public string TotalCountLabel { get; private set; } = "0 παραγγελίες";
 
     public IReadOnlyList<ProductStatViewModel> ProductStats { get; private set; } = [];
-    public IReadOnlyList<ChannelRevenueViewModel> ChannelRevenues { get; private set; } = [];
+    /// <summary>Οι κάρτες καναλιού της ΠΡΩΙΝΗΣ και της ΒΡΑΔΙΝΗΣ βάρδιας, χωριστά.</summary>
+    public IReadOnlyList<ChannelRevenueViewModel> MorningChannelRevenues { get; private set; } = [];
+    public IReadOnlyList<ChannelRevenueViewModel> EveningChannelRevenues { get; private set; } = [];
 
     public bool NoData { get; private set; } = true;
     public bool HasData => !NoData;
+
+    /// <summary>Το όνομα του προϊόντος όπως το λέει ο ΚΑΤΑΛΟΓΟΣ — καθαρό, χωρίς ψωμί και «ΔΙΠΛΗ ΠΙΤΑ»
+    /// μπροστά. Αν το προϊόν έχει διαγραφεί (ή η παραγγελία είναι παλιά, χωρίς ProductId), πέφτει πίσω
+    /// στο όνομα που πουλήθηκε περισσότερο — κάτι είναι πάντα καλύτερο από κενή γραμμή.</summary>
+    private static string ProductDisplayName(IEnumerable<SoldLine> lines)
+    {
+        var list = lines.ToList();
+        var id = list[0].ProductId;
+        if (id.Length > 0)
+        {
+            var product = MenuStore.Instance.Categories
+                .SelectMany(c => c.Products)
+                .FirstOrDefault(p => p.Id == id);
+            if (product is not null)
+                return product.Name;
+        }
+        return list.GroupBy(l => l.Name).OrderByDescending(g => g.Sum(l => l.Quantity)).First().Key;
+    }
+
+    /// <summary>Πώς γράφεται μια παραλλαγή: ό,τι διαφέρει από το σκέτο όνομα του προϊόντος (π.χ. «ΕΛ.»,
+    /// «ΔΙΠΛΗ ΠΙΤΑ») μπροστά, και μετά οι λεπτομέρειες (χωρίς κρεμμύδι, + αλλαντικά).</summary>
+    private static string VariantLabel(string lineName, string details, string productName)
+    {
+        var prefix = lineName == productName ? "" : lineName;
+        if (prefix.Length == 0)
+            return details;
+        return details.Length == 0 ? prefix : prefix + " · " + details;
+    }
+
+    /// <summary>Δείχνει η λίστα ΚΑΤΗΓΟΡΙΕΣ αντί για προϊόντα; Ίδιες στήλες, άλλη ομαδοποίηση — «πόσο
+    /// πούλησαν οι ΠΙΤΤΕΣ συνολικά» είναι άλλη ερώτηση από «ποιο προϊόν πάει καλύτερα».</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ByProduct))]
+    [NotifyPropertyChangedFor(nameof(BreakdownHeader))]
+    private bool _byCategory;
+
+    public bool ByProduct => !ByCategory;
+
+    /// <summary>Το κουμπί γράφει πάντα τι δείχνει η λίστα τώρα — ένα κουμπί, οι επιλογές από μέσα.</summary>
+    public string BreakdownHeader => (ByCategory ? "ΑΝΑ ΚΑΤΗΓΟΡΙΑ" : "ΑΝΑ ΠΡΟΪΟΝ") + " ▾";
+
+    /// <summary>Ανοιχτό/κλειστό το μενού επιλογής.</summary>
+    [ObservableProperty]
+    private bool _showBreakdownMenu;
+
+    [RelayCommand] private void ToggleBreakdownMenu() => ShowBreakdownMenu = !ShowBreakdownMenu;
+
+    partial void OnByCategoryChanged(bool value)
+    {
+        ShowBreakdownMenu = false;
+        Refresh();
+    }
+
+    // Το κλείσιμο του μενού γίνεται ΕΔΩ και όχι μόνο στο OnByCategoryChanged: αν ξαναδιαλέξεις αυτό
+    // που ήδη βλέπεις, η τιμή δεν αλλάζει, δεν σηκώνεται event, και το μενού έμενε ανοιχτό.
+    [RelayCommand]
+    private void ShowByProduct()
+    {
+        ByCategory = false;
+        ShowBreakdownMenu = false;
+    }
+
+    [RelayCommand]
+    private void ShowByCategory()
+    {
+        ByCategory = true;
+        ShowBreakdownMenu = false;
+    }
+
+    /// <summary>Πωλήσεις ανά κατηγορία καταλόγου. Η ανάλυση από κάτω είναι τα ΠΡΟΪΟΝΤΑ της κατηγορίας —
+    /// έτσι η ίδια οθόνη απαντά και «πόσο έκαναν οι ΜΕΡΙΔΕΣ» και «ποια μερίδα τράβηξε».</summary>
+    private static List<ProductStatViewModel> BuildCategoryStats(List<CompletedOrder> orders, decimal revenue)
+    {
+        var categoryOf = MenuStore.Instance.Categories
+            .SelectMany(c => c.Products.Select(p => (p.Id, Category: c.Name)))
+            .ToDictionary(x => x.Id, x => x.Category);
+
+        return orders
+            .SelectMany(o => o.Lines)
+            .GroupBy(l => categoryOf.GetValueOrDefault(l.ProductId, "— ΕΚΤΟΣ ΚΑΤΑΛΟΓΟΥ —"))
+            .Select(g => (
+                Name: g.Key,
+                Quantity: g.Sum(l => l.Quantity),
+                Revenue: g.Sum(l => l.Revenue),
+                Products: g.GroupBy(l => l.ProductId.Length > 0 ? l.ProductId : l.Name)
+                    .Select(p => (Name: ProductDisplayName(p), Quantity: p.Sum(l => l.Quantity), Revenue: p.Sum(l => l.Revenue)))
+                    .OrderByDescending(p => p.Quantity)
+                    .ToList()))
+            .OrderByDescending(c => c.Revenue)
+            .Select((c, i) => new ProductStatViewModel
+            {
+                Rank = i + 1,
+                Name = c.Name,
+                Quantity = c.Quantity,
+                Revenue = c.Revenue,
+                SharePct = revenue == 0 ? 0 : (double)(c.Revenue / revenue * 100),
+                Variants = c.Products.Select(p => new ProductVariantStatViewModel
+                {
+                    Quantity = p.Quantity,
+                    Details = p.Name,
+                    Revenue = p.Revenue,
+                }).ToList(),
+            })
+            .ToList();
+    }
 
     private void Refresh()
     {
@@ -384,17 +487,32 @@ public partial class StatsViewModel : ObservableObject
         RevenueLabel = Order.FormatPrice(revenue);
         AvgOrderLabel = Order.FormatPrice(orders.Count == 0 ? 0 : revenue / orders.Count);
 
-        ProductStats = orders
+        // Ομαδοποίηση ανά ΠΡΟΪΟΝ, όχι ανά όνομα γραμμής. Το όνομα κουβαλάει τις προσαρμογές —
+        // ψωμί μπροστά («ΕΛ. Κοτόπουλο» / «ΑΡ. Κοτόπουλο») και «ΔΙΠΛΗ ΠΙΤΑ» — οπότε η ίδια πίττα
+        // κοτόπουλο σπάει σε τρία-τέσσερα «προϊόντα» και δεν βλέπεις ποτέ πόσες πούλησες συνολικά.
+        // Κλειδί το ProductId· οι παραλλαγές (χωρίς κρεμμύδι, + αλλαντικά) μένουν από κάτω, αναλυτικά.
+        ProductStats = ByCategory ? BuildCategoryStats(orders, revenue) : orders
             .SelectMany(o => o.Lines)
-            .GroupBy(l => l.Name)
-            .Select(g => (
-                Name: g.Key,
-                Quantity: g.Sum(l => l.Quantity),
-                Revenue: g.Sum(l => l.Revenue),
-                Variants: g.GroupBy(l => l.Details)
-                    .Select(v => (Details: v.Key, Quantity: v.Sum(l => l.Quantity), Revenue: v.Sum(l => l.Revenue)))
-                    .OrderByDescending(v => v.Quantity)
-                    .ToList()))
+            .GroupBy(l => l.ProductId.Length > 0 ? l.ProductId : l.Name)
+            .Select(g =>
+            {
+                // Μία φορά ανά προϊόν: το ProductDisplayName σαρώνει ολόκληρο τον κατάλογο, δεν έχει
+                // νόημα να ξανατρέξει για κάθε παραλλαγή της ίδιας γραμμής.
+                var name = ProductDisplayName(g);
+                return (
+                    Name: name,
+                    Quantity: g.Sum(l => l.Quantity),
+                    Revenue: g.Sum(l => l.Revenue),
+                    // Η παραλλαγή κρατά ΚΑΙ το όνομα της γραμμής: το ψωμί και η «ΔΙΠΛΗ ΠΙΤΑ» ζουν μέσα
+                    // στο όνομα, όχι στις λεπτομέρειες — αλλιώς θα εξαφανίζονταν από την ανάλυση.
+                    Variants: g.GroupBy(l => (l.Name, l.Details))
+                        .Select(v => (
+                            Details: VariantLabel(v.Key.Name, v.Key.Details, name),
+                            Quantity: v.Sum(l => l.Quantity),
+                            Revenue: v.Sum(l => l.Revenue)))
+                        .OrderByDescending(v => v.Quantity)
+                        .ToList());
+            })
             .OrderByDescending(p => p.Quantity)
             .ThenByDescending(p => p.Revenue)
             .Select((p, i) => new ProductStatViewModel
@@ -416,10 +534,13 @@ public partial class StatsViewModel : ObservableObject
             })
             .ToList();
 
-        ChannelRevenues = BuildChannelRevenues(orders);
-
         var morning = orders.Where(o => !o.IsEveningShift).ToList();
         var evening = orders.Where(o => o.IsEveningShift).ToList();
+
+        // Δύο ξεχωριστές σειρές καρτών, μία ανά βάρδια: ο ταμίας συγκρίνει «ΤΡΑΠΕΖΙ πρωί» με
+        // «ΤΡΑΠΕΖΙ βράδυ» διαβάζοντας κάθετα, αντί να ψάχνει δύο ψιλά νούμερα μέσα σε κάθε κάρτα.
+        MorningChannelRevenues = BuildChannelRevenues(morning);
+        EveningChannelRevenues = BuildChannelRevenues(evening);
         MorningRevenueLabel = Order.FormatPrice(morning.Sum(o => o.Total));
         MorningCountLabel = CountLabel(morning.Count);
         EveningRevenueLabel = Order.FormatPrice(evening.Sum(o => o.Total));
@@ -432,7 +553,8 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(RevenueLabel));
         OnPropertyChanged(nameof(AvgOrderLabel));
         OnPropertyChanged(nameof(ProductStats));
-        OnPropertyChanged(nameof(ChannelRevenues));
+        OnPropertyChanged(nameof(MorningChannelRevenues));
+        OnPropertyChanged(nameof(EveningChannelRevenues));
         OnPropertyChanged(nameof(NoData));
         OnPropertyChanged(nameof(HasData));
         OnPropertyChanged(nameof(MorningRevenueLabel));
@@ -479,8 +601,6 @@ public partial class StatsViewModel : ObservableObject
                 Brush = c.Brush,
                 OrderCount = matched.Count,
                 Revenue = matched.Sum(o => o.Total),
-                MorningRevenue = matched.Where(o => !o.IsEveningShift).Sum(o => o.Total),
-                EveningRevenue = matched.Where(o => o.IsEveningShift).Sum(o => o.Total),
             };
         }).ToList();
     }
