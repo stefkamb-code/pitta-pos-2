@@ -901,6 +901,11 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ Νέα παραγγελία».</summary>
     public void StartNewRoundForTable(int number)
     {
+        // Ο τύπος δηλώνεται ΡΗΤΑ: η οθόνη τραπεζιού είναι ξεχωριστό παράθυρο και μπορεί να πατηθεί το
+        // «+ Νέα παραγγελία» αφού ο ταμίας έχει ήδη ξεδιαλέξει το ΤΡΑΠΕΖΙ πίσω στην κάτοψη. Τότε ο
+        // τύπος ήταν null και η παραγγελία καταγραφόταν ως ΔΙΑΝΟΜΗ χωρίς όνομα (βλ. RecordStats).
+        OrderType = Core.Models.OrderType.Table;
+        Products.ContinueLabel = "ΣΥΝΕΧΕΙΑ · ΕΚΤΥΠΩΣΗ";
         TableNumber = number;
         foreach (var t in TableNumbers)
             t.IsSelected = t.Number == number;
@@ -1415,7 +1420,18 @@ public partial class OrderWizardViewModel : ObservableObject
         if (OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps)
             Step = 2;
         else if (OrderType == Core.Models.OrderType.Table)
+        {
+            // Μέσα σε σειρά ατόμων, το «πίσω» πάει ΕΝΑ ΑΤΟΜΟ πίσω (Β → Α) με το καλάθι του ανοιχτό
+            // για διόρθωση — ίδια συμπεριφορά με το κινητό του σερβιτόρου. Από το πρώτο άτομο και
+            // μόνο βγαίνεις από το τραπέζι (και τότε ρωτάει, γιατί χάνονται όλα).
+            if (IsDeferredPersonRound && TablePerson > 0)
+            {
+                StashCurrentPerson();
+                LoadPerson(TablePerson - 1);
+                return;
+            }
             BackToTableGrid();
+        }
         else
             ResetForm();
     }
@@ -1423,18 +1439,9 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>Πίσω από τα προϊόντα ενός τραπεζιού — γυρνά στην κάτοψη τραπεζιών, όχι στη γενική επιλογή τύπου.</summary>
     private void BackToTableGrid()
     {
-        // Τραπέζι με άτομα: τίποτα δεν έχει καταχωρηθεί ούτε τυπωθεί, οπότε το «πίσω» τα σβήνει όλα. Αν
-        // έχει ήδη κλείσει έστω ένα άτομο, ρωτάμε — αλλιώς χάνεται σιωπηλά μια ολόκληρη παρέα.
-        if (_personDrafts.Count > 0)
-        {
-            var answer = MessageBox.Show(
-                $"Έχεις γράψει {_personDrafts.Count} άτομα σε αυτό το τραπέζι και δεν έχει καταχωρηθεί τίποτα ακόμα.\n\n" +
-                "Αν βγεις πίσω, θα χαθούν όλα (δεν έχει τυπωθεί καμία παραγγελία). Να βγεις;",
-                "Άκυρο τραπέζι", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (answer != MessageBoxResult.Yes)
-                return;
-        }
-
+        // Καμία ερώτηση: το «πίσω» από το πρώτο άτομο σημαίνει «η παραγγελία δεν ισχύει» και είναι
+        // συνειδητή κίνηση — τίποτα δεν έχει καταχωρηθεί ούτε τυπωθεί, οπότε δεν χάνεται πώληση.
+        // (Ο χρήστης ζήτησε ρητά να μη ρωτάει πουθενά, 12/8/2026.)
         Step = 1;
         MaxStep = 1;
         TableNumber = null;
@@ -1549,25 +1556,10 @@ public partial class OrderWizardViewModel : ObservableObject
         _personDrafts.Clear();
         SentPersonsAbove.Clear();
         SentPersonsBelow.Clear();
-        ShrinkPersonsToWhoOrdered(table);
+        // Όποιος τελικά δεν πήρε τίποτα δεν είναι άτομο του τραπεζιού (βλ. TablePersonsService).
+        TablePersonsService.Instance.ShrinkToWhoOrdered(table);
         PrintTableRounds();
         NewOrder();
-    }
-
-    /// <summary>
-    /// Δηλώθηκαν 4 άτομα αλλά ο Δ τελικά δεν πήρε τίποτα → το τραπέζι έχει 3 άτομα, όχι 4. Μετά την
-    /// καταχώρηση το πλήθος κόβεται μέχρι τον τελευταίο που όντως παρήγγειλε, ώστε να μη μένει κενό
-    /// άτομο στην οθόνη τραπεζιού και στο κινητό του σερβιτόρου.
-    /// <para>Μετράει τον ΜΕΓΑΛΥΤΕΡΟ δείκτη και όχι το πλήθος: αν πήραν ο Α και ο Γ, το τραπέζι έχει
-    /// 3 θέσεις (ο Β απλώς δεν πήρε), αλλιώς ο Γ θα εξαφανιζόταν μαζί με την παραγγελία του.</para>
-    /// </summary>
-    private static void ShrinkPersonsToWhoOrdered(int table)
-    {
-        var withItems = TablePersonsService.Instance.PersonsWithItems(table);
-        if (withItems.Count == 0)
-            TablePersonsService.Instance.ClearTable(table); // κανείς δεν πήρε τίποτα — σαν να μην άνοιξε
-        else
-            TablePersonsService.Instance.SetCount(table, withItems.Max() + 1);
     }
 
     /// <summary>

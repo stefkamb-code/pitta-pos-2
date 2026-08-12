@@ -632,6 +632,11 @@ public static class WaiterApiService
                 // ΜΕΤΑ την οριστικοποίηση του αριθμού: τα άτομα κλειδώνονται με κλειδί
                 // «παραγγελία:γραμμή:τεμάχιο», οπότε με τον προσωρινό αριθμό θα κρέμονταν στο κενό.
                 AssignPersons(req.Table, order, built.Persons);
+                // Τελευταία παραγγελία του γύρου (αυτή που τυπώνει): όποιος δηλώθηκε αλλά τελικά δεν
+                // πήρε τίποτα φεύγει από το τραπέζι — ίδιος κανόνας με το ταμείο. Μόνο στο τέλος, γιατί
+                // ενδιάμεσα τα επόμενα άτομα δεν έχουν έρθει ακόμα και θα κόβαμε το τραπέζι στη μέση.
+                if (req.PrintNow)
+                    TablePersonsService.Instance.ShrinkToWhoOrdered(req.Table);
                 // Η ΕΚΤΥΠΩΣΗ ΔΕΝ ΚΡΑΤΑΕΙ ΤΗΝ ΑΠΑΝΤΗΣΗ. Πριν τυπωνόταν εδώ, μέσα στην κλήση, οπότε ο
                 // σερβιτόρος περίμενε στο κινητό όσο δούλευε ο εκτυπωτής — δευτερόλεπτα, με το κουμπί
                 // «...». Με μία παραγγελία ανά ΑΤΟΜΟ αυτό συμβαίνει 3-4 φορές σε κάθε τραπέζι και έγινε
@@ -652,6 +657,8 @@ public static class WaiterApiService
             clientOrder = SalesStatsService.WithOrderNumber(clientOrder, finalNumber);
 
         OnUi(() => { AssignPersons(req.Table, clientOrder, clientBuilt.Persons); return 0; });
+        if (req.PrintNow)
+            OnUi(() => { TablePersonsService.Instance.ShrinkToWhoOrdered(req.Table); return 0; });
         OnUi(() => { PrintOrQueue(req.Table, clientOrder, req.PrintNow); return 0; });
         return (200, new { clientOrder.OrderNumber });
     }

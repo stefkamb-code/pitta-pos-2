@@ -139,6 +139,25 @@ public class TablePersonsService
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Δηλώθηκαν 4 άτομα αλλά ο Δ τελικά δεν πήρε τίποτα → το τραπέζι έχει 3, όχι 4. Καλείται μόλις
+    /// καταχωρηθεί ολόκληρος ο γύρος (ταμείο και κινητό), ώστε να μη μένει κενό άτομο στην οθόνη.
+    /// <para>Κόβει μέχρι τον ΜΕΓΑΛΥΤΕΡΟ δείκτη που έχει προϊόντα, όχι μέχρι το πλήθος τους: αν πήραν ο
+    /// Α και ο Γ, το τραπέζι έχει 3 θέσεις (ο Β απλώς δεν πήρε) — αλλιώς ο Γ θα εξαφανιζόταν μαζί με
+    /// την παραγγελία του.</para>
+    /// <para>Αν δεν έχει προϊόντα ΚΑΝΕΙΣ, το τραπέζι καθαρίζει μόνο εφόσον δεν είναι καν ανοιχτό:
+    /// ανοιχτό τραπέζι χωρίς χρεώσεις σε άτομα σημαίνει παραγγελίες που ήρθαν χωρίς άτομα (π.χ. παλιό
+    /// APK) — δεν του σβήνουμε τον χωρισμό από κάτω.</para>
+    /// </summary>
+    public void ShrinkToWhoOrdered(int table)
+    {
+        var withItems = PersonsWithItems(table);
+        if (withItems.Count > 0)
+            SetCount(table, withItems.Max() + 1);
+        else if (!TableStatusService.Instance.OpenSince.ContainsKey(table))
+            ClearTable(table);
+    }
+
     /// <summary>Καλείται όταν κλείνει το τραπέζι — καθαρό ξεκίνημα για τον επόμενο πελάτη.</summary>
     public void ClearTable(int table)
     {

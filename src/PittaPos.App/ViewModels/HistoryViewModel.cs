@@ -404,16 +404,22 @@ public partial class HistoryViewModel : ObservableObject
 
         if (SelectedIsTable)
         {
-            // Το ΠΟΣΟ μετακινείται από τα μετρητά στην κάρτα (ή ανάποδα) στην αναφορά ημέρας. Δεν
-            // αγγίζουμε το PaymentMethod της παραγγελίας: για τραπέζι θα διπλομετρούσε τον τζίρο του
-            // στον διαχωρισμό (βλ. DayReportService — τα τραπέζια μετρώνται μόνο από τις εισπράξεις).
-            var moved = TablePaymentsService.Instance.SwitchMethod(SelectedOrder.OrderNumber, method);
-            if (moved == 0 && TablePaymentsService.Instance.AmountFor(SelectedOrder.OrderNumber) == 0)
+            // ΔΕΝ σημειώνουμε τρόπο πληρωμής σε άτομο που δεν έχει πληρώσει: θα έδειχνε 💶 ενώ στο
+            // ταμείο δεν μπήκε ευρώ. Η πληρωμή γίνεται από την οθόνη τραπεζιού· εδώ μόνο διορθώνεται.
+            if (TablePaymentsService.Instance.AmountFor(SelectedOrder.OrderNumber) == 0)
+            {
                 MessageBox.Show(
-                    "Αυτό το άτομο δεν έχει πληρώσει ακόμα (το τραπέζι δεν έχει εξοφληθεί από την οθόνη " +
-                    "τραπεζιού), οπότε δεν υπάρχει πληρωμή για διόρθωση.\n\nΕξόφλησέ το πρώτα από το τραπέζι.",
+                    "Αυτό το άτομο δεν έχει πληρώσει ακόμα (δεν έχει εξοφληθεί από την οθόνη τραπεζιού), " +
+                    "οπότε δεν υπάρχει πληρωμή για διόρθωση.\n\nΕξόφλησέ το πρώτα από το τραπέζι.",
                     "Τρόπος πληρωμής", MessageBoxButton.OK, MessageBoxImage.Information);
-            // Και πάνω στην παραγγελία, ώστε η διόρθωση να μείνει και μετά το κλείσιμο της ημέρας.
+                ShowPaymentOptions = false;
+                return;
+            }
+
+            // Το ΠΟΣΟ μετακινείται από τα μετρητά στην κάρτα (ή ανάποδα) στην αναφορά ημέρας, και ο
+            // τρόπος γράφεται και πάνω στην παραγγελία ώστε η διόρθωση να επιβιώσει στο αρχείο. Δεν
+            // διπλομετράει: η αναφορά ημέρας για τα τραπέζια μετράει μόνο τις εισπράξεις.
+            TablePaymentsService.Instance.SwitchMethod(SelectedOrder.OrderNumber, method);
             _stats.UpdatePaymentMethod(SelectedOrder.OrderNumber, method);
             RefreshPaymentLabels();
         }
