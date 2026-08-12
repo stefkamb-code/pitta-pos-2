@@ -224,6 +224,35 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+
+                        <!-- Φίλτρο καναλιού: «τι πήγε σε Wolt χθες». Το ΟΛΑ είναι πρώτο και είναι και
+                             η προεπιλογή, ώστε να μη μείνει ποτέ κρυμμένο μισό ιστορικό κατά λάθος. -->
+                        <Border Width="1" Background="{DynamicResource Divider}" Margin="10,2"/>
+                        <ItemsControl ItemsSource="{Binding ChannelFilters}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Label}" FontSize="11.5" FontWeight="ExtraBold" Padding="11,7"
+                                            Margin="0,0,6,0"
+                                            Command="{Binding DataContext.SetChannelFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Key}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
 
                     <!-- ΠΑΡΑΓΓΕΛΙΕΣ -->

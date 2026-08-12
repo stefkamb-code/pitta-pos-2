@@ -8,6 +8,16 @@ namespace PittaPos.App.ViewModels;
 /// <summary>Ποια λίστα δείχνει το ιστορικό αυτή τη στιγμή.</summary>
 public enum HistoryTab { Orders, Cancelled, Discounts }
 
+/// <summary>Ένα κουμπί φίλτρου καναλιού στο Ιστορικό (ΟΛΑ / ΤΡΑΠΕΖΙ / Wolt / …).</summary>
+public partial class HistoryFilterOption(string key, string label) : ObservableObject
+{
+    public string Key { get; } = key;
+    public string Label { get; } = label;
+
+    [ObservableProperty]
+    private bool _isSelected;
+}
+
 /// <summary>
 /// Μία «ενέργεια ακύρωσης» για τη λίστα «ΑΚΥΡΩΜΕΝΑ» — μαζεύει όλες τις γραμμές που ακυρώθηκαν μαζί
 /// (ίδια παραγγελία, ίδιο instant) σε μία κάρτα, αντί να τις δείχνει σαν ξεχωριστά προϊόντα.
@@ -207,6 +217,49 @@ public partial class HistoryViewModel : ObservableObject
             };
     }
 
+    /// <summary>
+    /// Φίλτρο καναλιού στο Ιστορικό. Κενό = όλα. Οι τιμές είναι ή τύπος παραγγελίας (ΤΡΑΠΕΖΙ,
+    /// ΔΙΑΝΟΜΗ, ΠΑΡΑΛΑΒΗ) ή πλατφόρμα εφαρμογών (e-food, Wolt, BOX) — ο ταμίας ψάχνει «τι πήγε σε
+    /// Wolt χθες», όχι με ποιον τεχνικό τύπο είναι αποθηκευμένο.
+    /// </summary>
+    [ObservableProperty]
+    private string _channelFilter = "";
+
+    partial void OnChannelFilterChanged(string value)
+    {
+        foreach (var o in ChannelFilters)
+            o.IsSelected = o.Key == value;
+        OnPropertyChanged(nameof(ChannelFilters));
+        Refresh();
+    }
+
+    public IReadOnlyList<HistoryFilterOption> ChannelFilters { get; } =
+    [
+        new("", "ΟΛΑ") { IsSelected = true },
+        new("ΤΡΑΠΕΖΙ", "ΤΡΑΠΕΖΙ"),
+        new("ΔΙΑΝΟΜΗ", "ΔΙΑΝΟΜΗ"),
+        new("ΠΑΡΑΛΑΒΗ", "ΠΑΡΑΛΑΒΗ"),
+        new("e-food", "e-food"),
+        new("Wolt", "Wolt"),
+        new("BOX", "BOX"),
+    ];
+
+    [RelayCommand]
+    private void SetChannelFilter(string key) => ChannelFilter = key ?? "";
+
+    /// <summary>Περνάει το φίλτρο καναλιού πάνω στις παραγγελίες της περιόδου.</summary>
+    private IEnumerable<CompletedOrder> ApplyChannelFilter(IEnumerable<CompletedOrder> orders) =>
+        ChannelFilter switch
+        {
+            "" => orders,
+            "ΤΡΑΠΕΖΙ" => orders.Where(o => o.Type == OrderType.Table),
+            "ΔΙΑΝΟΜΗ" => orders.Where(o => o.Type == OrderType.Delivery),
+            "ΠΑΡΑΛΑΒΗ" => orders.Where(o => o.Type == OrderType.Pickup),
+            // Οι πλατφόρμες ζουν στο Channel των ΕΦΑΡΜΟΓΩΝ.
+            var platform => orders.Where(o => o.Type == OrderType.Apps
+                && string.Equals(o.Channel, platform, StringComparison.OrdinalIgnoreCase)),
+        };
+
     private void Refresh()
     {
         var from = FromDate ?? DateTime.MinValue;
@@ -217,7 +270,8 @@ public partial class HistoryViewModel : ObservableObject
         var archivedOrders = HistoryArchiveService.LoadOrders(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
         var liveOrders = includesToday ? _stats.Orders : Enumerable.Empty<CompletedOrder>();
-        Orders = archivedOrders.Concat(liveOrders).OrderByDescending(o => o.PlacedAt).ToList();
+        Orders = ApplyChannelFilter(archivedOrders.Concat(liveOrders))
+            .OrderByDescending(o => o.PlacedAt).ToList();
         NoOrders = Orders.Count == 0;
         if (SelectedOrder is not null && !Orders.Contains(SelectedOrder))
             SelectedOrder = Orders.FirstOrDefault(o => o.OrderNumber == SelectedOrder.OrderNumber);
