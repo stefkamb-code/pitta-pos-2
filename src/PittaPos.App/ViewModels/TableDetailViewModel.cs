@@ -46,6 +46,8 @@ public class TablePersonGroupViewModel
 
     public string OutstandingLabel => Order.FormatPrice(Outstanding);
     public bool CanSettle => Outstanding > 0;
+    /// <summary>Τα «ΑΧΡΕΩΤΑ» δεν είναι άτομο — δεν έχει πού να προστεθεί κάτι.</summary>
+    public bool CanAddMore => Person >= 0;
     /// <summary>Η απόδειξή του έχει ήδη κοπεί (όλα του πληρωμένα).</summary>
     public bool IsPaid => Outstanding == 0 && Lines.Count > 0;
 }
@@ -158,8 +160,9 @@ public partial class TableDetailViewModel : ObservableObject
     public bool HasSelection => SelectedCount > 0;
     public bool NoSelection => SelectedCount == 0;
 
-    /// <summary>Ζητά από το παράθυρο να ξεκινήσει νέο γύρο παραγγελίας γι' αυτό το τραπέζι.</summary>
-    public event Action? NewRoundRequested;
+    /// <summary>Ζητά από το παράθυρο να ξεκινήσει νέο γύρο παραγγελίας γι' αυτό το τραπέζι. Η παράμετρος
+    /// είναι σε ΠΟΙΟΝ γράφεται (0-based)· -1 = «όποιος δεν έχει παραγγείλει ακόμα», όπως πάντα.</summary>
+    public event Action<int>? NewRoundRequested;
 
     /// <summary>Το τραπέζι έκλεισε (ελευθερώθηκε) — το παράθυρο πρέπει να κλείσει.</summary>
     public event Action? TableClosed;
@@ -174,8 +177,16 @@ public partial class TableDetailViewModel : ObservableObject
         // ξεκινά μόνη της από αυτόν, γιατί είναι ο πρώτος που δεν έχει παραγγείλει ακόμα.
         if (HasPersons)
             TablePersonsService.Instance.SetCount(_table, TablePersonsService.Instance.CountFor(_table) + 1);
-        NewRoundRequested?.Invoke();
+        NewRoundRequested?.Invoke(-1);
     }
+
+    /// <summary>
+    /// «Το ΑΤΟΜΟ Β θέλει και μια κόκα κόλα»: ανοίγει την παραγγελιοληψία κατευθείαν πάνω σε ΑΥΤΟ το
+    /// άτομο, ώστε ό,τι γραφτεί να μπει στη δική του απόδειξη. Χωρίς αυτό, η μόνη προσθήκη σε
+    /// ανοιχτό τραπέζι ήταν «+ ΠΡΟΣΘΗΚΗ ΑΤΟΜΟΥ», που έφτιαχνε ΝΕΟ άτομο και δεύτερη απόδειξη.
+    /// </summary>
+    [RelayCommand]
+    private void AddToPerson(TablePersonGroupViewModel person) => NewRoundRequested?.Invoke(person.Person);
 
     /// <summary>Κλικ πάνω σε προϊόν — toggle επιλογής· μπορούν να μείνουν επιλεγμένα πολλά μαζί.</summary>
     [RelayCommand]

@@ -59,6 +59,31 @@ public static partial class MenuSeed
     public static bool SupportsDoublePita(string categoryLabel) =>
         categoryLabel is "ΤΥΛΙΧΤΑ" or "ΠΙΤΤΕΣ" or "ΚΛΑΣΙΚΑ ΜΙΝΙ" or "ΚΛΑΣΙΚΑ ΜΙΚΡΑ";
 
+    /// <summary>
+    /// Μαντεύει την κατηγορία ΦΠΑ από το όνομα, ΜΟΝΟ ως αρχική τιμή για κατάλογο που δεν την έχει
+    /// δηλωμένη (βλ. MenuStore.MigrateCategoryFlags). Από εκεί και πέρα γράφεται ρητά στο menu.json και
+    /// φαίνεται/διορθώνεται στη Διαχείριση Καταλόγου — μια μετονομασία κατηγορίας δεν πρέπει να αλλάζει
+    /// σιωπηλά τον φόρο.
+    /// </summary>
+    public static VatKind GuessVatKind(string categoryLabel)
+    {
+        var name = categoryLabel.ToUpperInvariant();
+        if (name.Contains("ΑΝΑΨΥΚΤ"))
+            return VatKind.SoftDrink;
+        if (name.Contains("ΠΟΤΑ") || name.Contains("ΜΠΥΡ") || name.Contains("ΜΠΙΡ") || name.Contains("ΚΡΑΣ")
+            || name.Contains("ΟΥΖ") || name.Contains("ΤΣΙΠΟΥΡ") || name.Contains("ΡΑΚ"))
+            return VatKind.Alcohol;
+        return VatKind.Food;
+    }
+
+    /// <summary>Μεγάλη ή μικρή πίτα, μαντεμένο από το όνομα — μόνο ως αρχική τιμή για κατηγορία που
+    /// δεν το έχει δηλωμένο (βλ. MenuCategory.DoublePitaLarge). Μικρή είναι μόνο τα «μίνι/μικρά».</summary>
+    public static bool GuessLargePita(string categoryLabel)
+    {
+        var name = categoryLabel.ToUpperInvariant();
+        return !name.Contains("ΜΙΚΡ") && !name.Contains("ΜΙΝΙ");
+    }
+
     private const string DoublePitaLabel = "ΔΙΠΛΗ ΠΙΤΑ";
 
     /// <summary>Όνομα γραμμής παραγγελίας όταν είναι επιλεγμένη διπλή πίτα, π.χ. «ΕΛ. ΔΙΠΛΗ ΠΙΤΑ Κοτόπουλο»

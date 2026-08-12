@@ -21,13 +21,29 @@ public partial class ExtraToggleViewModel : ObservableObject
     private bool _isChecked;
 }
 
-/// <summary>Μία γραμμή στη γενική διαχείριση του κοινού καταλόγου έξτρα (όνομα + επεξεργάσιμη τιμή + διαγραφή).</summary>
+/// <summary>Μία γραμμή στη γενική διαχείριση του κοινού καταλόγου έξτρα (επεξεργάσιμο όνομα + τιμή + διαγραφή).</summary>
 public partial class ExtraCatalogRowViewModel : ObservableObject
 {
+    /// <summary>Το ΑΠΟΘΗΚΕΥΜΕΝΟ όνομα — το κλειδί με το οποίο βρίσκεται το έξτρα. Δεν αλλάζει όσο ο
+    /// ταμίας πληκτρολογεί· αλλάζει μόνο όταν πατηθεί ΑΠΟΘΗΚΕΥΣΗ (βλ. MenuStore.RenameExtra).</summary>
     public required string Name { get; init; }
+
+    /// <summary>Το όνομα όπως γράφεται τώρα στο κουτί.</summary>
+    [ObservableProperty]
+    private string _nameText = "";
 
     [ObservableProperty]
     private string _priceText = "";
+}
+
+/// <summary>Μία επιλογή ΦΠΑ της κατηγορίας (ΦΑΓΗΤΟ / ΑΝΑΨΥΚΤΙΚΟ / ΠΟΤΟ).</summary>
+public partial class VatOptionViewModel(VatKind kind, string label) : ObservableObject
+{
+    public VatKind Kind { get; } = kind;
+    public string Label { get; } = label;
+
+    [ObservableProperty]
+    private bool _isSelected;
 }
 
 /// <summary>Διαχείριση Καταλόγου — κατηγορίες, προϊόντα, τιμές.</summary>
@@ -141,6 +157,57 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty] private bool _categoryFuseBread;
     [ObservableProperty] private bool _categoryDoublePita;
 
+    /// <summary>Μεγάλη ή μικρή πίτα — καθορίζει ΠΟΙΑ από τις δύο χρεώσεις παίρνει η κατηγορία. Στα
+    /// ΚΛΑΣΙΚΑ ΜΙΚΡΑ μπαίνει πάντα η μικρή, στις ΠΙΤΤΕΣ και ΠΙΤΤΕΣ ΠΑΠΠΟΥ πάντα η μεγάλη.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CategoryPitaSizeLabel))]
+    private bool _categoryPitaLarge;
+
+    public string CategoryPitaSizeLabel => CategoryPitaLarge ? "ΜΕΓΑΛΗ ΠΙΤΑ" : "ΜΙΚΡΗ ΠΙΤΑ";
+
+    /// <summary>Ένα κουμπί που εναλλάσσει μικρή/μεγάλη — δύο τιμές, δεν χρειάζεται λίστα επιλογών.</summary>
+    [RelayCommand]
+    private void ToggleCategoryPitaSize() => CategoryPitaLarge = !CategoryPitaLarge;
+
+    partial void OnCategoryPitaLargeChanged(bool value)
+    {
+        if (SaveCategoryFlag(c => c.DoublePitaLarge = value))
+            RebuildDoublePitaRows();
+    }
+
+    /// <summary>Ο ΦΠΑ της κατηγορίας. Δεν βγαίνει από το όνομα — φαίνεται και διορθώνεται εδώ, ώστε
+    /// μια μετονομασία («ΑΝΑΨΥΚΤΙΚΑ» → «ΔΡΟΣΙΣΤΙΚΑ») να μην αλλάξει σιωπηλά τον φόρο.</summary>
+    [ObservableProperty] private VatKind _categoryVat;
+
+    /// <summary>Οι επιλογές ΦΠΑ, στη σειρά που τις διαβάζει ο ταμίας. Το «αναψυκτικό» δεν είναι τρίτος
+    /// συντελεστής — είναι 13% που γίνεται 24% στο τραπέζι, γι' αυτό γράφεται έτσι.</summary>
+    public IReadOnlyList<VatOptionViewModel> VatOptions { get; } =
+    [
+        new(VatKind.Food, "13%"),
+        new(VatKind.Alcohol, "24%"),
+        // Τελευταία η ειδική περίπτωση: οι δύο σκέτοι συντελεστές είναι το 99% των κατηγοριών.
+        new(VatKind.SoftDrink, "13% · 24% στο τραπέζι"),
+    ];
+
+    /// <summary>Κρυμμένες μέχρι να πατηθεί το κουμπί — μία γραμμή αντί για τρία κουμπιά μονίμως στη
+    /// φόρμα. Ίδια λογική με τις κρυμμένες επιλογές του Ιστορικού.</summary>
+    [ObservableProperty]
+    private bool _showVatOptions;
+
+    [RelayCommand]
+    private void ToggleVatOptions() => ShowVatOptions = !ShowVatOptions;
+
+    /// <summary>Το κουμπί γράφει πάντα τι ισχύει τώρα, ώστε να φαίνεται με μια ματιά χωρίς άνοιγμα.</summary>
+    public string CategoryVatLabel =>
+        "ΦΠΑ: " + (VatOptions.FirstOrDefault(o => o.Kind == CategoryVat)?.Label ?? "13%") + " ▾";
+
+    [RelayCommand]
+    private void SetCategoryVat(VatKind kind)
+    {
+        CategoryVat = kind;
+        ShowVatOptions = false;
+    }
+
     /// <summary>Μόνο το «ψωμί μέσα στο όνομα» εξαρτάται από το αν ρωτιέται καθόλου ψωμί — αλλιώς δεν
     /// υπάρχει ψωμί για να μπει πουθενά. Η «διπλή πίτα» είναι ΑΝΕΞΑΡΤΗΤΗ: τα ΚΛΑΣΙΚΑ ΜΙΚΡΑ π.χ. έχουν
     /// διπλή πίτα χωρίς καμία επιλογή ψωμιού, οπότε αν την κλείδωνε το ψωμί δεν θα μπορούσε καν να
@@ -210,8 +277,25 @@ public partial class MenuManagerViewModel : ObservableObject
         CategoryHasBread = value?.HasBread ?? false;
         CategoryFuseBread = value?.FuseBreadIntoName ?? false;
         CategoryDoublePita = value?.SupportsDoublePita ?? false;
+        CategoryPitaLarge = value?.DoublePitaLarge ?? (value is null || MenuSeed.GuessLargePita(value.Name));
+        CategoryVat = value?.VatKind ?? (value is null ? VatKind.Food : MenuSeed.GuessVatKind(value.Name));
+        ShowVatOptions = false; // κλειστές σε κάθε αλλαγή κατηγορίας
         _loadingCategoryFlags = false;
         OnPropertyChanged(nameof(CategoryFuseBreadEnabled));
+        RefreshVatOptions();
+    }
+
+    partial void OnCategoryVatChanged(VatKind value)
+    {
+        SaveCategoryFlag(c => c.VatKind = value);
+        RefreshVatOptions();
+    }
+
+    private void RefreshVatOptions()
+    {
+        foreach (var o in VatOptions)
+            o.IsSelected = o.Kind == CategoryVat;
+        OnPropertyChanged(nameof(CategoryVatLabel));
     }
 
     partial void OnCategoryHasBreadChanged(bool value)
@@ -288,6 +372,7 @@ public partial class MenuManagerViewModel : ObservableObject
             ExtraCatalogRows.Add(new ExtraCatalogRowViewModel
             {
                 Name = extra.Name,
+                NameText = extra.Name,
                 PriceText = extra.Price.ToString("0.00", Greek),
             });
         }
@@ -378,17 +463,23 @@ public partial class MenuManagerViewModel : ObservableObject
         list.Move(from, to);
     }
 
-    /// <summary>Μία γραμμή ανά κατηγορία που πραγματικά υποστηρίζει διπλή πίτα, με το τρέχον όνομά
-    /// της (όχι σταθερή λίστα) — έτσι δουλεύει σωστά ακόμα κι αν η κατηγορία έχει μετονομαστεί.</summary>
+    /// <summary>ΔΥΟ γραμμές, μία ανά μέγεθος πίτας — όσες πίτες έχει και το μαγαζί. Πριν έβγαινε μία
+    /// γραμμή ανά κατηγορία, οπότε οι ΠΙΤΤΕΣ και οι ΠΙΤΤΕΣ ΠΑΠΠΟΥ (ίδια ακριβώς μεγάλη πίτα) ζητούσαν
+    /// δύο φορές την ίδια τιμή και μπορούσαν να ξεσυγχρονιστούν σιωπηλά.</summary>
     private void RebuildDoublePitaRows()
     {
         DoublePitaRows.Clear();
-        foreach (var category in _store.Categories.Where(c => MenuStore.Instance.SupportsDoublePita(c.Name)))
+        foreach (var (key, label) in new[]
+                 {
+                     (MenuStore.SmallPitaKey, "ΜΙΚΡΗ ΠΙΤΑ"),
+                     (MenuStore.LargePitaKey, "ΜΕΓΑΛΗ ΠΙΤΑ"),
+                 })
         {
             DoublePitaRows.Add(new ExtraCatalogRowViewModel
             {
-                Name = category.Name,
-                PriceText = _store.DoublePitaPriceFor(category.Name).ToString("0.00", Greek),
+                Name = key,
+                NameText = label,
+                PriceText = _store.DoublePitaPrices.GetValueOrDefault(key).ToString("0.00", Greek),
             });
         }
     }
@@ -439,7 +530,9 @@ public partial class MenuManagerViewModel : ObservableObject
         Flash("✓ Προστέθηκε το έξτρα");
     }
 
-    /// <summary>Αλλαγή τιμής υπάρχοντος έξτρα από τη γενική λίστα διαχείρισης.</summary>
+    /// <summary>Αποθηκεύει όνομα ΚΑΙ τιμή του έξτρα από τη γενική λίστα διαχείρισης — ένα κουμπί για τη
+    /// γραμμή, ώστε μια διόρθωση ορθογραφίας να μη χρειάζεται διαγραφή και ξαναγράψιμο (που θα έσβηνε
+    /// το έξτρα από όλα τα προϊόντα που το είχαν).</summary>
     [RelayCommand]
     private void UpdateExtraPrice(ExtraCatalogRowViewModel row)
     {
@@ -449,9 +542,32 @@ public partial class MenuManagerViewModel : ObservableObject
                 "Τιμή έξτρα", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
+        var newName = row.NameText.Trim();
+        if (newName.Length == 0)
+        {
+            MessageBox.Show("Το έξτρα πρέπει να έχει όνομα.", "Όνομα έξτρα",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            row.NameText = row.Name;
+            return;
+        }
+        if (newName != row.Name
+            && _store.Extras.Any(e => e.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("Υπάρχει ήδη έξτρα με αυτό το όνομα.", "Όνομα έξτρα",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            row.NameText = row.Name;
+            return;
+        }
+
+        // Πρώτα η τιμή (με το παλιό κλειδί), μετά η μετονομασία — αλλιώς η τιμή θα έψαχνε όνομα που
+        // δεν υπάρχει πια και θα χανόταν σιωπηλά.
         _store.UpdateExtraPrice(row.Name, price);
+        var renamed = newName != row.Name;
+        if (renamed)
+            _store.RenameExtra(row.Name, newName);
         RebuildExtraToggles();
-        Flash("✓ Ενημερώθηκε η τιμή");
+        Flash(renamed ? "✓ Αποθηκεύτηκε" : "✓ Ενημερώθηκε η τιμή");
     }
 
     /// <summary>Μετακίνηση έξτρα με σύρσιμο μέσα στον κοινό κατάλογο — η σειρά εδώ είναι και η σειρά
@@ -517,6 +633,7 @@ public partial class MenuManagerViewModel : ObservableObject
                 HasBread = MenuSeed.HasBreadChoice(upper),
                 FuseBreadIntoName = MenuSeed.FuseBreadIntoName(upper),
                 SupportsDoublePita = MenuSeed.SupportsDoublePita(upper),
+                VatKind = MenuSeed.GuessVatKind(upper),
             };
             _store.Categories.Add(category);
             _store.Save();

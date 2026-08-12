@@ -527,6 +527,41 @@ public partial class HistoryViewModel : ObservableObject
         ShowChannelMenu = false;
     }
 
+    /// <summary>
+    /// Αναζήτηση παραγγελίας από τον αριθμό της. Μόνο ψηφία — ό,τι άλλο πληκτρολογηθεί αγνοείται,
+    /// ώστε να μη βγάζει «κανένα αποτέλεσμα» επειδή ξέφυγε ένα γράμμα.
+    /// </summary>
+    [ObservableProperty]
+    private string _searchNumber = "";
+
+    partial void OnSearchNumberChanged(string value)
+    {
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits != value)
+        {
+            SearchNumber = digits; // ξαναμπαίνει εδώ, καθαρό
+            return;
+        }
+        OnPropertyChanged(nameof(IsSearching));
+        Refresh();
+    }
+
+    public bool IsSearching => SearchNumber.Length > 0;
+
+    [RelayCommand]
+    private void ClearSearch() => SearchNumber = "";
+
+    /// <summary>Τι λέει η οθόνη όταν η λίστα είναι άδεια — αλλιώς «Καμία παραγγελία σήμερα» σε αναζήτηση
+    /// παλιάς παραγγελίας διαβάζεται σαν να χάθηκε.</summary>
+    public string NoOrdersLabel => IsSearching
+        ? $"Δεν βρέθηκε παραγγελία #{SearchNumber} σε όλο το ιστορικό"
+        : "Καμία παραγγελία";
+
+    /// <summary>Ταιριάζει ό,τι ΠΕΡΙΕΧΕΙ τα ψηφία: «14» φέρνει #14, #142, #514 — ο ταμίας συχνά θυμάται
+    /// μόνο τα τελευταία νούμερα από το δελτίο.</summary>
+    private static IEnumerable<CompletedOrder> Matching(IEnumerable<CompletedOrder> orders, string search) =>
+        orders.Where(o => o.OrderNumber.ToString().Contains(search));
+
     /// <summary>Περνάει το φίλτρο καναλιού πάνω στις παραγγελίες της περιόδου.</summary>
     private IEnumerable<CompletedOrder> ApplyChannelFilter(IEnumerable<CompletedOrder> orders) =>
         ChannelFilter switch
@@ -542,15 +577,21 @@ public partial class HistoryViewModel : ObservableObject
 
     private void Refresh()
     {
-        var from = FromDate ?? DateTime.MinValue;
-        var to = ToDate ?? DateTime.MaxValue;
+        // Αναζήτηση με αριθμό: ψάχνει ΟΛΟ το ιστορικό και αγνοεί ημερομηνίες και φίλτρο καναλιού —
+        // όποιος ψάχνει «την #142» δεν ξέρει ποια μέρα ήταν, ούτε από πού είχε έρθει.
+        var search = SearchNumber.Trim();
+        var searching = search.Length > 0;
+
+        var from = searching ? DateTime.MinValue : FromDate ?? DateTime.MinValue;
+        var to = searching ? DateTime.MaxValue : ToDate ?? DateTime.MaxValue;
         var today = SalesStatsService.BusinessDay(DateTime.Now);
-        var includesToday = from.Date <= today && today <= to.Date;
+        var includesToday = searching || (from.Date <= today && today <= to.Date);
 
         var archivedOrders = HistoryArchiveService.LoadOrders(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
         var liveOrders = includesToday ? _stats.Orders : Enumerable.Empty<CompletedOrder>();
-        Orders = ApplyChannelFilter(archivedOrders.Concat(liveOrders))
+        var allOrders = archivedOrders.Concat(liveOrders);
+        Orders = (searching ? Matching(allOrders, search) : ApplyChannelFilter(allOrders))
             .OrderByDescending(o => o.PlacedAt).ToList();
         Entries = BuildEntries(Orders);
         NoOrders = Entries.Count == 0;
@@ -561,9 +602,13 @@ public partial class HistoryViewModel : ObservableObject
         var archivedCancellations = HistoryArchiveService.LoadCancellations(from, to)
             .Where(c => SalesStatsService.BusinessDay(c.CancelledAt) != today);
         var liveCancellations = includesToday ? _cancellations.Entries : Enumerable.Empty<CancelledLine>();
+        var allCancellations = archivedCancellations.Concat(liveCancellations);
+        // Η αναζήτηση πιάνει και τα ΑΚΥΡΩΜΕΝΑ: «πού πήγε η #142» έχει απάντηση και όταν ακυρώθηκε.
+        if (searching)
+            allCancellations = allCancellations.Where(c => c.OrderNumber.ToString().Contains(search));
         // Ομαδοποίηση ανά (παραγγελία, ακριβές instant) — γραμμές που ακυρώθηκαν μαζί (π.χ. ολόκληρος
         // γύρος) γίνονται μία κάρτα αντί να εμφανίζονται σαν ξεχωριστά προϊόντα.
-        CancelledEntries = archivedCancellations.Concat(liveCancellations)
+        CancelledEntries = allCancellations
             .GroupBy(c => (c.OrderNumber, c.CancelledAt))
             .Select(g => new CancelledEntryViewModel
             {
@@ -580,7 +625,11 @@ public partial class HistoryViewModel : ObservableObject
         NoDiscountEntries = DiscountEntries.Count == 0;
 
         OnPropertyChanged(nameof(Orders));
+        // ΧΩΡΙΣ ΑΥΤΟ η λίστα δεν ξαναζωγραφίζεται ποτέ: δένεται στο Entries, όχι στο Orders — γι' αυτό
+        // «δεν δούλευε το φίλτρο» (ούτε η αλλαγή ημερομηνίας ούτε οι νέες παραγγελίες φαίνονταν).
+        OnPropertyChanged(nameof(Entries));
         OnPropertyChanged(nameof(NoOrders));
+        OnPropertyChanged(nameof(NoOrdersLabel));
         OnPropertyChanged(nameof(NothingSelected));
         OnPropertyChanged(nameof(CancelledEntries));
         OnPropertyChanged(nameof(NoCancelledEntries));

@@ -146,8 +146,12 @@ public partial class ReceiptWindow : Window
         // Ορίζονται ΠΡΙΝ μπουν οι γραμμές στο δέντρο — τα Loaded handlers παρακάτω τα διαβάζουν.
         // Λεπτομέρειες (έξτρα/χωρίς) και τιμή ακολουθούν ΑΝΑΛΟΓΙΚΑ το όνομα του προϊόντος — μία ρύθμιση
         // κινεί ολόκληρη τη γραμμή, κρατώντας πάντα την ίδια ιεραρχία: όνομα > έξτρα > τιμή.
-        _itemsFontSize = s.ReceiptItemsFontSize;
-        _detailsFontSize = s.ReceiptItemsFontSize * (10.5 / 13.0);
+        // Το όνομα του προϊόντος βγαίνει ΜΕΓΑΛΥΤΕΡΟ από τη ρύθμιση (×1,2) και έντονο (βλ. XAML): είναι
+        // αυτό που διαβάζει βιαστικά ο ψήστης πάνω από τη σχάρα. Οι λεπτομέρειες (έξτρα/χωρίς) και η
+        // τιμή κρεμιούνται από ΑΥΤΟ, οπότε μεγαλώνουν αναλογικά και η ιεραρχία μένει ίδια:
+        // όνομα > έξτρα > τιμή.
+        _itemsFontSize = s.ReceiptItemsFontSize * 1.2;
+        _detailsFontSize = _itemsFontSize * (10.5 / 13.0);
         _priceFontSize = s.ReceiptItemsFontSize * 0.75;
 
         TitleText.FontSize = s.ReceiptTitleFontSize;
@@ -155,6 +159,19 @@ public partial class ReceiptWindow : Window
         TotalText.FontSize = s.ReceiptTotalFontSize;
         PaidMarkText.FontSize = s.ReceiptTotalFontSize;
         TotalLabelText.FontSize = s.ReceiptTotalFontSize * (17.0 / 20.0);
+
+        // Ανάλυση ΦΠΑ κάτω από το ΣΥΝΟΛΟ — μικρότερη από αυτό: δεν είναι το ποσό που πληρώνει ο
+        // πελάτης, είναι τα δύο νούμερα για την ταμειακή μηχανή.
+        var vat = VatBreakdownService.Split(order);
+        var vatFontSize = s.ReceiptTotalFontSize * 0.6;
+        foreach (var tb in new[] { VatReducedLabel, VatReducedAmount, VatStandardLabel, VatStandardAmount })
+            tb.FontSize = vatFontSize;
+        VatReducedAmount.Text = vat.ReducedLabel;
+        VatStandardAmount.Text = vat.StandardLabel;
+        // Παραγγελία μόνο με φαγητό δεν χρειάζεται γραμμή «ΜΕ 24% 0,00» — και αντίστροφα.
+        VatReducedRow.Visibility = vat.HasReduced ? Visibility.Visible : Visibility.Collapsed;
+        VatStandardRow.Visibility = vat.HasStandard ? Visibility.Visible : Visibility.Collapsed;
+        VatBlock.Visibility = vat.HasReduced || vat.HasStandard ? Visibility.Visible : Visibility.Collapsed;
 
         InfoText.FontSize = s.ReceiptMetaFontSize;
         // ΠΕΛΑΤΗΣ/ΠΛΗΡΩΜΗ στο απλό μέγεθος meta (όχι μεγεθυμένο): είναι δευτερεύουσα πληροφορία δίπλα

@@ -23,7 +23,8 @@
                 </StackPanel.InputBindings>
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="11.5"
-                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"
+                               Visibility="{Binding ShowTotal, Converter={StaticResource BoolToVis}}"/>
                     <TextBlock Text="{Binding Header}" FontSize="11.5" FontWeight="ExtraBold"
                                Foreground="{DynamicResource Neutral600}"/>
                 </DockPanel>

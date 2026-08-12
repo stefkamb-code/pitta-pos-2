@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Globalization;
+using System.IO;
 using System.Text.Json;
 using System.Windows.Threading;
 using PittaPos.Core.Data;
@@ -39,7 +40,15 @@ public class MenuStore
         public List<ExtraItem> Extras { get; set; } = [];
         public Dictionary<string, decimal> DoublePitaPrices { get; set; } = [];
         public List<string> Ingredients { get; set; } = [];
+
+        /// <summary>Έχει γίνει το ΜΙΑ ΦΟΡΑ αλφαβητικό στρώσιμο των έξτρα (βλ. SortExtrasAlphabetically);
+        /// Μένει μέσα στο menu.json ώστε να μη γίνει ποτέ δεύτερη φορά και σβήσει τη σειρά που έφτιαξε
+        /// στο μεταξύ ο ταμίας με σύρσιμο.</summary>
+        public bool ExtrasSortedOnce { get; set; }
     }
+
+    /// <summary>Βλ. <see cref="MenuData.ExtrasSortedOnce"/> — κρατιέται εδώ για να ξαναγραφτεί στο αρχείο.</summary>
+    private bool _extrasSortedOnce;
 
     /// <summary>Σηκώνεται σε κάθε αποθήκευση — τα ανοιχτά παράθυρα ξαναχτίζουν το μενού τους.</summary>
     public event Action? Changed;
@@ -62,6 +71,22 @@ public class MenuStore
         }
         Load();
         MigrateCategoryFlags();
+        SortExtrasOnce();
+    }
+
+    /// <summary>
+    /// Στρώνει ΜΙΑ ΦΟΡΑ όλα τα έξτρα αλφαβητικά — η αλφαβητική σειρά είναι απλώς η ΒΑΣΗ («βάλ' τα
+    /// αλφαβητικά και μετά αλλάζω εγώ ό,τι θέλω»), χωρίς να χρειάζεται να πατηθεί τίποτα. Ο δείκτης
+    /// γράφεται μέσα στο menu.json, οπότε δεν ξαναγίνεται ποτέ: μια δεύτερη φορά θα έσβηνε τη σειρά
+    /// που έχει φτιάξει στο μεταξύ ο ταμίας με σύρσιμο. Δεν υπάρχει κουμπί που να το ξανατρέχει —
+    /// επίτηδες, γιατί ακριβώς αυτό θα ήταν ένα κουμπί «σβήσε τη δουλειά μου».
+    /// </summary>
+    private void SortExtrasOnce()
+    {
+        if (_extrasSortedOnce)
+            return;
+        _extrasSortedOnce = true;
+        SortExtrasAlphabetically();
     }
 
     /// <summary>
@@ -92,9 +117,47 @@ public class MenuStore
                 c.SupportsDoublePita = MenuSeed.SupportsDoublePita(c.Name);
                 changed = true;
             }
+            if (c.VatKind is null)
+            {
+                c.VatKind = MenuSeed.GuessVatKind(c.Name);
+                changed = true;
+            }
+            if (c.DoublePitaLarge is null)
+            {
+                c.DoublePitaLarge = MenuSeed.GuessLargePita(c.Name);
+                changed = true;
+            }
         }
-        if (changed)
+        if (changed | MigrateDoublePitaPrices())
             SaveToDisk();
+    }
+
+    /// <summary>
+    /// Μεταφέρει τις χρεώσεις διπλής πίτας από «μία ανά κατηγορία» σε «μία ανά μέγεθος». Παλιά, τρεις
+    /// κατηγορίες μεγάλης πίτας σήμαιναν τρεις γραμμές χρέωσης που έπρεπε να μένουν ίδιες με το χέρι —
+    /// και μια ξεχασμένη έβγαζε άλλη τιμή στο ίδιο ακριβώς πράγμα.
+    /// <para>Η τιμή κάθε μεγέθους παίρνεται από την πρώτη κατηγορία εκείνου του μεγέθους που είχε
+    /// χρέωση — δηλαδή ΔΕΝ αλλάζει καμία τιμή που χρεώνεται σήμερα, απλώς παύει να είναι
+    /// τριπλογραμμένη.</para>
+    /// </summary>
+    private bool MigrateDoublePitaPrices()
+    {
+        if (DoublePitaPrices.ContainsKey(SmallPitaKey) || DoublePitaPrices.ContainsKey(LargePitaKey))
+            return false;
+
+        decimal PriceOfFirst(bool large) => Categories
+            .Where(c => (c.SupportsDoublePita ?? MenuSeed.SupportsDoublePita(c.Name))
+                && (c.DoublePitaLarge ?? MenuSeed.GuessLargePita(c.Name)) == large)
+            .Select(c => DoublePitaPrices.GetValueOrDefault(c.Name))
+            .FirstOrDefault(p => p > 0);
+
+        var small = PriceOfFirst(large: false);
+        var large = PriceOfFirst(large: true);
+        DoublePitaPrices.Clear();
+        DoublePitaPrices[SmallPitaKey] = small;
+        DoublePitaPrices[LargePitaKey] = large;
+        AppLog.Write("menu", $"χρέωση διπλής πίτας ανά μέγεθος: μικρή {small:0.00}, μεγάλη {large:0.00}");
+        return true;
     }
 
     /// <summary>Βρίσκει την κατηγορία με αυτό το όνομα — οι υπόλοιπες μέθοδοι δουλεύουν με ετικέτα
@@ -238,6 +301,7 @@ public class MenuStore
                     Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
                     DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
                     Ingredients = data.Ingredients.Count > 0 ? data.Ingredients : SeedIngredientsCopy();
+                    _extrasSortedOnce = data.ExtrasSortedOnce;
                     // Καταγράφεται και η επιτυχία: χωρίς αυτό, μια αναφορά «βλέπω λάθος κατάλογο» δεν
                     // ξεχωρίζει από «δεν άνοιξε καν η εφαρμογή» — δεν υπάρχει τίποτα στο αρχείο.
                     Trace($"φορτώθηκε: {Categories.Count} κατηγορίες, {Extras.Count} έξτρα " +
@@ -308,6 +372,7 @@ public class MenuStore
             Extras = data.Extras.Count > 0 ? data.Extras : SeedExtrasCopy();
             DoublePitaPrices = data.DoublePitaPrices.Count > 0 ? data.DoublePitaPrices : SeedDoublePitaPrices();
             Ingredients = data.Ingredients.Count > 0 ? data.Ingredients : SeedIngredientsCopy();
+            _extrasSortedOnce = data.ExtrasSortedOnce;
             LoadFailed = false;
             AppLog.Write("menu", $"ο κατάλογος ανακτήθηκε με την {attempts}η προσπάθεια: {Categories.Count} κατηγορίες");
             Changed?.Invoke();
@@ -364,8 +429,25 @@ public class MenuStore
     private static Dictionary<string, decimal> SeedDoublePitaPrices() =>
         new(MenuSeed.DoublePitaPrices);
 
-    /// <summary>Χρέωση διπλής πίτας για μια κατηγορία (0 αν δεν έχει ρυθμιστεί ή δεν υποστηρίζεται).</summary>
-    public decimal DoublePitaPriceFor(string categoryLabel) => DoublePitaPrices.GetValueOrDefault(categoryLabel);
+    /// <summary>Τα ΔΥΟ μοναδικά κλειδιά χρέωσης διπλής πίτας. Το μαγαζί έχει δύο πίτες — μικρή και
+    /// μεγάλη — όχι μία ανά κατηγορία (βλ. <see cref="MenuCategory.DoublePitaLarge"/>).</summary>
+    public const string SmallPitaKey = "ΜΙΚΡΗ";
+    public const string LargePitaKey = "ΜΕΓΑΛΗ";
+
+    /// <summary>Είναι μεγάλη η πίτα αυτής της κατηγορίας; Fallback στο όνομα μόνο για κατηγορία που
+    /// δεν βρέθηκε καθόλου (π.χ. παραγγελία από κινητό με κατηγορία που μόλις διαγράφηκε).</summary>
+    public bool IsLargePita(string categoryLabel) =>
+        FindCategory(categoryLabel)?.DoublePitaLarge ?? MenuSeed.GuessLargePita(categoryLabel);
+
+    /// <summary>Το κλειδί χρέωσης της κατηγορίας — μικρή ή μεγάλη.</summary>
+    public string PitaSizeKeyFor(string categoryLabel) =>
+        IsLargePita(categoryLabel) ? LargePitaKey : SmallPitaKey;
+
+    /// <summary>Χρέωση διπλής πίτας για μια κατηγορία (0 αν δεν έχει ρυθμιστεί ή δεν υποστηρίζεται).
+    /// Η υπογραφή μένει «ανά κατηγορία» επίτηδες: έτσι ούτε ο customizer ούτε το κινητό χρειάστηκε να
+    /// αλλάξουν — μόνο το τι κρύβεται από πίσω.</summary>
+    public decimal DoublePitaPriceFor(string categoryLabel) =>
+        SupportsDoublePita(categoryLabel) ? DoublePitaPrices.GetValueOrDefault(PitaSizeKeyFor(categoryLabel)) : 0m;
 
     /// <summary>Αποθήκευση + ειδοποίηση όλων των οθονών.</summary>
     public void Save()
@@ -400,7 +482,14 @@ public class MenuStore
 
         try
         {
-            var data = new MenuData { Categories = Categories, Extras = Extras, DoublePitaPrices = DoublePitaPrices, Ingredients = Ingredients };
+            var data = new MenuData
+            {
+                Categories = Categories,
+                Extras = Extras,
+                DoublePitaPrices = DoublePitaPrices,
+                Ingredients = Ingredients,
+                ExtrasSortedOnce = _extrasSortedOnce,
+            };
             AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(data, JsonOpts));
         }
         catch (Exception)
@@ -456,6 +545,49 @@ public class MenuStore
         Save();
     }
 
+    /// <summary>
+    /// Βάζει ΟΛΑ τα έξτρα σε αλφαβητική σειρά — και τον κοινό κατάλογο και τη σειρά μέσα σε κάθε
+    /// προϊόν που έχει δικά του (<see cref="Product.ExtraNames"/>), αλλιώς η σειρά θα άλλαζε μόνο
+    /// στα μισά προϊόντα. Σημείο εκκίνησης για να τα ξαναδιατάξει μετά ο ταμίας με σύρσιμο.
+    /// <para>Ελληνικό αλφάβητο ρητά (el-GR): με άλλη γλώσσα συστήματος τα τονούμενα και το «ς»
+    /// έμπαιναν σε λάθος θέση.</para>
+    /// </summary>
+    public void SortExtrasAlphabetically()
+    {
+        var alphabet = StringComparer.Create(CultureInfo.GetCultureInfo("el-GR"), ignoreCase: true);
+        Extras.Sort((a, b) => alphabet.Compare(a.Name, b.Name));
+        foreach (var product in Categories.SelectMany(c => c.Products))
+            product.ExtraNames?.Sort(alphabet);
+        Save();
+    }
+
+    /// <summary>
+    /// Μετονομασία έξτρα. Το όνομα είναι και το ΚΛΕΙΔΙ με το οποίο κάθε προϊόν δηλώνει ποια έξτρα
+    /// δέχεται (<see cref="Product.ExtraNames"/>), οπότε αλλάζει και εκεί — αλλιώς το έξτρα θα
+    /// εξαφανιζόταν σιωπηλά από όσα προϊόντα το είχαν ρητά επιλεγμένο.
+    /// <para>Οι ΠΑΛΙΕΣ παραγγελίες δεν πειράζονται επίτηδες: το ιστορικό πρέπει να δείχνει τι
+    /// γράφτηκε τότε, όχι πώς λέγεται σήμερα το υλικό.</para>
+    /// </summary>
+    public void RenameExtra(string oldName, string newName)
+    {
+        var extra = Extras.FirstOrDefault(e => e.Name == oldName);
+        if (extra is null || oldName == newName)
+            return;
+
+        // Το ExtraItem κρατά το όνομα ως init-only (είναι κλειδί): μπαίνει νέο στη ΘΕΣΗ του παλιού,
+        // ώστε να μη χαλάσει η σειρά που έχει φτιάξει ο ταμίας με σύρσιμο.
+        Extras[Extras.IndexOf(extra)] = new ExtraItem { Name = newName, Price = extra.Price };
+        foreach (var product in Categories.SelectMany(c => c.Products))
+        {
+            if (product.ExtraNames is not { } names)
+                continue;
+            for (var i = 0; i < names.Count; i++)
+                if (names[i] == oldName)
+                    names[i] = newName;
+        }
+        Save();
+    }
+
     /// <summary>Αλλαγή τιμής υπάρχοντος έξτρα — δεν αγγίζει ποια προϊόντα το επιτρέπουν.</summary>
     public void UpdateExtraPrice(string name, decimal price)
     {
@@ -466,24 +598,22 @@ public class MenuStore
         Save();
     }
 
-    /// <summary>Αλλαγή χρέωσης διπλής πίτας για μία κατηγορία.</summary>
-    public void UpdateDoublePitaPrice(string categoryLabel, decimal price)
+    /// <summary>Αλλαγή χρέωσης διπλής πίτας για ένα ΜΕΓΕΘΟΣ (<see cref="SmallPitaKey"/>/<see cref="LargePitaKey"/>) —
+    /// πιάνει μονομιάς όλες τις κατηγορίες εκείνου του μεγέθους.</summary>
+    public void UpdateDoublePitaPrice(string sizeKey, decimal price)
     {
-        DoublePitaPrices[categoryLabel] = price;
+        DoublePitaPrices[sizeKey] = price;
         Save();
     }
 
     /// <summary>
-    /// Μετονομασία κατηγορίας — μεταφέρει ΜΑΖΙ και τη χρέωση διπλής πίτας, που είναι αποθηκευμένη με
-    /// κλειδί το όνομα. Χωρίς αυτό, μια απλή μετονομασία άφηνε τη χρέωση «ορφανή» στο παλιό όνομα και
-    /// η διπλή πίτα άρχιζε σιωπηλά να χρεώνεται 0€ — χωρίς κανένα μήνυμα ούτε ορατή αλλαγή.
+    /// Μετονομασία κατηγορίας. Η χρέωση διπλής πίτας ΔΕΝ χρειάζεται πια μεταφορά: κλειδώνει στο
+    /// μέγεθος (ΜΙΚΡΗ/ΜΕΓΑΛΗ) και όχι στο όνομα της κατηγορίας — παλιότερα μια μετονομασία άφηνε τη
+    /// χρέωση ορφανή στο παλιό όνομα και η διπλή πίτα άρχιζε σιωπηλά να χρεώνεται 0€.
     /// </summary>
     public void RenameCategory(MenuCategory category, string newName)
     {
-        var oldName = category.Name;
         category.Name = newName;
-        if (oldName != newName && DoublePitaPrices.Remove(oldName, out var price))
-            DoublePitaPrices[newName] = price;
         Save();
     }
 

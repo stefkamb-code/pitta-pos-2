@@ -50,8 +50,17 @@
                                         <DockPanel Margin="0,0,0,6">
                                             <TextBlock DockPanel.Dock="Right" Text="{Binding OutstandingLabel}"
                                                        FontSize="15" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                            <!-- «Το ΑΤΟΜΟ Β θέλει και μια κόκα κόλα»: γράφεται στη ΔΙΚΗ του
+                                                 απόδειξη, δεν ανοίγει νέο άτομο. -->
+                                            <Button DockPanel.Dock="Right" Content="+ ΠΡΟΣΘΗΚΗ" Margin="0,0,10,0"
+                                                    Style="{StaticResource FlatButton}" Padding="10,4" FontSize="10.5"
+                                                    FontWeight="ExtraBold" VerticalAlignment="Center"
+                                                    ToolTip="Πρόσθεσε κι άλλο σε αυτό το άτομο"
+                                                    Visibility="{Binding CanAddMore, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.AddToPersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
                                             <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="ExtraBold"
-                                                       Foreground="{DynamicResource Ink}"/>
+                                                       Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
                                         </DockPanel>
 
                                         <ItemsControl ItemsSource="{Binding Lines}" Margin="0,0,0,8">

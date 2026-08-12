@@ -241,8 +241,26 @@ public partial class OrderBoardService : ObservableObject
         // απάντηση — αλλιώς θα εμφανιζόταν δύο φορές στον πίνακα ζωντανών παραγγελιών.
         if (Orders.Any(o => o.OrderNumber == order.OrderNumber))
             return;
+        AutoDispatchPlatform(order);
         Orders.Add(order);
         Notify();
+    }
+
+    /// <summary>
+    /// Wolt και e-food περνάνε ΜΟΝΕΣ τους στο κανάλι τους, χωρίς να σταθούν στην αναμονή: τις παραδίδει
+    /// η ίδια η πλατφόρμα, οπότε το «ΠΕΡΑΣΕ ΤΗΝ ΣΕ» έχει ούτως ή άλλως ένα μόνο πιθανό κουμπί (βλ.
+    /// LiveOrdersViewModel.AllowedChannels) — ήταν ένα πάτημα που δεν αποφάσιζε τίποτα και μόνο γέμιζε
+    /// την αναμονή. Το BOX ΔΕΝ μπαίνει εδώ: το παραδίδει δικός μας διανομέας και ο ταμίας διαλέγει
+    /// ακόμα μετρητά/κάρτα.
+    /// </summary>
+    private static void AutoDispatchPlatform(BoardOrder order)
+    {
+        if (order.Type != OrderType.Apps || !order.IsPending)
+            return;
+        if (order.Channel is not ("Wolt" or "e-food"))
+            return;
+        order.SentVia = order.Channel;
+        order.SentAt = DateTime.Now;
     }
 
     /// <summary>Δεύτερο ταμείο — προσθήκη στον πίνακα· αν δεν φτάσει στο κύριο ταμείο μπαίνει σε ουρά

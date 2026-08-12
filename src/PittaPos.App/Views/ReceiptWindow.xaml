@@ -112,7 +112,9 @@
             <ItemsControl x:Name="LinesList">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type svc:SoldLine}">
-                        <StackPanel Margin="0,6">
+                        <!-- Μεγαλύτερο κενό ανάμεσα στα προϊόντα: στο στενό χαρτί, με τα ονόματα να
+                             αναδιπλώνονται, τα διπλανά προϊόντα «κολλούσαν» και διαβάζονταν σαν ένα. -->
+                        <StackPanel Margin="0,11">
                             <DockPanel>
                                 <!-- Loaded: το πραγματικό μέγεθος μπαίνει όταν το στοιχείο μπει στο
                                      δέντρο (βλ. ItemText_Loaded). Οι τιμές εδώ είναι απλώς η αφετηρία
@@ -125,7 +127,8 @@
                                 <!-- TextWrapping: σε στενό χαρτί (72mm) ένα μεγάλο όνομα προϊόντος ΔΕΝ
                                      χωράει σε μία γραμμή — χωρίς αναδίπλωση κοβόταν στην άκρη και ο
                                      υπάλληλος έβλεπε μισό όνομα. Τώρα συνεχίζει από κάτω. -->
-                                <TextBlock Text="{Binding QtyNameLabel}" FontSize="13" Foreground="Black"
+                                <TextBlock Text="{Binding QtyNameLabel}" FontSize="13" FontWeight="Bold"
+                                           Foreground="Black"
                                            TextWrapping="Wrap" Loaded="ItemText_Loaded"/>
                             </DockPanel>
                             <!-- Καθαρό μαύρο, όχι γκρι — ο ταμίας ζήτησε ρητά «καθαρό λεπτό μαύρο» για το
@@ -153,6 +156,19 @@
                                VerticalAlignment="Bottom"/>
                 </DockPanel>
             </Border>
+            <!-- Ανάλυση ΦΠΑ: πόσο από το σύνολο πάει με 13% και πόσο με 24% — ακριβώς τα δύο νούμερα
+                 που πληκτρολογούνται στην ταμειακή μηχανή. Φαγητά και αναψυκτικά 13%, ποτά 24%· στο
+                 ΤΡΑΠΕΖΙ όμως και τα αναψυκτικά πάνε 24% (βλ. VatBreakdownService). -->
+            <StackPanel x:Name="VatBlock" Margin="0,8,0,0" Visibility="Collapsed">
+                <DockPanel x:Name="VatReducedRow" Margin="0,2,0,0">
+                    <TextBlock x:Name="VatReducedAmount" DockPanel.Dock="Right" FontWeight="ExtraBold" Foreground="Black"/>
+                    <TextBlock x:Name="VatReducedLabel" Text="ΜΕ 13%" Foreground="Black"/>
+                </DockPanel>
+                <DockPanel x:Name="VatStandardRow" Margin="0,2,0,0">
+                    <TextBlock x:Name="VatStandardAmount" DockPanel.Dock="Right" FontWeight="ExtraBold" Foreground="Black"/>
+                    <TextBlock x:Name="VatStandardLabel" Text="ΜΕ 24%" Foreground="Black"/>
+                </DockPanel>
+            </StackPanel>
             <!-- Ο τύπος και ο αριθμός ΞΑΝΑ στο τέλος (πριν εδώ ήταν το «Ευχαριστούμε»). Έντονα και στο
                  μέγεθος της κορυφής: η απόδειξη κρεμιέται και το θηλύκωμα κρύβει τη μια της άκρη. -->
             <TextBlock x:Name="FooterText" FontSize="15" FontWeight="ExtraBold" Foreground="Black"

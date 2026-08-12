@@ -34,9 +34,9 @@
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,18"/>
 
                 <!-- double pita surcharge -->
-                <TextBlock Text="ΔΙΠΛΗ ΠΙΤΑ — ΧΡΕΩΣΗ ΑΝΑ ΚΑΤΗΓΟΡΙΑ" FontSize="12" FontWeight="ExtraBold"
+                <TextBlock Text="ΔΙΠΛΗ ΠΙΤΑ — ΧΡΕΩΣΗ ΑΝΑ ΜΕΓΕΘΟΣ" FontSize="12" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
-                <TextBlock Text="Η επιπλέον χρέωση όταν ο πελάτης ζητήσει διπλή πίτα, ξεχωριστή για ΤΥΛΙΧΤΑ και ΚΛΑΣΙΚΑ ΜΙΝΙ."
+                <TextBlock Text="Το μαγαζί έχει δύο πίτες. Η τιμή που βάζεις εδώ ισχύει σε ΟΛΕΣ τις κατηγορίες εκείνου του μεγέθους."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                 <ItemsControl ItemsSource="{Binding DoublePitaRows}" Margin="0,0,0,20">
                     <ItemsControl.ItemTemplate>
@@ -50,7 +50,7 @@
                                         <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                    <TextBlock Grid.Column="0" Text="{Binding NameText}" FontSize="13.5" FontWeight="SemiBold"
                                                Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
                                     <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="36"
                                              Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}"/>
@@ -91,6 +91,9 @@
                             VerticalAlignment="Bottom" Command="{Binding AddGlobalExtraCommand}"/>
                 </Grid>
 
+                <TextBlock Text="ΚΑΤΑΛΟΓΟΣ ΕΞΤΡΑ" FontSize="12" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Ink}" Margin="0,0,0,6"/>
+
                 <ItemsControl ItemsSource="{Binding ExtraCatalogRows}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:ExtraCatalogRowViewModel}">
@@ -116,11 +119,15 @@
                                         <TextBlock Text="⠿" FontSize="15" Foreground="{DynamicResource Neutral400}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                                    <!-- Το όνομα γράφεται κατευθείαν εδώ: μια ορθογραφική διόρθωση δεν
+                                         πρέπει να απαιτεί διαγραφή + ξαναγράψιμο, που θα έσβηνε το έξτρα
+                                         από όλα τα προϊόντα που το είχαν. -->
+                                    <TextBox Grid.Column="1" Style="{StaticResource PosTextBox}" Height="36"
+                                             FontSize="13.5" FontWeight="SemiBold"
+                                             Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}"/>
                                     <TextBox Grid.Column="3" Style="{StaticResource PosTextBox}" Height="36"
                                              Text="{Binding PriceText, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <Button Grid.Column="5" Content="ΕΝΗΜΕΡΩΣΗ" Style="{StaticResource FlatButton}"
+                                    <Button Grid.Column="5" Content="ΑΠΟΘΗΚΕΥΣΗ" Style="{StaticResource FlatButton}"
                                             Height="36" FontSize="10.5" FontWeight="ExtraBold" Padding="10,0"
                                             Command="{Binding DataContext.UpdateExtraPriceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}"/>

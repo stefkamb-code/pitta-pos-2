@@ -469,12 +469,9 @@
                                                                Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Content="✕" FontSize="10" Width="22" Height="22" Padding="0"
-                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0"
-                                                    Style="{StaticResource GlyphButton}" ToolTip="Κλείσιμο τραπεζιού"
-                                                    Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}"
-                                                    Command="{Binding DataContext.CloseTableCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
+                                            <!-- Δεν υπάρχει «✕» για γρήγορο κλείσιμο τραπεζιού: ένα κατά λάθος
+                                                 κλικ ελευθέρωνε τραπέζι χωρίς είσπραξη. Το τραπέζι κλείνει
+                                                 μόνο από την οθόνη του, με 💶 ΜΕΤΡΗΤΑ / 💳 ΚΑΡΤΑ. -->
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

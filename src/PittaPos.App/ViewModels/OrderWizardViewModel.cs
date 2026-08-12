@@ -127,6 +127,10 @@ public sealed class SentPersonViewModel
     public required List<SentPersonLineViewModel> Lines { get; init; }
 
     public string TotalLabel => Order.FormatPrice(Total);
+
+    /// <summary>Άτομο που φαίνεται μόνο για να πατηθεί (έχει παραγγείλει σε προηγούμενο γύρο, δεν του
+    /// γράφτηκε τίποτα τώρα): δεν δείχνει «0,00 €» — θα διαβαζόταν σαν να μην πήρε ποτέ τίποτα.</summary>
+    public bool ShowTotal => Lines.Count > 0;
 }
 
 /// <summary>Μία γραμμή ενός ήδη περασμένου ατόμου.</summary>
@@ -240,10 +244,6 @@ public partial class OrderWizardViewModel : ObservableObject
             // Με την έκπτωση παραγγελίας μέσα — ίδιος υπολογισμός με την οθόνη τραπεζιού.
             return x.l.Revenue / units * unpaid * (1 - o.OrderDiscountPct / 100m);
         }));
-
-    /// <summary>Ελευθερώνει τραπέζι — δεν ξανατυπώνει τίποτα, κάθε γύρος έχει ήδη τυπωθεί.</summary>
-    [RelayCommand]
-    private void CloseTable(TableOptionViewModel table) => TableStatusService.Instance.MarkClosed(table.Number);
 
     /// <summary>Λειτουργία «σύρε τα τραπέζια όπου θέλεις» στην κάτοψη, αντί για επιλογή τραπεζιού.</summary>
     [ObservableProperty]
@@ -851,19 +851,31 @@ public partial class OrderWizardViewModel : ObservableObject
         SentPersonsBelow.Clear();
         if (IsDeferredPersonRound)
         {
-            foreach (var person in _personDrafts.Keys.Where(p => p != TablePerson).Order())
+            // Και τα άτομα που είχαν παραγγείλει σε προηγούμενο γύρο: χωρίς αυτά, σε τραπέζι που έχει
+            // ήδη παραγγείλει η στήλη ήταν άδεια και δεν υπήρχε τρόπος να πας στον Β όταν ζητήσει κάτι
+            // ακόμα — έγραφες αναγκαστικά σε όποιον άνοιγε η οθόνη.
+            var shown = _personDrafts.Keys.Concat(_personsOrderedBefore)
+                .Where(p => p != TablePerson)
+                .Distinct()
+                .Order();
+            foreach (var person in shown)
             {
-                var draft = _personDrafts[person];
+                var draft = _personDrafts.GetValueOrDefault(person);
                 (person < TablePerson ? SentPersonsAbove : SentPersonsBelow).Add(new SentPersonViewModel
                 {
                     Person = person,
-                    // ✓ = τελειωμένος, ✎ = τον άφησες στη μέση. Και τα δύο πατιούνται και ανοίγουν.
-                    Header = (_personsDone.Contains(person) ? "✓ ΑΤΟΜΟ " : "✎ ΑΤΟΜΟ ") + TablePersonsService.Label(person),
-                    Total = draft.Total,
-                    Lines = draft.Lines
-                        .Select(l => new SentPersonLineViewModel(
-                            (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Total)))
-                        .ToList(),
+                    // ✓ = τελειωμένος, ✎ = τον άφησες στη μέση, + = έχει ήδη παραγγελία και δέχεται κι
+                    // άλλα. Και τα τρία πατιούνται και ανοίγουν.
+                    Header = (draft is null ? "+ ΑΤΟΜΟ "
+                        : _personsDone.Contains(person) ? "✓ ΑΤΟΜΟ "
+                        : "✎ ΑΤΟΜΟ ") + TablePersonsService.Label(person),
+                    Total = draft?.Total ?? 0m,
+                    Lines = draft is null
+                        ? []
+                        : draft.Lines
+                            .Select(l => new SentPersonLineViewModel(
+                                (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Total)))
+                            .ToList(),
                 });
             }
 
@@ -881,7 +893,8 @@ public partial class OrderWizardViewModel : ObservableObject
     }
 
     /// <summary>Ξεκινά καθαρή σειρά ατόμων για το τραπέζι (καλείται μόλις επιλεγεί).</summary>
-    private void BeginPersonSequence(int table)
+    /// <param name="startPerson">Σε ποιον γράφεται· -1 = στον πρώτο που δεν έχει παραγγείλει ακόμα.</param>
+    private void BeginPersonSequence(int table, int startPerson = -1)
     {
         TablePersonCount = TablePersonsService.Instance.CountFor(table);
         _tableRounds.Clear();
@@ -891,15 +904,26 @@ public partial class OrderWizardViewModel : ObservableObject
         _personDrafts.Clear();
         // Όσοι έχουν ΗΔΗ παραγγείλει (προηγούμενος γύρος, ή παραγγελία από το κινητό) δεν ξαναρωτιούνται:
         // ξεκινάμε από τον πρώτο που δεν έχει τίποτα — δηλαδή και από το άτομο που μόλις προστέθηκε.
+        _personsOrderedBefore.Clear();
         foreach (var p in TablePersonsService.Instance.PersonsWithItems(table))
+        {
             _personsDone.Add(p);
-        TablePerson = Enumerable.Range(0, Math.Max(1, TablePersonCount))
-            .FirstOrDefault(p => !_personsDone.Contains(p), 0);
+            _personsOrderedBefore.Add(p);
+        }
+        TablePerson = startPerson >= 0
+            ? startPerson
+            : Enumerable.Range(0, Math.Max(1, TablePersonCount))
+                .FirstOrDefault(p => !_personsDone.Contains(p), 0);
         RefreshPersonBlocks();
     }
 
-    /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ Νέα παραγγελία».</summary>
-    public void StartNewRoundForTable(int number)
+    /// <summary>Άτομα που είχαν ήδη παραγγείλει πριν ανοίξει αυτός ο γύρος — φαίνονται στη στήλη ακόμα
+    /// κι όταν δεν τους έχει γραφτεί τίποτα τώρα, ώστε να πατηθεί όποιος ζητήσει κάτι επιπλέον.</summary>
+    private readonly HashSet<int> _personsOrderedBefore = [];
+
+    /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ ΠΡΟΣΘΗΚΗ».</summary>
+    /// <param name="person">Σε ποιο άτομο γράφεται· -1 = στον πρώτο που δεν έχει παραγγείλει ακόμα.</param>
+    public void StartNewRoundForTable(int number, int person = -1)
     {
         // Ο τύπος δηλώνεται ΡΗΤΑ: η οθόνη τραπεζιού είναι ξεχωριστό παράθυρο και μπορεί να πατηθεί το
         // «+ Νέα παραγγελία» αφού ο ταμίας έχει ήδη ξεδιαλέξει το ΤΡΑΠΕΖΙ πίσω στην κάτοψη. Τότε ο
@@ -911,7 +935,7 @@ public partial class OrderWizardViewModel : ObservableObject
             t.IsSelected = t.Number == number;
         // Και στον δεύτερο γύρο ξαναπερνάει από τα άτομα: η παρέα ξαναπαραγγέλνει με τη σειρά, και το
         // καθένα προσθέτει στη ΔΙΚΗ ΤΟΥ απόδειξη (τα σύνολα βγαίνουν ανά άτομο, όχι ανά γύρο).
-        BeginPersonSequence(number);
+        BeginPersonSequence(number, person);
         AdvanceTo(3);
     }
 

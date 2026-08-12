@@ -57,6 +57,24 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Το ✕ πάνω δεξιά κλείνει ΟΛΟ το ταμείο — και μαζί σταματούν οι Ζωντανές Παραγγελίες, ο εκτυπωτής
+    /// και το API του σερβιτόρου. Πολύ ακριβό για ένα κατά λάθος κλικ, οπότε ρωτάει πρώτα.
+    /// Προεπιλογή το ΟΧΙ: με Enter/κενό πάτημα το πρόγραμμα μένει ανοιχτό.
+    /// </summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (e.Cancel)
+            return;
+
+        var answer = MessageBox.Show(this,
+            "Θέλεις σίγουρα να κλείσεις το πρόγραμμα;",
+            "Κλείσιμο " + AppIdentity.StoreName,
+            MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        e.Cancel = answer != MessageBoxResult.Yes;
+    }
+
     /// <summary>Κλικ στο κενό φόντο του Βήματος 1 = deselect (τα κουμπιά καταναλώνουν τα δικά τους κλικ).</summary>
     private void Step1Background_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

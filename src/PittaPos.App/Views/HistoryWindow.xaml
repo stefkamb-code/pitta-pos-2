@@ -167,6 +167,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -206,7 +207,40 @@
                                 Style="{StaticResource FlatButton}" Command="{Binding SelectTodayCommand}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="18,14">
+                    <!-- Αναζήτηση με αριθμό παραγγελίας. Ψάχνει ΟΛΟ το ιστορικό, όχι μόνο το εύρος
+                         ημερών που δείχνει η οθόνη — γι' αυτό το γράφει και δίπλα, ώστε να μην
+                         απορεί ο ταμίας που βλέπει παραγγελία εκτός ημερομηνιών. -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="18,12,18,0" VerticalAlignment="Center">
+                        <TextBlock Text="🔎" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                        <Grid Width="150">
+                            <TextBox x:Name="SearchBox" Style="{StaticResource PosTextBox}" FontSize="13"
+                                     FontWeight="ExtraBold" MaxLength="7"
+                                     Text="{Binding SearchNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="Αρ. παραγγελίας" FontSize="12" IsHitTestVisible="False"
+                                       Foreground="{DynamicResource Neutral500}" VerticalAlignment="Center"
+                                       Margin="10,0,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <Button Content="✕" FontSize="11" FontWeight="ExtraBold" Padding="10,6" Margin="8,0,0,0"
+                                Style="{StaticResource FlatButton}" ToolTip="Καθάρισε την αναζήτηση"
+                                Command="{Binding ClearSearchCommand}"
+                                Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text="ψάχνει σε ΟΛΟ το ιστορικό" FontSize="11" FontWeight="ExtraBold"
+                                   Foreground="{DynamicResource Accent700}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                   Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="18,14">
                         <Button Content="ΠΑΡΑΓΓΕΛΙΕΣ" FontSize="12" FontWeight="ExtraBold" Padding="12,7"
                                 Margin="0,0,8,0" Command="{Binding SelectOrdersTabCommand}">
                             <Button.Style>
@@ -303,10 +337,10 @@
                     </StackPanel>
 
                     <!-- ΠΑΡΑΓΓΕΛΙΕΣ -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding ShowOrdersTab, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="Καμία παραγγελία σήμερα" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
+                            <TextBlock Text="{Binding NoOrdersLabel}" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
                                        HorizontalAlignment="Center" Margin="0,24"
                                        Visibility="{Binding NoOrders, Converter={StaticResource BoolToVis}}"/>
                             <!-- ΜΙΑ γραμμή ανά λογαριασμό: το τραπέζι της παρέας είναι ένα, ακόμα κι αν
@@ -361,7 +395,7 @@
                     </ScrollViewer>
 
                     <!-- ΑΚΥΡΩΜΕΝΑ -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding ShowCancelledTab, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="Καμία ακύρωση σήμερα" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
@@ -416,7 +450,7 @@
                     </ScrollViewer>
 
                     <!-- ΕΚΠΤΩΣΕΙΣ -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
                                   Visibility="{Binding ShowDiscountsTab, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="Καμία έκπτωση σήμερα" FontSize="12.5" Foreground="{DynamicResource Neutral500}"

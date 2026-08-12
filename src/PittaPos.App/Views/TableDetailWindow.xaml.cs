@@ -13,16 +13,17 @@ public partial class TableDetailWindow : Window
         _vm = new TableDetailViewModel(table);
         DataContext = _vm;
         Closed += (_, _) => _vm.Detach();
-        _vm.NewRoundRequested += () =>
+        _vm.NewRoundRequested += person =>
         {
-            NewRoundRequested?.Invoke(_vm.TableNumber);
+            NewRoundRequested?.Invoke(_vm.TableNumber, person);
             Close();
         };
         _vm.TableClosed += Close;
     }
 
-    /// <summary>Ζητά νέο γύρο για το τραπέζι — ο ακροατής (MainWindow) προωθεί στο βήμα προϊόντων.</summary>
-    public event Action<int>? NewRoundRequested;
+    /// <summary>Ζητά νέο γύρο για το τραπέζι — ο ακροατής (MainWindow) προωθεί στο βήμα προϊόντων.
+    /// Δεύτερη παράμετρος: σε ποιο άτομο γράφεται (-1 = στον πρώτο που δεν έχει παραγγείλει).</summary>
+    public event Action<int, int>? NewRoundRequested;
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
 

@@ -244,10 +244,50 @@
                         <CheckBox Content="Έχει επιλογή «διπλή πίτα»" FontSize="13"
                                   Foreground="{DynamicResource Ink}"
                                   IsChecked="{Binding CategoryDoublePita}"/>
-                        <TextBlock Text="Η χρέωση της διπλής πίτας ρυθμίζεται παρακάτω, στον κατάλογο έξτρα."
-                                   FontSize="11" Foreground="{DynamicResource Neutral600}"
-                                   TextWrapping="Wrap" Margin="18,6,0,0"
-                                   Visibility="{Binding CategoryDoublePita, Converter={StaticResource BoolToVis}}"/>
+                        <!-- Ποια από τις δύο χρεώσεις παίρνει η κατηγορία. Δύο τιμές μόνο, οπότε ένα
+                             κουμπί που τις εναλλάσσει — όχι λίστα επιλογών. -->
+                        <StackPanel Margin="18,6,0,0"
+                                    Visibility="{Binding CategoryDoublePita, Converter={StaticResource BoolToVis}}">
+                            <Button Content="{Binding CategoryPitaSizeLabel}" FontSize="11" FontWeight="ExtraBold"
+                                    Padding="12,6" HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                                    ToolTip="Πάτησέ το για να αλλάξεις μικρή ↔ μεγάλη"
+                                    Command="{Binding ToggleCategoryPitaSizeCommand}"/>
+                            <TextBlock Text="Η χρέωση της διπλής πίτας μπαίνει μία φορά ανά μέγεθος, παρακάτω στον κατάλογο έξτρα."
+                                       FontSize="11" Foreground="{DynamicResource Neutral600}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <!-- ΦΠΑ της κατηγορίας: από εδώ βγαίνει το «ΜΕ 13% / ΜΕ 24%» κάτω από το ΣΥΝΟΛΟ
+                             της απόδειξης. Ρητά αποθηκευμένο, ΟΧΙ βάσει ονόματος — μια μετονομασία δεν
+                             πρέπει να αλλάξει σιωπηλά τον φόρο. -->
+                        <Button Content="{Binding CategoryVatLabel}" FontSize="11.5" FontWeight="ExtraBold"
+                                Padding="12,7" Margin="0,16,0,4" HorizontalAlignment="Left"
+                                Style="{StaticResource FlatButton}"
+                                Command="{Binding ToggleVatOptionsCommand}"/>
+                        <ItemsControl ItemsSource="{Binding VatOptions}"
+                                      Visibility="{Binding ShowVatOptions, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Label}" FontSize="12" FontWeight="ExtraBold"
+                                            Padding="12,8" Margin="0,0,0,4" HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Left"
+                                            Command="{Binding DataContext.SetCategoryVatCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Kind}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                     </StackPanel>
 
