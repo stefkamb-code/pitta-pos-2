@@ -38,6 +38,11 @@ dotnet publish src/PittaPos.App/PittaPos.App.csproj -c Release -r win-x64 --self
 if [ -n "$MENU_SRC" ]; then
   echo "Bundling catalogue from $MENU_SRC ..."
   cp "$MENU_SRC" "$PUBLISH_DIR/katalogos.json"
+else
+  # Καθάρισμα από προηγούμενη έκδοση που ΕΙΧΕ κατάλογο: ο φάκελος publish δεν αδειάζει μόνος του,
+  # οπότε ένα ξεχασμένο katalogos.json θα ταξίδευε μέσα στο setup χωρίς λόγο — και θα καθόταν στο
+  # C:\PittaPOS2 του μαγαζιού σαν παλιός κατάλογος που δεν διαβάζει κανείς.
+  rm -f "$PUBLISH_DIR/katalogos.json"
 fi
 
 echo "Zipping publish output..."
