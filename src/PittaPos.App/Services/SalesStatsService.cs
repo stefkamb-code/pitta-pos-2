@@ -46,6 +46,17 @@ public sealed class CompletedOrder
     public PaymentMethod? PaymentMethod { get; init; }
     /// <summary>Όνομα πελάτη ή «Τραπέζι Ν» — κενό αν δεν δόθηκε.</summary>
     public string Who { get; init; } = "";
+    /// <summary>Ποιο άτομο του τραπεζιού είναι αυτή η παραγγελία (0-based), null για όλα τα υπόλοιπα.
+    /// <para>Το «ποιος πήρε τι» ζει κανονικά στο <see cref="TablePersonsService"/> και σβήνεται μόλις
+    /// κλείσει το τραπέζι· εδώ κρατιέται ΜΟΝΟ το άτομο της παραγγελίας, ώστε να ξέρει το Ιστορικό
+    /// ποιανού απόδειξη βλέπει και να διορθώνεται μετρητά↔κάρτα ΕΝΟΣ ατόμου αφού φύγει η παρέα.
+    /// Στην απόδειξη δεν τυπώνεται πουθενά.</para></summary>
+    public int? TablePerson { get; init; }
+    /// <summary>Πότε άνοιξε το τραπέζι σε αυτή την παρέα — η «ταυτότητα» του λογαριασμού. Το Ιστορικό
+    /// μαζεύει με αυτό όλα τα άτομα σε ΜΙΑ εγγραφή· χωρίς αυτό, δύο διαφορετικές παρέες που κάθισαν
+    /// στο ίδιο τραπέζι την ίδια μέρα θα εμφανίζονταν σαν ένας λογαριασμός. Null για ό,τι δεν είναι
+    /// τραπέζι, και για παλιές παραγγελίες πριν μπει το πεδίο.</summary>
+    public DateTime? TableOpenedAt { get; init; }
     /// <summary>Τηλέφωνο πελάτη — μόνο ΔΙΑΝΟΜΗ/BOX (εκεί συλλέγεται στο Βήμα 2), κενό για τα υπόλοιπα.</summary>
     public string Phone { get; init; } = "";
     /// <summary>Οδός/αριθμός/περιοχή/Τ.Κ. σε μία γραμμή — μόνο για ΔΙΑΝΟΜΗ/BOX, κενό για τα υπόλοιπα
@@ -73,6 +84,13 @@ public sealed class CompletedOrder
     public string DateTimeLabel => PlacedAt.ToString("dd/MM/yyyy · HH:mm");
     public string TotalLabel => Order.FormatPrice(Total);
     public string WhoLabel => Who.Length > 0 ? Who : "—";
+    public bool HasPerson => TablePerson is not null;
+    /// <summary>«ΑΤΟΜΟ Β» — κενό για ό,τι δεν είναι τραπέζι με χωριστές αποδείξεις.</summary>
+    public string PersonLabel => TablePerson is { } p ? "ΑΤΟΜΟ " + TablePersonsService.Label(p) : "";
+    /// <summary>«Τραπέζι 5 · ΑΤΟΜΟ Β» για τις λίστες του Ιστορικού: μία παραγγελία = ένα άτομο = μία
+    /// απόδειξη ταμειακής, οπότε χωρίς το άτομο οι τρεις-τέσσερις γραμμές του ίδιου τραπεζιού είναι
+    /// αδιάκριτες μεταξύ τους.</summary>
+    public string WhoWithPersonLabel => HasPerson ? WhoLabel + " · " + PersonLabel : WhoLabel;
     public bool HasDeliveryInfo => DeliveryAddress.Length > 0 || DeliveryFloor.Length > 0 || DeliveryNotes.Length > 0;
     /// <summary>Αριθμός # στην απόδειξη — προτιμά τον αριθμό της πλατφόρμας (Wolt/e-food/BOX) όταν υπάρχει.</summary>
     public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
@@ -319,6 +337,8 @@ public class SalesStatsService
         OrderDiscountPct = order.OrderDiscountPct,
         PlacedAt = order.PlacedAt,
         IsEveningShift = order.IsEveningShift,
+        TablePerson = order.TablePerson,
+        TableOpenedAt = order.TableOpenedAt,
     };
 
     /// <summary>
@@ -398,6 +418,8 @@ public class SalesStatsService
                 OrderDiscountPct = order.OrderDiscountPct,
                 PlacedAt = order.PlacedAt,
                 IsEveningShift = order.IsEveningShift,
+                TablePerson = order.TablePerson,
+                TableOpenedAt = order.TableOpenedAt,
             };
         }
         Save();
@@ -435,6 +457,8 @@ public class SalesStatsService
             OrderDiscountPct = order.OrderDiscountPct,
             PlacedAt = order.PlacedAt,
             IsEveningShift = order.IsEveningShift,
+            TablePerson = order.TablePerson,
+            TableOpenedAt = order.TableOpenedAt,
         };
         Save();
         Changed?.Invoke();
@@ -476,6 +500,8 @@ public class SalesStatsService
             OrderDiscountPct = order.OrderDiscountPct,
             PlacedAt = order.PlacedAt,
             IsEveningShift = order.IsEveningShift,
+            TablePerson = order.TablePerson,
+            TableOpenedAt = order.TableOpenedAt,
         };
         Save();
         Changed?.Invoke();

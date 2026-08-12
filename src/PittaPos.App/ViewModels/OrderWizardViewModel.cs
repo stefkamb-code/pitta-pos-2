@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
@@ -132,6 +132,20 @@ public sealed class SentPersonViewModel
 /// <summary>Μία γραμμή ενός ήδη περασμένου ατόμου.</summary>
 public sealed record SentPersonLineViewModel(string Name, string PriceLabel);
 
+/// <summary>
+/// Το καλάθι ενός ατόμου όσο γράφεται το τραπέζι. ΤΙΠΟΤΑ δεν έχει καταχωρηθεί ακόμα: μένει εδώ, στη
+/// μνήμη, μέχρι να κλείσει το τελευταίο άτομο — τότε καταχωρούνται όλα μαζί (βλ. CommitTablePersons).
+/// Έτσι ο ταμίας μπαίνει ξανά σε όποιον θέλει και τον ΕΠΕΞΕΡΓΑΖΕΤΑΙ, χωρίς ακυρώσεις.
+/// </summary>
+internal sealed class PersonDraftViewModel
+{
+    /// <summary>Οι ίδιες γραμμές που δείχνει η δεξιά στήλη — μπαινοβγαίνουν στο Products.Cart αυτούσιες,
+    /// γι' αυτό και ξαναγίνονται ζωντανά επεξεργάσιμες (ποσότητα, έξτρα, σβήσιμο).</summary>
+    public required List<CartLineViewModel> Lines { get; init; }
+    public required int DiscountPct { get; init; }
+    public required decimal Total { get; init; }
+}
+
 public partial class OrderWizardViewModel : ObservableObject
 {
     public OrderWizardViewModel()
@@ -212,11 +226,20 @@ public partial class OrderWizardViewModel : ObservableObject
         }
     }
 
-    /// <summary>Άθροισμα των γραμμών του τραπεζιού που δεν έχουν εξοφληθεί ξεχωριστά — όχι το αρχικό σύνολο.</summary>
+    /// <summary>
+    /// Άθροισμα ό,τι δεν έχει εξοφληθεί ακόμα — όχι το αρχικό σύνολο. Ανά <b>ΤΕΜΑΧΙΟ</b> και όχι ανά
+    /// γραμμή: οι εξοφλήσεις γράφονται πάντα ανά τεμάχιο (βλ. TableSettlementService.Settle), οπότε ο
+    /// παλιός έλεγχος «ανά γραμμή» δεν τις έβλεπε ΠΟΤΕ και η κάτοψη κρατούσε το τραπέζι στο πλήρες ποσό
+    /// ακόμα κι αφού είχε πληρώσει ένα άτομο. Ίδιος υπολογισμός με το κινητό (WaiterApiService).
+    /// </summary>
     private static decimal OutstandingTotal(int table, List<CompletedOrder> orders) => orders.Sum(o =>
-        o.Lines.Select((l, i) => (l, i))
-            .Where(x => !TableSettlementService.Instance.IsSettled(table, o.OrderNumber, x.i))
-            .Sum(x => x.l.Revenue));
+        o.Lines.Select((l, i) => (l, i)).Sum(x =>
+        {
+            var units = Math.Max(1, x.l.Quantity);
+            var unpaid = units - TableSettlementService.Instance.SettledUnits(table, o.OrderNumber, x.i, units);
+            // Με την έκπτωση παραγγελίας μέσα — ίδιος υπολογισμός με την οθόνη τραπεζιού.
+            return x.l.Revenue / units * unpaid * (1 - o.OrderDiscountPct / 100m);
+        }));
 
     /// <summary>Ελευθερώνει τραπέζι — δεν ξανατυπώνει τίποτα, κάθε γύρος έχει ήδη τυπωθεί.</summary>
     [RelayCommand]
@@ -336,6 +359,14 @@ public partial class OrderWizardViewModel : ObservableObject
             Who = OrderType == Core.Models.OrderType.Table
                 ? "Τραπέζι " + TableNumber
                 : CustomerName.Trim(),
+            // Ποιανού είναι η απόδειξη — μόνο σε τραπέζι που πληρώνει χωριστά. Το Ιστορικό το χρειάζεται
+            // για να διορθώνει μετρητά/κάρτα ΕΝΟΣ ατόμου αφού κλείσει το τραπέζι (βλ. CompletedOrder.TablePerson).
+            TablePerson = OrderType == Core.Models.OrderType.Table && IsSplittingTable ? TablePerson : null,
+            // Σε ποιο άνοιγμα του τραπεζιού ανήκει — το MarkOpen από πάνω το έχει ήδη εξασφαλίσει.
+            TableOpenedAt = OrderType == Core.Models.OrderType.Table && TableNumber is { } t
+                && TableStatusService.Instance.OpenSince.TryGetValue(t, out var openedAt)
+                    ? openedAt
+                    : null,
             Phone = ShowCustomerForm ? CustomerPhone.Trim() : "",
             // Ίδια λογική με το PushBoardOrder — μόνο ΔΙΑΝΟΜΗ/BOX έχουν δικά μας στοιχεία παράδοσης
             // (Wolt/e-food τα έχει ήδη η πλατφόρμα, ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ δεν έχουν καν πεδία διεύθυνσης).
@@ -734,20 +765,35 @@ public partial class OrderWizardViewModel : ObservableObject
     /// μόνο για να τυπωθεί ΕΝΑ μαζεμένο δελτίο στην κουζίνα όταν κλείσει το τελευταίο άτομο.</summary>
     private readonly List<CompletedOrder> _tableRounds = [];
 
-    /// <summary>Τα άτομα που έχουν ήδη περάσει σε αυτό το τραπέζι, με τα προϊόντα τους — μένουν στη
-    /// δεξιά στήλη ώστε ο ταμίας να βλέπει ΟΛΟ το τραπέζι όσο γράφει, όχι μόνο το άτομο της στιγμής.</summary>
-    public ObservableCollection<SentPersonViewModel> SentPersons { get; } = [];
+    /// <summary>Τα άλλα άτομα του τραπεζιού, με τα προϊόντα τους — μένουν στη δεξιά στήλη ώστε ο ταμίας
+    /// να βλέπει ΟΛΟ το τραπέζι όσο γράφει, όχι μόνο το άτομο της στιγμής.
+    /// <para>Χωρισμένα σε ΠΑΝΩ/ΚΑΤΩ από το άτομο που γράφεται: το τρέχον άτομο φαίνεται ζωντανό στο
+    /// καλάθι, ανάμεσά τους, οπότε η σειρά μένει πάντα Α, Β, Γ, Δ και κανένα άτομο δεν «κατεβαίνει»
+    /// στο τέλος όταν το επιλέγεις.</para></summary>
+    public ObservableCollection<SentPersonViewModel> SentPersonsAbove { get; } = [];
+    public ObservableCollection<SentPersonViewModel> SentPersonsBelow { get; } = [];
 
     /// <summary>Ποια άτομα έχουν ήδη περάσει παραγγελία — ώστε το «επόμενο» να μην ξαναπάει σε κάποιον
     /// που τελείωσε, ακόμα κι αν ο ταμίας γύρισε ενδιάμεσα πίσω σε αυτόν.</summary>
     private readonly HashSet<int> _personsDone = [];
 
+    /// <summary>Το καλάθι κάθε ατόμου του τρέχοντος γύρου, ΑΚΑΤΑΧΩΡΗΤΟ. Ο ταμίας πηγαινοέρχεται
+    /// ελεύθερα ανάμεσά τους· καταχωρούνται όλα μαζί στο τέλος (βλ. CommitTablePersons).</summary>
+    private readonly Dictionary<int, PersonDraftViewModel> _personDrafts = [];
+
+    /// <summary>Τραπέζι με άτομα: εδώ ΔΕΝ καταχωρείται τίποτα με το «ΟΛΟΚΛΗΡΩΣΗ» — μόνο κλείνει το άτομο.</summary>
+    private bool IsDeferredPersonRound => OrderType == Core.Models.OrderType.Table && IsSplittingTable;
+
+    /// <summary>Είναι ο τελευταίος που μένει; Τότε το κουμπί καταχωρεί ΟΛΟ το τραπέζι.</summary>
+    private bool IsLastPendingPerson => TablePersonCount > 0 && Enumerable
+        .Range(0, TablePersonCount)
+        .All(p => p == TablePerson || _personsDone.Contains(p));
+
     /// <summary>
-    /// Κλικ σε άτομο που έχει ήδη περάσει: γυρνάμε σε αυτόν και ό,τι μπει τώρα στο καλάθι χρεώνεται
-    /// στη ΔΙΚΗ ΤΟΥ απόδειξη — για όταν κάποιος αλλάξει γνώμη και θέλει κι άλλο.
-    /// <para>Δεν σβήνει ποτέ τίποτα: η προηγούμενη παραγγελία του μένει καταχωρημένη και το σύνολό του
-    /// βγαίνει από όλες τις γραμμές του μαζί. Αν πρέπει να ΑΦΑΙΡΕΘΕΙ προϊόν, γίνεται μέσα στο τραπέζι,
-    /// με ονομαστικό κωδικό, όπως κάθε ακύρωση στο ταμείο.</para>
+    /// Κλικ σε άτομο του τραπεζιού: το καλάθι που γράφεις τώρα μπαίνει στην άκρη ΟΠΩΣ ΕΙΝΑΙ, και στη
+    /// θέση του ανοίγει το δικό του — ζωντανό και επεξεργάσιμο (ποσότητες, έξτρα, σβήσιμο γραμμής).
+    /// <para>Καμία ακύρωση και καμία διπλή παραγγελία: τίποτα δεν έχει καταχωρηθεί ακόμα, οπότε ό,τι
+    /// αλλάξεις εδώ είναι απλώς η παραγγελία του — όπως θα βγει και η απόδειξή του στο τέλος.</para>
     /// </summary>
     [RelayCommand]
     private void SelectSentPerson(SentPersonViewModel sent)
@@ -755,17 +801,83 @@ public partial class OrderWizardViewModel : ObservableObject
         if (sent.Person == TablePerson)
             return;
 
-        // ΦΡΑΓΗ: με γεμάτο καλάθι, η αλλαγή ατόμου θα χρέωνε τα προϊόντα που μόλις έγραψες σε ΑΛΛΟΝ —
-        // λάθος απόδειξη, σιωπηλά. Ολοκληρώνεις ή αδειάζεις πρώτα, μετά αλλάζεις άτομο.
-        if (Products.Cart.Count > 0)
-        {
-            MessageBox.Show(
-                $"Έχεις προϊόντα στο καλάθι για το ΑΤΟΜΟ {TablePersonsService.Label(TablePerson)}.\n\n" +
-                "Ολοκλήρωσέ τα ή άδειασε το καλάθι πριν πας σε άλλο άτομο — αλλιώς θα χρεώνονταν σε λάθος απόδειξη.",
-                "Αλλαγή ατόμου", MessageBoxButton.OK, MessageBoxImage.Warning);
+        StashCurrentPerson();
+        LoadPerson(sent.Person);
+    }
+
+    /// <summary>Φυλάει στην άκρη το καλάθι του ατόμου που γράφεται τώρα, χωρίς να το καταχωρεί.
+    /// Άδειο καλάθι = το άτομο δεν πήρε τίποτα, οπότε φεύγει και από τη λίστα.</summary>
+    private void StashCurrentPerson()
+    {
+        if (!IsDeferredPersonRound)
             return;
+
+        if (Products.Cart.Count == 0)
+            _personDrafts.Remove(TablePerson);
+        else
+            _personDrafts[TablePerson] = new PersonDraftViewModel
+            {
+                Lines = [.. Products.Cart],
+                DiscountPct = Products.OrderDiscountPct,
+                Total = Products.Total,
+            };
+    }
+
+    /// <summary>Ανοίγει ένα άτομο στη δεξιά στήλη: το καλάθι του γίνεται ΤΟ καλάθι της οθόνης.</summary>
+    private void LoadPerson(int person)
+    {
+        TablePerson = person;
+        Products.Cart.Clear();
+        if (_personDrafts.TryGetValue(person, out var draft))
+        {
+            foreach (var line in draft.Lines)
+                Products.Cart.Add(line);
+            Products.OrderDiscountPct = draft.DiscountPct;
         }
-        TablePerson = sent.Person;
+        else
+        {
+            Products.OrderDiscountPct = 0;
+        }
+        Products.Customizer = null;
+        Products.OnCartChanged();
+        RefreshPersonBlocks();
+    }
+
+    /// <summary>Ξαναχτίζει τα μπλοκ των ΑΛΛΩΝ ατόμων (το τρέχον φαίνεται ήδη ζωντανό στο καλάθι) και
+    /// ρυθμίζει το κουμπί: «ΟΛΟΚΛΗΡΩΣΗ ΑΤΟΜΟΥ Β» ή, στον τελευταίο, «ΚΑΤΑΧΩΡΗΣΗ ΟΛΩΝ».</summary>
+    private void RefreshPersonBlocks()
+    {
+        SentPersonsAbove.Clear();
+        SentPersonsBelow.Clear();
+        if (IsDeferredPersonRound)
+        {
+            foreach (var person in _personDrafts.Keys.Where(p => p != TablePerson).Order())
+            {
+                var draft = _personDrafts[person];
+                (person < TablePerson ? SentPersonsAbove : SentPersonsBelow).Add(new SentPersonViewModel
+                {
+                    Person = person,
+                    // ✓ = τελειωμένος, ✎ = τον άφησες στη μέση. Και τα δύο πατιούνται και ανοίγουν.
+                    Header = (_personsDone.Contains(person) ? "✓ ΑΤΟΜΟ " : "✎ ΑΤΟΜΟ ") + TablePersonsService.Label(person),
+                    Total = draft.Total,
+                    Lines = draft.Lines
+                        .Select(l => new SentPersonLineViewModel(
+                            (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Total)))
+                        .ToList(),
+                });
+            }
+
+            Products.ContinueLabel = IsLastPendingPerson
+                ? "ΚΑΤΑΧΩΡΗΣΗ ΟΛΩΝ · ΕΚΤΥΠΩΣΗ"
+                : "ΟΛΟΚΛΗΡΩΣΗ ΑΤΟΜΟΥ " + TablePersonsService.Label(TablePerson);
+            // Σε σειρά ατόμων το κουμπί δουλεύει ΚΑΙ με άδειο καλάθι: σημαίνει «αυτός δεν πήρε τίποτα»
+            // και τον προσπερνά (βλ. CommitTablePersons — το τραπέζι κρατά τελικά μόνο όσους πήραν).
+            Products.AllowEmptyContinue = true;
+        }
+        else
+        {
+            Products.AllowEmptyContinue = false;
+        }
     }
 
     /// <summary>Ξεκινά καθαρή σειρά ατόμων για το τραπέζι (καλείται μόλις επιλεγεί).</summary>
@@ -773,14 +885,17 @@ public partial class OrderWizardViewModel : ObservableObject
     {
         TablePersonCount = TablePersonsService.Instance.CountFor(table);
         _tableRounds.Clear();
-        SentPersons.Clear();
+        SentPersonsAbove.Clear();
+        SentPersonsBelow.Clear();
         _personsDone.Clear();
+        _personDrafts.Clear();
         // Όσοι έχουν ΗΔΗ παραγγείλει (προηγούμενος γύρος, ή παραγγελία από το κινητό) δεν ξαναρωτιούνται:
         // ξεκινάμε από τον πρώτο που δεν έχει τίποτα — δηλαδή και από το άτομο που μόλις προστέθηκε.
         foreach (var p in TablePersonsService.Instance.PersonsWithItems(table))
             _personsDone.Add(p);
         TablePerson = Enumerable.Range(0, Math.Max(1, TablePersonCount))
             .FirstOrDefault(p => !_personsDone.Contains(p), 0);
+        RefreshPersonBlocks();
     }
 
     /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ Νέα παραγγελία».</summary>
@@ -1308,11 +1423,29 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>Πίσω από τα προϊόντα ενός τραπεζιού — γυρνά στην κάτοψη τραπεζιών, όχι στη γενική επιλογή τύπου.</summary>
     private void BackToTableGrid()
     {
+        // Τραπέζι με άτομα: τίποτα δεν έχει καταχωρηθεί ούτε τυπωθεί, οπότε το «πίσω» τα σβήνει όλα. Αν
+        // έχει ήδη κλείσει έστω ένα άτομο, ρωτάμε — αλλιώς χάνεται σιωπηλά μια ολόκληρη παρέα.
+        if (_personDrafts.Count > 0)
+        {
+            var answer = MessageBox.Show(
+                $"Έχεις γράψει {_personDrafts.Count} άτομα σε αυτό το τραπέζι και δεν έχει καταχωρηθεί τίποτα ακόμα.\n\n" +
+                "Αν βγεις πίσω, θα χαθούν όλα (δεν έχει τυπωθεί καμία παραγγελία). Να βγεις;",
+                "Άκυρο τραπέζι", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+                return;
+        }
+
         Step = 1;
         MaxStep = 1;
         TableNumber = null;
         _boardPushed = false;
         _orderCompleted = false;
+        _personDrafts.Clear();
+        _personsDone.Clear();
+        SentPersonsAbove.Clear();
+        SentPersonsBelow.Clear();
+        _tableRounds.Clear();
+        Products.AllowEmptyContinue = false;
         foreach (var t in TableNumbers) t.IsSelected = false;
         Products.Reset(NextDisplayNumber());
     }
@@ -1330,6 +1463,14 @@ public partial class OrderWizardViewModel : ObservableObject
         if (NeedsPaymentMethod && SelectedPaymentMethod is null)
         {
             ShowPaymentPrompt = true;
+            return;
+        }
+
+        // Τραπέζι με άτομα: εδώ δεν κλείνει παραγγελία, κλείνει ΑΤΟΜΟ. Δεν δεσμεύεται αριθμός και δεν
+        // ελέγχεται βάρδια — γίνονται μαζί, στο τέλος, για όλο το τραπέζι (βλ. CommitTablePersons).
+        if (IsDeferredPersonRound)
+        {
+            CompleteOrder();
             return;
         }
 
@@ -1355,55 +1496,78 @@ public partial class OrderWizardViewModel : ObservableObject
     /// Ο έλεγχος βάρδιας έχει ήδη γίνει στο ContinueStep3 (βλ. εκεί γιατί πρέπει να προηγείται).</summary>
     private void CompleteOrder()
     {
-        var order = RecordStats();
-
-        if (OrderType == Core.Models.OrderType.Table && TableNumber is { } table && IsSplittingTable)
+        if (IsDeferredPersonRound && TableNumber is { } table)
         {
-            // Ο γύρος ΕΙΝΑΙ το άτομο: όλα του τα τεμάχια χρεώνονται στον ίδιο.
-            for (var i = 0; i < order.Lines.Count; i++)
-                for (var u = 0; u < Math.Max(1, order.Lines[i].Quantity); u++)
-                    TablePersonsService.Instance.Assign(table, order.OrderNumber, i, u, TablePerson);
-            _tableRounds.Add(order);
+            // Το άτομο απλώς «κλείνει»: το καλάθι του πάει στην άκρη, ΤΙΠΟΤΑ δεν καταχωρείται ακόμα.
+            StashCurrentPerson();
             _personsDone.Add(TablePerson);
 
-            // ΕΝΑ μπλοκ ανά άτομο, όχι ένα ανά γύρο: αν ο Α ζητήσει κι άλλο αργότερα, μπαίνει κάτω από
-            // το ίδιο «ΑΤΟΜΟ Α» με ενημερωμένο σύνολο — έτσι το βλέπεις όπως θα βγει και η απόδειξή του.
-            var newLines = order.Lines
-                .Select(l => new SentPersonLineViewModel(
-                    (l.Quantity > 1 ? l.Quantity + "× " : "") + l.Name, Order.FormatPrice(l.Revenue)))
-                .ToList();
-            var existing = SentPersons.FirstOrDefault(s => s.Person == TablePerson);
-            var merged = new SentPersonViewModel
-            {
-                Person = TablePerson,
-                Header = "✓ ΑΤΟΜΟ " + TablePersonsService.Label(TablePerson),
-                Total = (existing?.Total ?? 0m) + order.Total,
-                Lines = existing is null ? newLines : [.. existing.Lines, .. newLines],
-            };
-            if (existing is null)
-                SentPersons.Add(merged);
-            else
-                SentPersons[SentPersons.IndexOf(existing)] = merged;
-
-            // Επόμενο άτομο = το πρώτο που δεν έχει περάσει ακόμα. Δεν είναι απλώς «+1», γιατί ο ταμίας
+            // Επόμενο άτομο = το πρώτο που δεν έχει κλείσει ακόμα. Δεν είναι απλώς «+1», γιατί ο ταμίας
             // μπορεί να γύρισε πίσω σε κάποιον που είχε ήδη παραγγείλει (άλλαξε γνώμη) — τότε συνεχίζουμε
             // από εκεί που είχαμε μείνει, χωρίς να ξαναρωτηθεί κάποιος που έχει ήδη τελειώσει.
             var next = Enumerable.Range(0, TablePersonCount).FirstOrDefault(p => !_personsDone.Contains(p), -1);
             if (next >= 0)
             {
-                // Ίδια οθόνη, επόμενο άτομο — καθαρό καλάθι και φρέσκος αριθμός παραγγελίας.
-                TablePerson = next;
-                Products.Reset(SalesStatsService.Instance.NextOrderNumber());
+                LoadPerson(next);
                 return;
             }
 
-            PrintTableRounds();
-            NewOrder();
+            CommitTablePersons(table);
             return;
         }
 
+        RecordStats();
         AutoPrintRequested?.Invoke();
         NewOrder();
+    }
+
+    /// <summary>
+    /// Έκλεισε το ΤΕΛΕΥΤΑΙΟ άτομο — τώρα καταχωρούνται όλα μαζί: μία παραγγελία ανά άτομο (άρα μία
+    /// απόδειξη ο καθένας στην ταμειακή) και ΕΝΑ δελτίο στην κουζίνα.
+    /// <para>Μέχρι εδώ δεν είχε δεσμευτεί ούτε αριθμός παραγγελίας: παίρνονται τώρα, όλοι μαζί, ώστε να
+    /// μη μείνουν «τρύπες» αν ο ταμίας γύριζε πίσω στη μέση.</para>
+    /// </summary>
+    private void CommitTablePersons(int table)
+    {
+        // Ο έλεγχος βάρδιας γίνεται ΕΔΩ, μία φορά για όλο το τραπέζι — όχι σε κάθε άτομο (βλ. ContinueStep3).
+        if (!ConfirmShiftMatchesTime())
+            return;
+
+        foreach (var person in _personDrafts.Keys.Order().ToList())
+        {
+            LoadPerson(person);
+            Products.OrderNumber = SalesStatsService.Instance.NextOrderNumber();
+            var order = RecordStats();
+
+            // Ο γύρος ΕΙΝΑΙ το άτομο: όλα του τα τεμάχια χρεώνονται στον ίδιο.
+            for (var i = 0; i < order.Lines.Count; i++)
+                for (var u = 0; u < Math.Max(1, order.Lines[i].Quantity); u++)
+                    TablePersonsService.Instance.Assign(table, order.OrderNumber, i, u, person);
+            _tableRounds.Add(order);
+        }
+
+        _personDrafts.Clear();
+        SentPersonsAbove.Clear();
+        SentPersonsBelow.Clear();
+        ShrinkPersonsToWhoOrdered(table);
+        PrintTableRounds();
+        NewOrder();
+    }
+
+    /// <summary>
+    /// Δηλώθηκαν 4 άτομα αλλά ο Δ τελικά δεν πήρε τίποτα → το τραπέζι έχει 3 άτομα, όχι 4. Μετά την
+    /// καταχώρηση το πλήθος κόβεται μέχρι τον τελευταίο που όντως παρήγγειλε, ώστε να μη μένει κενό
+    /// άτομο στην οθόνη τραπεζιού και στο κινητό του σερβιτόρου.
+    /// <para>Μετράει τον ΜΕΓΑΛΥΤΕΡΟ δείκτη και όχι το πλήθος: αν πήραν ο Α και ο Γ, το τραπέζι έχει
+    /// 3 θέσεις (ο Β απλώς δεν πήρε), αλλιώς ο Γ θα εξαφανιζόταν μαζί με την παραγγελία του.</para>
+    /// </summary>
+    private static void ShrinkPersonsToWhoOrdered(int table)
+    {
+        var withItems = TablePersonsService.Instance.PersonsWithItems(table);
+        if (withItems.Count == 0)
+            TablePersonsService.Instance.ClearTable(table); // κανείς δεν πήρε τίποτα — σαν να μην άνοιξε
+        else
+            TablePersonsService.Instance.SetCount(table, withItems.Max() + 1);
     }
 
     /// <summary>
@@ -1575,6 +1739,11 @@ public partial class OrderWizardViewModel : ObservableObject
         _boardPushed = false;
         _orderCompleted = false;
         IsArrangingTables = false;
+        _personDrafts.Clear();
+        _personsDone.Clear();
+        SentPersonsAbove.Clear();
+        SentPersonsBelow.Clear();
+        Products.AllowEmptyContinue = false;
         foreach (var o in OrderTypeOptions) o.IsSelected = false;
         foreach (var t in TableNumbers) t.IsSelected = false;
         foreach (var m in AppMethods) m.IsSelected = false;

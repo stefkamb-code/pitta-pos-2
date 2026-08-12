@@ -498,7 +498,8 @@ public static class WaiterApiService
         {
             var units = Math.Max(1, x.l.Quantity);
             var unpaid = units - TableSettlementService.Instance.SettledUnits(table, o.OrderNumber, x.i, units);
-            return x.l.Revenue / units * unpaid;
+            // Με την έκπτωση παραγγελίας μέσα — ίδιος υπολογισμός με το ταμείο.
+            return x.l.Revenue / units * unpaid * (1 - o.OrderDiscountPct / 100m);
         }));
 
     // Τα υλικά στέλνονται ήδη λυμένα ανά προϊόν (IngredientsFor), όχι ως «null = τα κοινά»: το κινητό
@@ -544,7 +545,11 @@ public static class WaiterApiService
             .OrderBy(o => o.PlacedAt)
             .Select(o => new TableOrderDto(o.OrderNumber, o.TimeLabel, o.Total,
                 o.Lines.Select((l, i) => new TableOrderLineDto(i, l.Name, l.Quantity, l.Revenue, l.Details,
-                    TableSettlementService.Instance.IsSettled(table, o.OrderNumber, i),
+                    // Πληρωμένη = πληρωμένα ΟΛΑ της τα τεμάχια. Ο παλιός έλεγχος κοίταζε το κλειδί
+                    // «παραγγελία:γραμμή», που δεν γράφεται πια (οι εξοφλήσεις είναι ανά τεμάχιο),
+                    // οπότε στο κινητό η γραμμή έμενε για πάντα απλήρωτη.
+                    TableSettlementService.Instance.SettledUnits(table, o.OrderNumber, i, Math.Max(1, l.Quantity))
+                        >= Math.Max(1, l.Quantity),
                     // Το άτομο του ΠΡΩΤΟΥ τεμαχίου: μια γραμμή γεννιέται πάντα από έναν γύρο ενός
                     // ατόμου, οπότε όλα της τα τεμάχια έχουν το ίδιο (βλ. AssignPersons).
                     TablePersonsService.Instance.PersonFor(table, o.OrderNumber, i, 0))).ToList(), o.Note))
@@ -712,11 +717,21 @@ public static class WaiterApiService
         // (λόγω I/O) ελάχιστα μετά το PlacedAt της ίδιας της παραγγελίας και να μη μετρήσει στο σύνολο.
         TableStatusService.Instance.MarkOpen(req.Table);
 
+        // Το κινητό στέλνει μία παραγγελία ανά άτομο· όταν όλες οι γραμμές είναι του ίδιου, η παραγγελία
+        // ΕΙΝΑΙ αυτού του ατόμου και το κρατάμε πάνω της για το Ιστορικό (βλ. CompletedOrder.TablePerson).
+        var distinctPersons = persons.Where(p => p is >= 0).Distinct().ToList();
+
         var order = new CompletedOrder
         {
             OrderNumber = NextOrderNumber(),
             Type = OrderType.Table,
             Who = "Τραπέζι " + req.Table,
+            TablePerson = distinctPersons.Count == 1 ? distinctPersons[0] : null,
+            // Σε ποιο άνοιγμα του τραπεζιού ανήκει (το MarkOpen από πάνω το έχει ήδη εξασφαλίσει) —
+            // έτσι το Ιστορικό μαζεύει όλα τα άτομα της ΙΔΙΑΣ παρέας σε μία εγγραφή.
+            TableOpenedAt = TableStatusService.Instance.OpenSince.TryGetValue(req.Table, out var openedAt)
+                ? openedAt
+                : null,
             Total = total,
             Lines = lines,
             Note = req.Note?.Trim() ?? "",

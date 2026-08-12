@@ -11,6 +11,31 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- Ήσυχη ενέργεια: κείμενο χωρίς πλαίσιο και χωρίς φόντο. Οι διορθώσεις του Ιστορικού
+             (πληρωμή, κανάλι, διαγραφή) γίνονται σπάνια — δεν χρειάζεται να φωνάζουν σαν κουμπιά,
+             αρκεί να βρίσκονται. Το μάτι μένει στην απόδειξη και στο ένα κόκκινο κουμπί. -->
+        <Style x:Key="QuietAction" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <!-- Μαύρο, όχι γκρι: το γκρι διαβάζεται σαν απενεργοποιημένο κουμπί που δεν πατιέται. -->
+            <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="ExtraBold"/>
+            <Setter Property="Padding" Value="0,6"/>
+            <Setter Property="Margin" Value="0,0,18,0"/>
+        </Style>
+
+        <!-- Μικρό «chip» επιλογής, για τις κρυμμένες επιλογές που ξεδιπλώνονται. -->
+        <Style x:Key="ChoiceChip" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+            <Setter Property="Background" Value="{DynamicResource Surface}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="ExtraBold"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Margin" Value="0,0,6,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
         <!-- Flat μέρα ημερολογίου: κύκλος με accent χρώμα όταν επιλεγμένη, απαλό χρώμα στο hover -->
         <Style x:Key="PosCalendarDayButton" TargetType="CalendarDayButton">
             <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
@@ -225,34 +250,56 @@
                             </Button.Style>
                         </Button>
 
-                        <!-- Φίλτρο καναλιού: «τι πήγε σε Wolt χθες». Το ΟΛΑ είναι πρώτο και είναι και
-                             η προεπιλογή, ώστε να μη μείνει ποτέ κρυμμένο μισό ιστορικό κατά λάθος. -->
+                        <!-- Φίλτρο καναλιού: «τι πήγε σε Wolt χθες». ΕΝΑ κουμπί που ανοίγει μέσα τις
+                             επιλογές — οι επτά χωριστές γέμιζαν τη γραμμή. Το κουμπί γράφει πάντα ποιο
+                             φίλτρο είναι ενεργό και κοκκινίζει όταν δεν είναι «ΟΛΑ», ώστε να μη μείνει
+                             ποτέ κρυμμένο μισό ιστορικό κατά λάθος. -->
                         <Border Width="1" Background="{DynamicResource Divider}" Margin="10,2"/>
-                        <ItemsControl ItemsSource="{Binding ChannelFilters}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding Label}" FontSize="11.5" FontWeight="ExtraBold" Padding="11,7"
-                                            Margin="0,0,6,0"
-                                            Command="{Binding DataContext.SetChannelFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding Key}">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                        <Setter Property="Background" Value="{DynamicResource Accent}"/>
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                        <Setter Property="Foreground" Value="White"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Button x:Name="ChannelFilterButton" Content="{Binding ChannelFilterButtonLabel}"
+                                FontSize="11.5" FontWeight="ExtraBold" Padding="12,7"
+                                Command="{Binding ToggleChannelMenuCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasChannelFilter}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Popup PlacementTarget="{Binding ElementName=ChannelFilterButton}"
+                               IsOpen="{Binding ShowChannelMenu, Mode=TwoWay}"
+                               StaysOpen="False" Placement="Bottom" AllowsTransparency="True">
+                            <Border Background="White" BorderBrush="{DynamicResource Divider}" BorderThickness="2"
+                                    Padding="6" MinWidth="150">
+                                <ItemsControl ItemsSource="{Binding ChannelFilters}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{Binding Label}" FontSize="12" FontWeight="ExtraBold"
+                                                    Padding="12,8" Margin="0,1" HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Command="{Binding DataContext.SetChannelFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding Key}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                        <Setter Property="BorderThickness" Value="0"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource Accent}"/>
+                                                                <Setter Property="Foreground" Value="White"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Popup>
                     </StackPanel>
 
                     <!-- ΠΑΡΑΓΓΕΛΙΕΣ -->
@@ -262,12 +309,14 @@
                             <TextBlock Text="Καμία παραγγελία σήμερα" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
                                        HorizontalAlignment="Center" Margin="0,24"
                                        Visibility="{Binding NoOrders, Converter={StaticResource BoolToVis}}"/>
-                            <ItemsControl ItemsSource="{Binding Orders}">
+                            <!-- ΜΙΑ γραμμή ανά λογαριασμό: το τραπέζι της παρέας είναι ένα, ακόμα κι αν
+                                 κόβει τέσσερις αποδείξεις (τα άτομα φαίνονται μέσα, δεξιά). -->
+                            <ItemsControl ItemsSource="{Binding Entries}">
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type svc:CompletedOrder}">
+                                    <DataTemplate DataType="{x:Type vm:HistoryEntryViewModel}">
                                         <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                 Padding="16,14" BorderThickness="0,0,0,1"
-                                                Command="{Binding DataContext.SelectOrderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding DataContext.SelectEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}">
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
@@ -276,7 +325,7 @@
                                                             <DataTrigger.Binding>
                                                                 <MultiBinding Converter="{x:Static vm:SameObjectConverter.Instance}">
                                                                     <Binding/>
-                                                                    <Binding Path="DataContext.SelectedOrder" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                                    <Binding Path="DataContext.SelectedEntry" RelativeSource="{RelativeSource AncestorType=Window}"/>
                                                                 </MultiBinding>
                                                             </DataTrigger.Binding>
                                                             <Setter Property="Background" Value="{DynamicResource Accent100}"/>
@@ -289,8 +338,7 @@
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding DateTimeLabel}" FontSize="12"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Neutral700}"/>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding OrderNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="{Binding NumberLabel}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
                                                         <TextBlock Text="{Binding TypeLabel}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     </StackPanel>
@@ -300,6 +348,10 @@
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     <TextBlock Text="{Binding WhoLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Ink}"/>
                                                 </DockPanel>
+                                                <!-- «3 άτομα · 3 αποδείξεις» — μόνο στα τραπέζια που πληρώνουν χωριστά. -->
+                                                <TextBlock Text="{Binding SubLabel}" FontSize="11.5" Margin="0,3,0,0"
+                                                           Foreground="{DynamicResource Neutral600}" FontWeight="ExtraBold"
+                                                           Visibility="{Binding ShowSubLabel, Converter={StaticResource BoolToVis}}"/>
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -409,6 +461,52 @@
                                Visibility="{Binding NothingSelected, Converter={StaticResource BoolToVis}}"/>
 
                     <StackPanel Visibility="{Binding HasSelected, Converter={StaticResource BoolToVis}}">
+
+                        <!-- ΤΑ ΑΤΟΜΑ ΤΟΥ ΛΟΓΑΡΙΑΣΜΟΥ. Το τραπέζι είναι ΜΙΑ γραμμή στη λίστα· εδώ μέσα
+                             ξεδιπλώνεται σε άτομα, ένα ανά απόδειξη ταμειακής. Πατώντας άτομο, από κάτω
+                             αλλάζει η απόδειξή του ΚΑΙ τα κουμπιά διόρθωσης (τρόπος πληρωμής κ.λπ.) —
+                             έτσι διορθώνεται μετρητά↔κάρτα ΕΝΟΣ ατόμου. -->
+                        <StackPanel Width="420" HorizontalAlignment="Left" Margin="0,0,0,18"
+                                    Visibility="{Binding ShowPersons, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding PersonsHeader}" FontSize="11.5" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Neutral600}" Margin="2,0,0,6"/>
+                            <ItemsControl ItemsSource="{Binding Persons}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:HistoryPersonViewModel}">
+                                        <!-- Σειρές, όχι κουμπιά: το επιλεγμένο άτομο κρατά μια απαλή
+                                             απόχρωση και μια κόκκινη γραμμή αριστερά. -->
+                                        <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Padding="12,10" Margin="0,0,0,3"
+                                                Command="{Binding DataContext.SelectPersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
+                                                    <Setter Property="Background" Value="{DynamicResource Surface}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="12.5"
+                                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding PaymentIcon}" FontSize="11.5"
+                                                           Margin="0,0,12,0" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource Neutral600}"/>
+                                                <TextBlock Text="{Binding Label}" FontSize="12.5" FontWeight="ExtraBold"
+                                                           Foreground="{DynamicResource Ink}"/>
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <!-- receipt (printable) -->
                         <Border x:Name="ReceiptCard" Width="420" BorderBrush="{DynamicResource Divider}" BorderThickness="2"
                                 Padding="24" Background="{DynamicResource Bg}">
@@ -436,9 +534,10 @@
                                                        FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220" TextWrapping="Wrap"/>
                                             <TextBlock Text="Πελάτης" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
                                         </DockPanel>
-                                        <!-- Μετρητά/κάρτα — μόνο ΔΙΑΝΟΜΗ/BOX, βλ. CompletedOrder.PaymentIcon -->
-                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding SelectedOrder.HasPaymentMethod, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.PaymentIcon}" FontSize="14"
+                                        <!-- Μετρητά/κάρτα. Για ΔΙΑΝΟΜΗ/BOX έρχεται από την ίδια την παραγγελία·
+                                             για ΤΡΑΠΕΖΙ από την είσπραξη του ατόμου — βλ. HistoryViewModel.SelectedPaymentIcon. -->
+                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding ShowPaymentRow, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedPaymentIcon}" FontSize="14"
                                                        FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                             <TextBlock Text="Πληρωμή" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
                                         </DockPanel>
@@ -480,62 +579,54 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Τρόπος πληρωμής — διαθέσιμο σε ΟΛΕΣ τις παραγγελίες πλέον (όχι μόνο ΔΙΑΝΟΜΗ/BOX),
-                             ώστε να μπορεί να προστεθεί/διορθωθεί ακόμα κι όπου δεν υπήρχε. Οι επιλογές
-                             κρύβονται μέχρι να πατηθεί το κουμπί — προστασία από κατά λάθος κλικ. -->
-                        <StackPanel Width="420" HorizontalAlignment="Left" Margin="0,20,0,0">
-                            <Button Content="ΤΡΟΠΟΣ ΠΛΗΡΩΜΗΣ" Padding="10,8" FontSize="11.5" FontWeight="ExtraBold"
-                                    HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
-                                    Command="{Binding TogglePaymentOptionsCommand}"/>
-                            <UniformGrid Columns="2" Margin="0,10,0,0"
-                                         Visibility="{Binding ShowPaymentOptions, Converter={StaticResource BoolToVis}}">
-                                <Button Content="💶 ΜΕΤΡΗΤΑ" Margin="0,0,8,0" Padding="10,8" FontSize="12"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetPaymentMethodCashCommand}"/>
-                                <Button Content="💳 ΚΑΡΤΑ" Padding="10,8" FontSize="12" FontWeight="ExtraBold"
-                                        Style="{StaticResource FlatButton}" Command="{Binding SetPaymentMethodCardCommand}"/>
-                            </UniformGrid>
-                        </StackPanel>
-
-                        <!-- Διόρθωση καναλιού — π.χ. πέρασε κατά λάθος ως e-food ενώ ήταν κάτι άλλο. Οι
-                             επιλογές κρύβονται μέχρι να πατηθεί το κουμπί — προστασία από κατά λάθος κλικ. -->
-                        <StackPanel Width="420" HorizontalAlignment="Left" Margin="0,20,0,0">
-                            <Button Content="ΔΙΟΡΘΩΣΗ ΚΑΝΑΛΙΟΥ" Padding="10,8" FontSize="11.5" FontWeight="ExtraBold"
-                                    HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
-                                    Command="{Binding ToggleChannelOptionsCommand}"/>
-                            <UniformGrid Columns="3" Rows="2" Margin="0,10,0,0"
-                                         Visibility="{Binding ShowChannelOptions, Converter={StaticResource BoolToVis}}">
-                                <Button Content="ΔΙΑΝΟΜΗ" Margin="0,0,8,8" Padding="10,8" FontSize="11.5"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="ΔΙΑΝΟΜΗ"/>
-                                <Button Content="ΤΡΑΠΕΖΙ" Margin="0,0,8,8" Padding="10,8" FontSize="11.5"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="ΤΡΑΠΕΖΙ"/>
-                                <Button Content="ΟΡΘΙΟΣ" Margin="0,0,0,8" Padding="10,8" FontSize="11.5"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="ΟΡΘΙΟΣ"/>
-                                <Button Content="e-food" Margin="0,0,8,0" Padding="10,8" FontSize="11.5"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="e-food"/>
-                                <Button Content="Wolt" Margin="0,0,8,0" Padding="10,8" FontSize="11.5"
-                                        FontWeight="ExtraBold" Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="Wolt"/>
-                                <Button Content="BOX" Padding="10,8" FontSize="11.5" FontWeight="ExtraBold"
-                                        Style="{StaticResource FlatButton}"
-                                        Command="{Binding SetChannelCommand}" CommandParameter="BOX"/>
-                            </UniformGrid>
-                        </StackPanel>
-
-                        <!-- reprint -->
+                        <!-- ΜΙΑ κύρια ενέργεια: η επανεκτύπωση. Ό,τι άλλο είναι διόρθωση και ζει από
+                             κάτω, σε μία ήσυχη σειρά — πριν, τρία μπλοκ με χοντρά κουμπιά έπιαναν
+                             περισσότερο χώρο από την ίδια την απόδειξη. -->
                         <Button Content="ΕΠΑΝΕΚΤΥΠΩΣΗ ΑΠΟΔΕΙΞΗΣ" Style="{StaticResource PrimaryButton}"
-                                Width="420" Height="46" FontSize="14" HorizontalContentAlignment="Center"
-                                HorizontalAlignment="Left" Margin="0,20,0,10" Click="Reprint_Click"/>
+                                Width="420" Height="44" FontSize="13.5" HorizontalContentAlignment="Center"
+                                HorizontalAlignment="Left" Margin="0,18,0,0" Click="Reprint_Click"/>
 
-                        <!-- ακύρωση: πραγματική διαγραφή, βγαίνει από τον τζίρο, θέλει κωδικό -->
-                        <Button Content="✕ ΔΙΑΓΡΑΦΗ ΠΑΡΑΓΓΕΛΙΑΣ" Style="{StaticResource FlatButton}"
-                                Width="420" Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                Foreground="{DynamicResource Accent700}" BorderBrush="{DynamicResource Accent}"
-                                HorizontalAlignment="Left" Click="DeleteOrder_Click"/>
+                        <Border Width="420" HorizontalAlignment="Left" Margin="0,14,0,0"
+                                BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+                            <StackPanel>
+                                <!-- Οι διορθώσεις: κείμενο, όχι κουμπιά. Οι επιλογές ξεδιπλώνονται μόνο
+                                     όταν τις ζητήσεις — προστασία από κατά λάθος κλικ. -->
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding PaymentSectionLabel}" Style="{StaticResource QuietAction}"
+                                            Command="{Binding TogglePaymentOptionsCommand}"/>
+                                    <Button Content="ΚΑΝΑΛΙ" Style="{StaticResource QuietAction}"
+                                            Command="{Binding ToggleChannelOptionsCommand}"/>
+                                    <!-- Σβήνει ΜΟΝΟ την επιλεγμένη απόδειξη — δηλαδή το ένα άτομο, όχι
+                                         όλο το τραπέζι (βλ. HistoryViewModel.DeleteOrder). -->
+                                    <Button Content="{Binding DeleteSectionLabel}" Style="{StaticResource QuietAction}" Margin="0"
+                                            Foreground="{DynamicResource Accent700}" Click="DeleteOrder_Click"/>
+                                </StackPanel>
+
+                                <UniformGrid Columns="2" Margin="0,6,0,0"
+                                             Visibility="{Binding ShowPaymentOptions, Converter={StaticResource BoolToVis}}">
+                                    <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource ChoiceChip}"
+                                            Command="{Binding SetPaymentMethodCashCommand}"/>
+                                    <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Command="{Binding SetPaymentMethodCardCommand}"/>
+                                </UniformGrid>
+
+                                <UniformGrid Columns="3" Rows="2" Margin="0,6,0,0"
+                                             Visibility="{Binding ShowChannelOptions, Converter={StaticResource BoolToVis}}">
+                                    <Button Content="ΔΙΑΝΟΜΗ" Style="{StaticResource ChoiceChip}"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="ΔΙΑΝΟΜΗ"/>
+                                    <Button Content="ΤΡΑΠΕΖΙ" Style="{StaticResource ChoiceChip}"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="ΤΡΑΠΕΖΙ"/>
+                                    <Button Content="ΟΡΘΙΟΣ" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="ΟΡΘΙΟΣ"/>
+                                    <Button Content="e-food" Style="{StaticResource ChoiceChip}"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="e-food"/>
+                                    <Button Content="Wolt" Style="{StaticResource ChoiceChip}"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="Wolt"/>
+                                    <Button Content="BOX" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Command="{Binding SetChannelCommand}" CommandParameter="BOX"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>

@@ -8,6 +8,40 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:UpperCaseGreekConverter x:Key="UpperCase"/>
 
+        <!-- Μπλοκ ενός ατόμου του τραπεζιού. Το ίδιο template χρησιμοποιείται ΔΥΟ φορές στη στήλη της
+             παραγγελίας — για τα άτομα ΠΑΝΩ από αυτό που γράφεται και για τα ΑΠΟ ΚΑΤΩ — ώστε το άτομο
+             να μένει στη θέση του (Α, Β, Γ, Δ με τη σειρά) όταν το επιλέγεις, αντί να «κατεβαίνει». -->
+        <DataTemplate x:Key="PersonBlockTemplate">
+            <!-- Πατιέται: ανοίγει η παραγγελία του ατόμου στο καλάθι, ζωντανή και επεξεργάσιμη —
+                 για όταν κάποιος αλλάξει γνώμη. -->
+            <StackPanel Margin="0,0,0,10" Background="Transparent" Cursor="Hand"
+                        ToolTip="Πάτησέ το για να ανοίξεις ξανά την παραγγελία αυτού του ατόμου">
+                <StackPanel.InputBindings>
+                    <MouseBinding MouseAction="LeftClick"
+                                  Command="{Binding DataContext.SelectSentPersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  CommandParameter="{Binding}"/>
+                </StackPanel.InputBindings>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="11.5"
+                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                    <TextBlock Text="{Binding Header}" FontSize="11.5" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Neutral600}"/>
+                </DockPanel>
+                <ItemsControl ItemsSource="{Binding Lines}" Margin="10,3,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="0,1">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="11"
+                                           Foreground="{DynamicResource Neutral500}"/>
+                                <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource Neutral500}"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+
         <!-- Κάρτα φαγητού.
              Πριν, η κάρτα είχε ΤΟ ΙΔΙΟ χρώμα με το φόντο της οθόνης και ξεχώριζε μόνο από ένα σκληρό
              γκρι περίγραμμα — γι' αυτό έμοιαζε παλιά, σαν πίνακας με πλαίσια. Τώρα είναι λευκή πάνω
@@ -579,44 +613,12 @@
                     <StackPanel>
                         <!-- Ποιανού γράφεται τώρα η παραγγελία. Φαίνεται μόνο σε τραπέζι που πληρώνει
                              χωριστά (ένα άτομο = μία απόδειξη στην ταμειακή) — αλλιώς δεν υπάρχει καν. -->
-                        <!-- Τα άτομα που έχουν ήδη περάσει, με τα προϊόντα τους — ξεθωριασμένα, γιατί
-                             είναι ήδη καταχωρημένα και δεν αλλάζουν από εδώ. Ο ταμίας βλέπει ΟΛΟ το
-                             τραπέζι όσο γράφει, ώστε να μη ρωτήσει δεύτερη φορά τον ίδιο άνθρωπο. -->
-                        <ItemsControl ItemsSource="{Binding DataContext.SentPersons, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      Margin="0,10,0,0">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <!-- Πατιέται: γυρνάς σε αυτό το άτομο και ό,τι βάλεις τώρα χρεώνεται
-                                         στη δική του απόδειξη — για όταν κάποιος αλλάξει γνώμη. -->
-                                    <StackPanel Margin="0,0,0,10" Background="Transparent" Cursor="Hand"
-                                                ToolTip="Πάτησέ το για να προσθέσεις κι άλλα σε αυτό το άτομο">
-                                        <StackPanel.InputBindings>
-                                            <MouseBinding MouseAction="LeftClick"
-                                                          Command="{Binding DataContext.SelectSentPersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                          CommandParameter="{Binding}"/>
-                                        </StackPanel.InputBindings>
-                                        <DockPanel>
-                                            <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="11.5"
-                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                                            <TextBlock Text="{Binding Header}" FontSize="11.5" FontWeight="ExtraBold"
-                                                       Foreground="{DynamicResource Neutral600}"/>
-                                        </DockPanel>
-                                        <ItemsControl ItemsSource="{Binding Lines}" Margin="10,3,0,0">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <DockPanel Margin="0,1">
-                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding PriceLabel}" FontSize="11"
-                                                                   Foreground="{DynamicResource Neutral500}"/>
-                                                        <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis"
-                                                                   Foreground="{DynamicResource Neutral500}"/>
-                                                    </DockPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <!-- Τα άλλα άτομα του τραπεζιού, με τα προϊόντα τους — ξεθωριασμένα γιατί δεν
+                             είναι αυτό που γράφεται τώρα. Ο ταμίας βλέπει ΟΛΟ το τραπέζι όσο γράφει,
+                             ώστε να μη ρωτήσει δεύτερη φορά τον ίδιο άνθρωπο. Τίποτα δεν έχει
+                             καταχωρηθεί ακόμα: πατώντας ένα μπλοκ, ανοίγει ξανά ζωντανό στο καλάθι. -->
+                        <ItemsControl ItemsSource="{Binding DataContext.SentPersonsAbove, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      ItemTemplate="{StaticResource PersonBlockTemplate}" Margin="0,10,0,0"/>
 
                         <!-- Ποιανού γράφεται τώρα η παραγγελία. Φαίνεται μόνο σε τραπέζι που πληρώνει
                              χωριστά (ένα άτομο = μία απόδειξη στην ταμειακή) — αλλιώς δεν υπάρχει καν. -->
@@ -679,6 +681,10 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Τα άτομα ΜΕΤΑ από αυτό που γράφεται (βλ. SentPersonsAbove από πάνω). -->
+                        <ItemsControl ItemsSource="{Binding DataContext.SentPersonsBelow, RelativeSource={RelativeSource AncestorType=Window}}"
+                                      ItemTemplate="{StaticResource PersonBlockTemplate}" Margin="0,14,0,0"/>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -745,7 +751,7 @@
                 <!-- actions -->
                 <StackPanel Grid.Row="3" Margin="16,0,16,16">
                     <Button Style="{StaticResource PrimaryButton}" Padding="14,13" FontSize="14"
-                            IsEnabled="{Binding CartNotEmpty}" HorizontalAlignment="Stretch"
+                            IsEnabled="{Binding ContinueEnabled}" HorizontalAlignment="Stretch"
                             HorizontalContentAlignment="Stretch" Command="{Binding ContinueCommand}">
                         <DockPanel LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="{Binding ContinueLabel}"/>

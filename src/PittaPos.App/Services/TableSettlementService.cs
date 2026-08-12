@@ -140,18 +140,18 @@ public class TableSettlementService
     /// <summary>Σημειώνει ΟΛΗ τη γραμμή πληρωμένη· true αν άλλαξε κάτι (false αν ήταν ήδη).</summary>
     public bool Settle(int table, int orderNumber, int lineIndex,
         PaymentMethod method = PaymentMethod.Cash, decimal amount = 0) =>
-        SettleKey(table, Key(orderNumber, lineIndex), method, amount,
+        SettleKey(table, Key(orderNumber, lineIndex), orderNumber, method, amount,
             new { Table = table, OrderNumber = orderNumber, LineIndex = lineIndex, Unit = -1,
                   Method = MethodKey(method), Amount = amount });
 
     /// <summary>Σημειώνει ΕΝΑ τεμάχιο της γραμμής πληρωμένο, με τον τρόπο πληρωμής και το ποσό του.</summary>
     public bool Settle(int table, int orderNumber, int lineIndex, int unit,
         PaymentMethod method = PaymentMethod.Cash, decimal amount = 0) =>
-        SettleKey(table, Key(orderNumber, lineIndex, unit), method, amount,
+        SettleKey(table, Key(orderNumber, lineIndex, unit), orderNumber, method, amount,
             new { Table = table, OrderNumber = orderNumber, LineIndex = lineIndex, Unit = unit,
                   Method = MethodKey(method), Amount = amount });
 
-    private bool SettleKey(int table, string key, PaymentMethod method, decimal amount, object syncBody)
+    private bool SettleKey(int table, string key, int orderNumber, PaymentMethod method, decimal amount, object syncBody)
     {
         if (RemoteSync.IsClient)
         {
@@ -164,7 +164,14 @@ public class TableSettlementService
             return false;
         // Το ποσό καταγράφεται ΞΕΧΩΡΙΣΤΑ (βλ. TablePaymentsService): οι εξοφλήσεις σβήνονται με το
         // κλείσιμο του τραπεζιού, ενώ ο διαχωρισμός μετρητά/κάρτα πρέπει να φτάσει στην αναφορά ημέρας.
-        TablePaymentsService.Instance.Add(table, amount, method);
+        // Ο αριθμός παραγγελίας ταξιδεύει μαζί: με μία παραγγελία ανά άτομο, αυτός ΕΙΝΑΙ το άτομο —
+        // χωρίς αυτόν δεν θα μπορούσε να διορθωθεί εκ των υστέρων μετρητά↔κάρτα ενός μόνο ατόμου.
+        TablePaymentsService.Instance.Add(table, orderNumber, amount, method);
+        // Ο τρόπος πληρωμής γράφεται ΚΑΙ πάνω στην παραγγελία, ώστε να επιβιώνει στο αρχείο του
+        // ιστορικού: οι εισπράξεις καθαρίζονται με το κλείσιμο ημέρας, άρα χωρίς αυτό το «πώς πλήρωσε
+        // ο Β» θα χανόταν το επόμενο πρωί. ΔΕΝ διπλομετράει: η αναφορά ημέρας αγνοεί ρητά το πεδίο
+        // για τα τραπέζια και μετράει μόνο τις εισπράξεις (βλ. DayReportService).
+        SalesStatsService.Instance.UpdatePaymentMethod(orderNumber, method);
         Save();
         Changed?.Invoke();
         return true;

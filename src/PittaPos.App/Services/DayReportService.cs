@@ -46,7 +46,9 @@ public static class DayReportService
         // ΔΙΑΝΟΜΗ/BOX κρατούν τον τρόπο πληρωμής πάνω στην παραγγελία· τα ΤΡΑΠΕΖΙΑ πληρώνονται τμηματικά
         // (ο καθένας τα δικά του, με διαφορετικό τρόπο ο καθένας), οπότε καταγράφονται ξεχωριστά ανά
         // είσπραξη — βλ. TablePaymentsService. Εδώ αθροίζονται και τα δύο στον ίδιο διαχωρισμό.
-        var tracked = orders.Where(o => o.PaymentMethod is not null).ToList();
+        // Τα ΤΡΑΠΕΖΙΑ εξαιρούνται ρητά από το πρώτο άθροισμα: μετρώνται ΜΟΝΟ από τις εισπράξεις τους,
+        // αλλιώς μια παραγγελία τραπεζιού με τρόπο πληρωμής πάνω της θα μετρούσε δύο φορές.
+        var tracked = orders.Where(o => o.PaymentMethod is not null && o.Type != OrderType.Table).ToList();
         var tables = TablePaymentsService.Instance;
         var cash = tracked.Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Cash).Sum(o => o.Total)
             + tables.TotalFor(Core.Models.PaymentMethod.Cash);

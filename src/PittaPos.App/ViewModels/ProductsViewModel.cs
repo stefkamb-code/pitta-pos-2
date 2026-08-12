@@ -257,6 +257,15 @@ public partial class ProductsViewModel : ObservableObject
     [ObservableProperty]
     private string _continueLabel = "ΣΥΝΕΧΕΙΑ";
 
+    /// <summary>Τραπέζι με άτομα: υπάρχουν γραμμένα άτομα που περιμένουν καταχώρηση, οπότε το κουμπί
+    /// πρέπει να δουλεύει ακόμα κι αν το καλάθι του τρέχοντος ατόμου είναι άδειο (βλ.
+    /// OrderWizardViewModel.RefreshPersonBlocks) — αλλιώς το τραπέζι δεν κλείνει με τίποτα.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContinueEnabled))]
+    private bool _allowEmptyContinue;
+
+    public bool ContinueEnabled => CartNotEmpty || AllowEmptyContinue;
+
     /// <summary>Ανοίγει/κλείνει το πεδίο σχολίων παραγγελίας (ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ, που δεν έχουν Βήμα 2).</summary>
     [ObservableProperty]
     private bool _showNoteField;
@@ -328,6 +337,7 @@ public partial class ProductsViewModel : ObservableObject
         OnPropertyChanged(nameof(CartCountLabel));
         OnPropertyChanged(nameof(CartEmpty));
         OnPropertyChanged(nameof(CartNotEmpty));
+        OnPropertyChanged(nameof(ContinueEnabled));
         OnPropertyChanged(nameof(SubtotalLabel));
         OnPropertyChanged(nameof(HasItemsDiscount));
         OnPropertyChanged(nameof(ItemsDiscountLabel));

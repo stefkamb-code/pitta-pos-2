@@ -48,6 +48,18 @@ public partial class HistoryWindow : Window
     /// <summary>Πραγματική διαγραφή παραγγελίας — βγαίνει από τον τζίρο, μόνο με ονομαστικό κωδικό.</summary>
     private void DeleteOrder_Click(object sender, RoutedEventArgs e)
     {
+        if (_vm.SelectedOrder is null)
+            return;
+
+        // Λέει ΡΗΤΑ τι σβήνει: σε τραπέζι με άτομα φεύγει μόνο η απόδειξη ΕΝΟΣ ατόμου, όχι η παρέα.
+        var answer = MessageBox.Show(
+            $"Θα διαγραφεί {_vm.DeleteTargetLabel}.\n\n" +
+            "Αφαιρείται από τον τζίρο και καταγράφεται στα ακυρωμένα. Οι υπόλοιπες αποδείξεις του " +
+            "τραπεζιού δεν επηρεάζονται.",
+            "Διαγραφή", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (answer != MessageBoxResult.Yes)
+            return;
+
         var name = StaffPinDialog.RequireName(this);
         if (name is not null)
             _vm.DeleteOrderCommand.Execute(name);
