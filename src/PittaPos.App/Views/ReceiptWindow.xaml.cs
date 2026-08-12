@@ -55,6 +55,12 @@ public partial class ReceiptWindow : Window
             _ when tableDigits.Length > 0 => label + " #" + tableDigits,
             _ => label + " #" + order.DisplayNumber,
         };
+        // ΤΡΑΠΕΖΙ: το άτομο μπαίνει ΜΟΝΟ όταν είναι προσθήκη σε τραπέζι που έχει ήδη παραγγείλει —
+        // τότε το χαρτί αφορά έναν άνθρωπο και ο σερβιτόρος πρέπει να ξέρει σε ποιον πάει. Στην πρώτη
+        // παραγγελία της παρέας τυπώνεται ΕΝΑ δελτίο για όλο το τραπέζι, χωρίς καμία αναφορά σε άτομα
+        // (βλ. OrderWizardViewModel.PrintTableRounds — εκεί κρίνεται ποιο από τα δύο είναι).
+        if (order.Type == Core.Models.OrderType.Table && order.HasPerson)
+            typeLine += " · " + order.PersonLabel;
         // Και στις ΔΥΟ άκρες του χαρτιού, με το ίδιο ακριβώς κείμενο: όταν κρεμιέται η απόδειξη, το
         // θηλύκωμα σκεπάζει τη μία — έτσι ο αριθμός διαβάζεται πάντα από την άλλη, χωρίς ξεκρέμασμα.
         TypeText.Text = typeLine;
@@ -163,7 +169,7 @@ public partial class ReceiptWindow : Window
         // Ανάλυση ΦΠΑ κάτω από το ΣΥΝΟΛΟ — μικρότερη από αυτό: δεν είναι το ποσό που πληρώνει ο
         // πελάτης, είναι τα δύο νούμερα για την ταμειακή μηχανή.
         var vat = VatBreakdownService.Split(order);
-        var vatFontSize = s.ReceiptTotalFontSize * 0.6;
+        var vatFontSize = s.ReceiptTotalFontSize * 0.78;
         foreach (var tb in new[] { VatReducedLabel, VatReducedAmount, VatStandardLabel, VatStandardAmount })
             tb.FontSize = vatFontSize;
         VatReducedAmount.Text = vat.ReducedLabel;
@@ -242,14 +248,16 @@ public partial class ReceiptWindow : Window
         var lines = text.Split('\n');
         for (var i = 0; i < lines.Length; i++)
         {
-            // Έντονες μόνο οι επικεφαλίδες «ΧΩΡΙΣ:» / «ΜΟΝΟ ΜΕ:» — τα υλικά από κάτω μένουν κανονικά
-            // (ρητή απαίτηση: καθαρό λεπτό μαύρο στο υλικό, έντονο μόνο στη λέξη-κλειδί).
+            // Έντονα: οι επικεφαλίδες «ΧΩΡΙΣ:» / «ΜΟΝΟ ΜΕ:» ΚΑΙ τα έξτρα («+ ΤΖΑΤΖΙΚΙ») — αυτά είναι
+            // που πρέπει να πιάσει το μάτι του ψήστη, γιατί προσθέτουν δουλειά. Τα υλικά κάτω από το
+            // «ΧΩΡΙΣ:» μένουν κανονικά (ρητή απαίτηση: καθαρό λεπτό μαύρο στο ίδιο το υλικό).
             var line = lines[i];
             var isHeading = line.Equals("ΧΩΡΙΣ:", StringComparison.Ordinal)
                 || line.Equals("ΜΟΝΟ ΜΕ:", StringComparison.Ordinal);
+            var isExtra = line.StartsWith("+", StringComparison.Ordinal);
             tb.Inlines.Add(new Run(line)
             {
-                FontWeight = isHeading ? FontWeights.Bold : FontWeights.Normal,
+                FontWeight = isHeading || isExtra ? FontWeights.Bold : FontWeights.Normal,
             });
             if (i < lines.Length - 1)
                 tb.Inlines.Add(new LineBreak());

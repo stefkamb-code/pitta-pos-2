@@ -778,7 +778,7 @@ public static class WaiterApiService
 
         var all = PendingPrints.Remove(table, out var pending) ? pending : [];
         all.Add(order);
-        var ticket = all.Count == 1 ? order : MergeForPrinting(all);
+        var ticket = all.Count == 1 ? ForSinglePersonTicket(table, order) : MergeForPrinting(all);
         // Η εκτύπωση δεν κρατάει την απάντηση: ο σερβιτόρος περίμενε στο κινητό όσο δούλευε ο εκτυπωτής.
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => ReceiptPrinter.PrintOrder(ticket));
     }
@@ -790,8 +790,44 @@ public static class WaiterApiService
         if (!PendingPrints.TryGetValue(table, out var waiting) || waiting.Count == 0)
             return;
         PendingPrints.Remove(table);
-        var ticket = waiting.Count == 1 ? waiting[0] : MergeForPrinting(waiting);
+        var ticket = waiting.Count == 1 ? ForSinglePersonTicket(table, waiting[0]) : MergeForPrinting(waiting);
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => ReceiptPrinter.PrintOrder(ticket));
+    }
+
+    /// <summary>
+    /// Το άτομο τυπώνεται ΜΟΝΟ όταν το χαρτί είναι ΠΡΟΣΘΗΚΗ σε τραπέζι που έχει ήδη παραγγείλει —
+    /// τότε αφορά έναν άνθρωπο και ο σερβιτόρος πρέπει να ξέρει σε ποιον πάει. Στην πρώτη παραγγελία
+    /// της παρέας το τραπέζι σερβίρεται μαζί και το άτομο είναι θόρυβος, ακόμα κι αν έτυχε να
+    /// παραγγείλει μόνο ένας (οπότε το δελτίο δεν περνάει από το MergeForPrinting).
+    /// </summary>
+    private static CompletedOrder ForSinglePersonTicket(int table, CompletedOrder order)
+    {
+        if (!order.HasPerson)
+            return order;
+
+        var since = TableStatusService.Instance.OpenSince.TryGetValue(table, out var opened)
+            ? opened
+            : DateTime.MinValue;
+        var hadOrdersBefore = SalesStatsService.Instance.Orders.Any(o =>
+            o.Type == OrderType.Table && o.Who == order.Who
+            && o.OrderNumber != order.OrderNumber && o.PlacedAt >= since);
+        if (hadOrdersBefore)
+            return order;
+
+        // Ίδια παραγγελία, χωρίς το άτομο — ΜΟΝΟ για το χαρτί· η καταχωρημένη μένει ανέπαφη.
+        return new CompletedOrder
+        {
+            OrderNumber = order.OrderNumber,
+            Type = order.Type,
+            Who = order.Who,
+            Total = order.Total,
+            Lines = order.Lines,
+            Note = order.Note,
+            DeliveryNotes = order.DeliveryNotes,
+            OrderDiscountPct = order.OrderDiscountPct,
+            IsEveningShift = order.IsEveningShift,
+            PlacedAt = order.PlacedAt,
+        };
     }
 
     /// <summary>Ένα εικονικό «μαζεμένο» δελτίο για εκτύπωση — ΔΕΝ καταχωρείται πουθενά, οι πραγματικές

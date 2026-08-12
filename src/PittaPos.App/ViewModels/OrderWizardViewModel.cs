@@ -910,6 +910,7 @@ public partial class OrderWizardViewModel : ObservableObject
             _personsDone.Add(p);
             _personsOrderedBefore.Add(p);
         }
+        _isAddOnRound = _personsOrderedBefore.Count > 0;
         TablePerson = startPerson >= 0
             ? startPerson
             : Enumerable.Range(0, Math.Max(1, TablePersonCount))
@@ -920,6 +921,10 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>Άτομα που είχαν ήδη παραγγείλει πριν ανοίξει αυτός ο γύρος — φαίνονται στη στήλη ακόμα
     /// κι όταν δεν τους έχει γραφτεί τίποτα τώρα, ώστε να πατηθεί όποιος ζητήσει κάτι επιπλέον.</summary>
     private readonly HashSet<int> _personsOrderedBefore = [];
+
+    /// <summary>Είναι ΠΡΟΣΘΗΚΗ σε τραπέζι που έχει ήδη παραγγείλει (κάποιος ζήτησε κάτι ακόμα), όχι η
+    /// πρώτη παραγγελία της παρέας. Αλλάζει ΜΟΝΟ το χαρτί — βλ. PrintTableRounds.</summary>
+    private bool _isAddOnRound;
 
     /// <summary>Καλείται από την οθόνη λεπτομερειών τραπεζιού όταν πατηθεί «+ ΠΡΟΣΘΗΚΗ».</summary>
     /// <param name="person">Σε ποιο άτομο γράφεται· -1 = στον πρώτο που δεν έχει παραγγείλει ακόμα.</param>
@@ -1595,6 +1600,17 @@ public partial class OrderWizardViewModel : ObservableObject
     {
         if (_tableRounds.Count == 0)
             return;
+
+        // ΠΡΟΣΘΗΚΗ σε τραπέζι που έχει ήδη παραγγείλει: ένα χαρτί ανά άτομο, με το άτομο γραμμένο
+        // πάνω («ΤΡΑΠΕΖΙ #5 · ΑΤΟΜΟ Β»). Εδώ ο σερβιτόρος πρέπει να ξέρει σε ΠΟΙΟΝ πάει η κόκα κόλα —
+        // ενώ στην πρώτη παραγγελία της παρέας το τραπέζι σερβίρεται μαζί και τα άτομα είναι θόρυβος.
+        if (_isAddOnRound)
+        {
+            foreach (var round in _tableRounds)
+                ReceiptPrinter.PrintOrder(round);
+            _tableRounds.Clear();
+            return;
+        }
 
         var last = _tableRounds[^1];
         var ticket = _tableRounds.Count == 1
