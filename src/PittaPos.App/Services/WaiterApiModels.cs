@@ -91,13 +91,17 @@ public sealed record TableOrderLineDto(int LineIndex, string Name, int Quantity,
 public sealed record TableOrderDto(int OrderNumber, string TimeLabel, decimal Total, List<TableOrderLineDto> Lines, string Note = "");
 
 /// <summary>Εξόφληση ενός προϊόντος ξεχωριστά (π.χ. πλήρωσε μόνο ένας από την παρέα) — PIN όπως στις παραγγελίες.</summary>
-public sealed record SettleLineRequest(string Pin, int OrderNumber, int LineIndex);
+/// <param name="Method">«cash» ή «card», όπως τα κουμπιά του ταμείου. null = παλιότερο APK που δεν
+/// ρωτούσε τρόπο πληρωμής — θεωρείται μετρητά, δηλαδή ό,τι ίσχυε πριν.</param>
+public sealed record SettleLineRequest(string Pin, int OrderNumber, int LineIndex, string? Method = null);
 
 /// <summary>«Πόσα άτομα;» από το κινητό — ένα άτομο = μία απόδειξη στην ταμειακή του μαγαζιού.</summary>
 public sealed record SetPersonsRequest(string Pin, int Count);
 
 /// <summary>Πληρωμή/κλείσιμο ολόκληρου τραπεζιού από το κινητό.</summary>
-public sealed record CloseTableRequest(string Pin);
+/// <param name="Method">«cash» ή «card» — ό,τι έμεινε ανεξόφλητο θεωρείται ότι πληρώθηκε τώρα έτσι,
+/// ακριβώς όπως το «ΠΛΗΡΩΜΗ ΥΠΟΛΟΙΠΟΥ ΚΑΙ ΚΛΕΙΣΙΜΟ» του ταμείου. null = παλιότερο APK → μετρητά.</param>
+public sealed record CloseTableRequest(string Pin, string? Method = null);
 
 /// <summary>Ειδοποίηση εισερχόμενης κλήσης από το τηλεφωνικό κέντρο (Grandstream UCM Event Notification).</summary>
 public sealed record IncomingCallRequest(string? Caller);

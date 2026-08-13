@@ -76,9 +76,13 @@ public partial class BoardOrder : ObservableObject
     /// <summary>Ο αριθμός που φαίνεται δίπλα στο «#» στις Ζωντανές Παραγγελίες — για ΕΦΑΡΜΟΓΕΣ με
     /// δηλωμένο αριθμό πλατφόρμας, αυτός είναι ο κύριος (πιο χρήσιμος για αντιστοίχιση με Wolt/e-food/BOX
     /// παρά ο εσωτερικός μας μετρητής)· διαφορετικά ο εσωτερικός OrderNumber, όπως πάντα.</summary>
+    /// Ίδιος κανόνας με το CompletedOrder.DisplayNumber — η σειρά της βάρδιας διψήφια («01»), για να
+    /// μη διαφωνούν οθόνη και χαρτί.
     public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
         ? AppOrderRef!
-        : OrderNumber.ToString();
+        : OrderNumber < SalesStatsService.ExternalBandStart
+            ? OrderNumber.ToString("00")
+            : OrderNumber.ToString();
 
     /// <summary>Εικονίδιο μετρητών/κάρτας για τις Ζωντανές Παραγγελίες — null όταν δεν έχει νόημα
     /// (PaymentMethod == null), οπότε δεν εμφανίζεται τίποτα.</summary>

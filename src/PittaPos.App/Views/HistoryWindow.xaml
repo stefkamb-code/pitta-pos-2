@@ -380,7 +380,9 @@
                                                 <DockPanel>
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="13"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                    <TextBlock Text="{Binding WhoLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Ink}"/>
+                                                    <TextBlock Text="{Binding WhoLabel}" FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Ink}"
+                                                               Visibility="{Binding ShowWhoLabel, Converter={StaticResource BoolToVis}}"/>
                                                 </DockPanel>
                                                 <!-- «3 άτομα · 3 αποδείξεις» — μόνο στα τραπέζια που πληρώνουν χωριστά. -->
                                                 <TextBlock Text="{Binding SubLabel}" FontSize="11.5" Margin="0,3,0,0"
@@ -410,8 +412,12 @@
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding TimeLabel}" FontSize="13"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Neutral700}"/>
                                                     <StackPanel Orientation="Horizontal">
+                                                        <!-- DisplayNumber και όχι OrderNumber: σε e-food/Wolt/BOX ο αριθμός
+                                                             που ξέρει ο ταμίας είναι ΤΗΣ ΠΛΑΤΦΟΡΜΑΣ (αυτόν πληκτρολόγησε,
+                                                             αυτόν τυπώνει η απόδειξη, αυτόν δείχνουν οι Ζωντανές). Με τον
+                                                             εσωτερικό αριθμό εδώ, η παραγγελία «322» ήταν άφαντη. -->
                                                         <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding OrderNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="{Binding DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
                                                         <TextBlock Text="{Binding Who}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     </StackPanel>
@@ -466,7 +472,7 @@
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Neutral700}"/>
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding OrderNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="{Binding DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
                                                         <TextBlock Text="{Binding DiscountLabel}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"/>
                                                     </StackPanel>
@@ -552,7 +558,7 @@
                                            Margin="0,2,0,0" Visibility="Collapsed"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,2">
                                     <TextBlock Text="ΠΑΡΑΓΓΕΛΙΑ #" FontSize="11" Foreground="{DynamicResource Neutral600}"/>
-                                    <TextBlock Text="{Binding SelectedOrder.OrderNumber}" FontSize="11" Foreground="{DynamicResource Neutral600}"/>
+                                    <TextBlock Text="{Binding SelectedOrder.DisplayNumber}" FontSize="11" Foreground="{DynamicResource Neutral600}"/>
                                 </StackPanel>
                                 <TextBlock x:Name="DateTimeText" Text="{Binding SelectedOrder.DateTimeLabel}" FontSize="11"
                                            Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center" Margin="0,0,0,16"/>
@@ -644,19 +650,28 @@
                                             Command="{Binding SetPaymentMethodCardCommand}"/>
                                 </UniformGrid>
 
-                                <UniformGrid Columns="3" Rows="2" Margin="0,6,0,0"
+                                <!-- Δείχνονται ΜΟΝΟ τα κανάλια που βγάζουν νόημα για τη συγκεκριμένη
+                                     παραγγελία: ΟΡΘΙΟΣ και ΤΡΑΠΕΖΙ αλλάζουν μόνο μεταξύ τους, χωρίς
+                                     κανάλια διανομής (βλ. CanChangeToDelivery στο HistoryViewModel). -->
+                                <UniformGrid Columns="{Binding ChannelOptionColumns}" Margin="0,6,0,0"
                                              Visibility="{Binding ShowChannelOptions, Converter={StaticResource BoolToVis}}">
                                     <Button Content="ΔΙΑΝΟΜΗ" Style="{StaticResource ChoiceChip}"
+                                            Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="ΔΙΑΝΟΜΗ"/>
                                     <Button Content="ΤΡΑΠΕΖΙ" Style="{StaticResource ChoiceChip}"
+                                            Visibility="{Binding CanChangeToTable, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="ΤΡΑΠΕΖΙ"/>
                                     <Button Content="ΟΡΘΙΟΣ" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Visibility="{Binding CanChangeToPickup, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="ΟΡΘΙΟΣ"/>
                                     <Button Content="e-food" Style="{StaticResource ChoiceChip}"
+                                            Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="e-food"/>
                                     <Button Content="Wolt" Style="{StaticResource ChoiceChip}"
+                                            Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="Wolt"/>
                                     <Button Content="BOX" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="BOX"/>
                                 </UniformGrid>
                             </StackPanel>

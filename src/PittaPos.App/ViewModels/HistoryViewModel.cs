@@ -31,20 +31,31 @@ public sealed class HistoryEntryViewModel
 
     public string TypeLabel => First.TypeLabel;
     public string WhoLabel => First.WhoLabel;
+
+    /// <summary>Στο τραπέζι το «Τραπέζι 2» από κάτω λέει ακριβώς ό,τι λέει ήδη το «#2 · ΤΡΑΠΕΖΙ» από
+    /// πάνω — δύο φορές το ίδιο. Στα υπόλοιπα κανάλια από κάτω είναι το ΟΝΟΜΑ ΤΟΥ ΠΕΛΑΤΗ, που δεν
+    /// υπάρχει πουθενά αλλού, οπότε μένει. Κριτήριο είναι το αν όντως δείχνεται αριθμός τραπεζιού και
+    /// όχι σκέτα ο τύπος: μια παραγγελία διορθωμένη σε ΤΡΑΠΕΖΙ κρατά όνομα πελάτη στο Who, και χωρίς
+    /// αυτό θα έμενε γραμμή χωρίς κανένα αναγνωριστικό.</summary>
+    public bool ShowWhoLabel => First.TableNumberLabel.Length == 0;
     public decimal Total => Orders.Sum(o => o.Total);
     public string TotalLabel => Order.FormatPrice(Total);
     /// <summary>Ώρα του λογαριασμού = της πρώτης παραγγελίας του.</summary>
     public DateTime PlacedAt => Orders.Min(o => o.PlacedAt);
     public string DateTimeLabel => PlacedAt.ToString("dd/MM/yyyy · HH:mm");
 
-    /// <summary>«#42» ή «#42–#45» για τον λογαριασμό ολόκληρης παρέας.</summary>
+    /// <summary>
+    /// «#03», «#322» (e-food), «#5» (τραπέζι) — πάντα ο αριθμός που ξέρει ο ταμίας, ποτέ ο εσωτερικός
+    /// (βλ. CompletedOrder.DisplayNumber). Ο λογαριασμός ενός τραπεζιού είναι πολλές παραγγελίες με τον
+    /// ΙΔΙΟ αριθμό τραπεζιού, οπότε βγαίνει ένα σκέτο «#5» αντί για εύρος εσωτερικών αριθμών: το
+    /// «#1001–#1003» δεν έλεγε τίποτα σε κανέναν και η παραγγελία δεν βρισκόταν με τίποτα.
+    /// </summary>
     public string NumberLabel
     {
         get
         {
-            var min = Orders.Min(o => o.OrderNumber);
-            var max = Orders.Max(o => o.OrderNumber);
-            return min == max ? "#" + min : $"#{min}–#{max}";
+            var numbers = Orders.OrderBy(o => o.OrderNumber).Select(o => o.DisplayNumber).Distinct().ToList();
+            return numbers.Count == 1 ? "#" + numbers[0] : $"#{numbers[0]}–#{numbers[^1]}";
         }
     }
 
@@ -112,6 +123,22 @@ public class CancelledEntryViewModel
     public required DateTime CancelledAt { get; init; }
     public required IReadOnlyList<CancelledLine> Lines { get; init; }
 
+    /// <summary>Ίδιος κανόνας με το <see cref="CompletedOrder.DisplayNumber"/>, όσο το επιτρέπει η
+    /// ακύρωση: κρατά μόνο αριθμό και «ποιος», οπότε ο αριθμός τραπεζιού βγαίνει από το Who. Ο κωδικός
+    /// πλατφόρμας δεν αποθηκεύεται στην ακύρωση — εκεί μένει ο εσωτερικός αριθμός.</summary>
+    public string DisplayNumber
+    {
+        get
+        {
+            var digits = new string(Who.Where(char.IsDigit).ToArray());
+            return Who.StartsWith("Τραπέζι", StringComparison.Ordinal) && digits.Length > 0
+                ? digits
+                : OrderNumber < SalesStatsService.ExternalBandStart
+                    ? OrderNumber.ToString("00")
+                    : OrderNumber.ToString();
+        }
+    }
+
     public string TimeLabel => CancelledAt.ToString("HH:mm");
     public string CancelledByLabel => Lines[0].CancelledByLabel;
     public decimal Revenue => Lines.Sum(l => l.Revenue);
@@ -124,7 +151,8 @@ public class CancelledEntryViewModel
 /// <summary>Μία γραμμή έκπτωσης (ανά προϊόν ή ανά ολόκληρη παραγγελία) για τη λίστα «ΕΚΠΤΩΣΕΙΣ».</summary>
 public class DiscountEntryViewModel
 {
-    public required int OrderNumber { get; init; }
+    /// <summary>Ο αριθμός που ξέρει ο ταμίας — βλ. <see cref="CompletedOrder.DisplayNumber"/>.</summary>
+    public required string DisplayNumber { get; init; }
     public required string TimeLabel { get; init; }
     public required string Description { get; init; }
     public required int DiscountPct { get; init; }
@@ -272,7 +300,25 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelected))]
     [NotifyPropertyChangedFor(nameof(NothingSelected))]
+    [NotifyPropertyChangedFor(nameof(CanChangeToTable))]
+    [NotifyPropertyChangedFor(nameof(CanChangeToPickup))]
+    [NotifyPropertyChangedFor(nameof(CanChangeToDelivery))]
+    [NotifyPropertyChangedFor(nameof(ChannelOptionColumns))]
     private CompletedOrder? _selectedOrder;
+
+    // ΟΡΘΙΟΣ και ΤΡΑΠΕΖΙ αλλάζουν ΜΟΝΟ μεταξύ τους: είναι το ίδιο μαγαζί με τον πελάτη μπροστά σου, και
+    // το ένα περνιέται κατά λάθος αντί για το άλλο. Κανάλι διανομής δεν έχει νόημα εκεί — δεν υπάρχει
+    // διεύθυνση ούτε κωδικός πλατφόρμας. Το ανάποδο μένει ανοιχτό (μια διανομή μπορεί να γίνει όρθιος),
+    // γιατί εκεί το λάθος όντως συμβαίνει και πρέπει να διορθώνεται.
+    private bool SelectedIsPickup => SelectedOrder?.Type == OrderType.Pickup;
+
+    public bool CanChangeToTable => SelectedOrder is not null && !SelectedIsTable;
+    public bool CanChangeToPickup => SelectedOrder is not null && !SelectedIsPickup;
+    public bool CanChangeToDelivery => SelectedOrder is not null && !SelectedIsTable && !SelectedIsPickup;
+
+    /// <summary>Σε ΟΡΘΙΟ/ΤΡΑΠΕΖΙ μένει ένα μόνο κουμπί — να πιάνει όλο το πλάτος αντί για το 1/3 ενός
+    /// πλέγματος τριών στηλών που έχει άδειες θέσεις.</summary>
+    public int ChannelOptionColumns => CanChangeToDelivery ? 3 : 1;
 
     /// <summary>Οι επιλογές διόρθωσης καναλιού κρύβονται μέχρι να πατηθεί το κουμπί «ΔΙΟΡΘΩΣΗ ΚΑΝΑΛΙΟΥ» —
     /// προστασία από κατά λάθος κλικ, ίδια λογική με το ΑΛΛΑΓΗ ΣΕ στις Ζωντανές Παραγγελίες.</summary>
@@ -461,7 +507,7 @@ public partial class HistoryViewModel : ObservableObject
         foreach (var l in o.Lines.Where(l => l.HasDiscount))
             yield return new DiscountEntryViewModel
             {
-                OrderNumber = o.OrderNumber,
+                DisplayNumber = o.DisplayNumber,
                 TimeLabel = o.TimeLabel,
                 Description = l.QtyNameLabel,
                 DiscountPct = l.DiscountPct,
@@ -470,7 +516,7 @@ public partial class HistoryViewModel : ObservableObject
         if (o.OrderDiscountPct > 0)
             yield return new DiscountEntryViewModel
             {
-                OrderNumber = o.OrderNumber,
+                DisplayNumber = o.DisplayNumber,
                 TimeLabel = o.TimeLabel,
                 Description = "Όλη η παραγγελία" + (o.WhoLabel != "—" ? " · " + o.WhoLabel : ""),
                 DiscountPct = o.OrderDiscountPct,
@@ -543,6 +589,7 @@ public partial class HistoryViewModel : ObservableObject
             return;
         }
         OnPropertyChanged(nameof(IsSearching));
+        OnPropertyChanged(nameof(NoOrdersLabel));
         Refresh();
     }
 
@@ -554,13 +601,18 @@ public partial class HistoryViewModel : ObservableObject
     /// <summary>Τι λέει η οθόνη όταν η λίστα είναι άδεια — αλλιώς «Καμία παραγγελία σήμερα» σε αναζήτηση
     /// παλιάς παραγγελίας διαβάζεται σαν να χάθηκε.</summary>
     public string NoOrdersLabel => IsSearching
-        ? $"Δεν βρέθηκε παραγγελία #{SearchNumber} σε όλο το ιστορικό"
+        ? $"Δεν βρέθηκε παραγγελία #{SearchNumber} " +
+          (FromDate is null && ToDate is null ? "σε όλο το ιστορικό" : "στις ημερομηνίες που έχεις επιλέξει")
         : "Καμία παραγγελία";
 
     /// <summary>Ταιριάζει ό,τι ΠΕΡΙΕΧΕΙ τα ψηφία: «14» φέρνει #14, #142, #514 — ο ταμίας συχνά θυμάται
     /// μόνο τα τελευταία νούμερα από το δελτίο.</summary>
     private static IEnumerable<CompletedOrder> Matching(IEnumerable<CompletedOrder> orders, string search) =>
-        orders.Where(o => o.OrderNumber.ToString().Contains(search));
+        // Ψάχνει τον αριθμό ΠΟΥ ΒΛΕΠΕΙ ο ταμίας (DisplayNumber): τον κωδικό της πλατφόρμας σε
+        // e-food/Wolt/BOX, τον αριθμό τραπεζιού στα τραπέζια, τη σειρά βάρδιας στον ΟΡΘΙΟ/ΔΙΑΝΟΜΗ.
+        // Με τον εσωτερικό αριθμό, το «322» της e-food δεν έβγαζε τίποτα — ακριβώς ο λόγος που
+        // ζητήθηκε η αλλαγή αρίθμησης.
+        orders.Where(o => o.DisplayNumber.Contains(search, StringComparison.Ordinal));
 
     /// <summary>Περνάει το φίλτρο καναλιού πάνω στις παραγγελίες της περιόδου.</summary>
     private IEnumerable<CompletedOrder> ApplyChannelFilter(IEnumerable<CompletedOrder> orders) =>
@@ -582,10 +634,14 @@ public partial class HistoryViewModel : ObservableObject
         var search = SearchNumber.Trim();
         var searching = search.Length > 0;
 
-        var from = searching ? DateTime.MinValue : FromDate ?? DateTime.MinValue;
-        var to = searching ? DateTime.MaxValue : ToDate ?? DateTime.MaxValue;
+        // Η αναζήτηση σέβεται το εύρος ημερομηνιών: «μόνο σήμερα» ψάχνει μόνο σήμερα, μεγαλύτερο εύρος
+        // ψάχνει όλο το εύρος. Παλιότερα αγνοούσε τις ημερομηνίες και σάρωνε ΟΛΟ το ιστορικό — δούλευε
+        // όσο ο αριθμός ήταν ένας συνεχής μετρητής και άρα μοναδικός. Τώρα η σειρά της βάρδιας ξεκινά
+        // από #01 κάθε μέρα, οπότε το «01» θα έφερνε μια παραγγελία από κάθε ημέρα του αρχείου.
+        var from = FromDate ?? DateTime.MinValue;
+        var to = ToDate ?? DateTime.MaxValue;
         var today = SalesStatsService.BusinessDay(DateTime.Now);
-        var includesToday = searching || (from.Date <= today && today <= to.Date);
+        var includesToday = from.Date <= today && today <= to.Date;
 
         var archivedOrders = HistoryArchiveService.LoadOrders(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
@@ -605,7 +661,12 @@ public partial class HistoryViewModel : ObservableObject
         var allCancellations = archivedCancellations.Concat(liveCancellations);
         // Η αναζήτηση πιάνει και τα ΑΚΥΡΩΜΕΝΑ: «πού πήγε η #142» έχει απάντηση και όταν ακυρώθηκε.
         if (searching)
-            allCancellations = allCancellations.Where(c => c.OrderNumber.ToString().Contains(search));
+            allCancellations = allCancellations.Where(c =>
+                c.OrderNumber.ToString().Contains(search)
+                // Και με τον αριθμό τραπεζιού: αυτόν βλέπει πια ο ταμίας στη λίστα, οπότε αυτόν θα
+                // πληκτρολογήσει ψάχνοντας «τι ακυρώθηκε στο 5».
+                || (c.Who.StartsWith("Τραπέζι", StringComparison.Ordinal)
+                    && new string(c.Who.Where(char.IsDigit).ToArray()).Contains(search)));
         // Ομαδοποίηση ανά (παραγγελία, ακριβές instant) — γραμμές που ακυρώθηκαν μαζί (π.χ. ολόκληρος
         // γύρος) γίνονται μία κάρτα αντί να εμφανίζονται σαν ξεχωριστά προϊόντα.
         CancelledEntries = allCancellations

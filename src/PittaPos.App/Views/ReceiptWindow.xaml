@@ -127,7 +127,11 @@
                                 <!-- TextWrapping: σε στενό χαρτί (72mm) ένα μεγάλο όνομα προϊόντος ΔΕΝ
                                      χωράει σε μία γραμμή — χωρίς αναδίπλωση κοβόταν στην άκρη και ο
                                      υπάλληλος έβλεπε μισό όνομα. Τώρα συνεχίζει από κάτω. -->
-                                <TextBlock Text="{Binding QtyNameLabel}" FontSize="13" FontWeight="Bold"
+                                <!-- SemiBold και όχι Bold: το όνομα του προϊόντος μένει έντονο, αλλά πιο
+                                     λεπτό από τα έξτρα και τα «ΧΩΡΙΣ:/ΜΟΝΟ ΜΕ:» (βλ.
+                                     HighlightModifierKeywords), ώστε στο χαρτί να ξεχωρίζει με τη μία τι
+                                     είναι το πιάτο και τι είναι η αλλαγή πάνω του. -->
+                                <TextBlock Text="{Binding QtyNameLabel}" FontSize="13" FontWeight="SemiBold"
                                            Foreground="Black"
                                            TextWrapping="Wrap" Loaded="ItemText_Loaded"/>
                             </DockPanel>

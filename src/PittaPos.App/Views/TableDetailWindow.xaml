@@ -44,8 +44,32 @@
                     <ItemsControl ItemsSource="{Binding Persons}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="6"
-                                        Padding="12,10" Margin="0,0,0,10">
+                                <!-- Κλικ πάνω στην κάρτα = διάλεξε ΟΛΟ το άτομο· ανάβει κόκκινο και η κάτω
+                                     μπάρα δείχνει «Ν ΕΠΙΛΕΓΜΕΝΑ / ✓ ΠΛΗΡΩΜΕΝΟ». Ίδια χειρονομία με το
+                                     κινητό — δεν υπάρχει πια ξεχωριστό κουμπί πληρωμής μέσα σε κάθε άτομο. -->
+                                <Border CornerRadius="6" Padding="12,10" Margin="0,0,0,10" Cursor="Hand">
+                                    <Border.InputBindings>
+                                        <MouseBinding MouseAction="LeftClick"
+                                                      Command="{Binding DataContext.TogglePersonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      CommandParameter="{Binding}"/>
+                                    </Border.InputBindings>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <!-- Το Background μπαίνει ΕΔΩ και όχι ως attribute: τοπική τιμή θα
+                                                 νικούσε τον trigger και η κάρτα δεν θα άναβε ποτέ. Δεν είναι
+                                                 Transparent — χωρίς γέμισμα το κλικ περνάει από μέσα. -->
+                                            <Setter Property="Background" Value="{DynamicResource Surface}"/>
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Divider}"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource Accent100}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                    <Setter Property="BorderThickness" Value="2"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel>
                                         <DockPanel Margin="0,0,0,6">
                                             <TextBlock DockPanel.Dock="Right" Text="{Binding OutstandingLabel}"
@@ -77,17 +101,6 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
-                                        <!-- Μία πληρωμή = μία απόδειξη: ολόκληρο το άτομο με ένα πάτημα. -->
-                                        <UniformGrid Columns="2" Visibility="{Binding CanSettle, Converter={StaticResource BoolToVis}}">
-                                            <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource FlatButton}" Margin="0,0,4,0"
-                                                    Padding="10,8" FontSize="12" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                                    Command="{Binding DataContext.SettlePersonCashCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                            <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource FlatButton}" Margin="4,0,0,0"
-                                                    Padding="10,8" FontSize="12" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                                    Command="{Binding DataContext.SettlePersonCardCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                    CommandParameter="{Binding}"/>
-                                        </UniformGrid>
                                         <TextBlock Text="✓ ΠΛΗΡΩΜΕΝΟ — η απόδειξη κόπηκε" FontSize="11.5" FontWeight="ExtraBold"
                                                    Foreground="{DynamicResource Neutral500}" HorizontalAlignment="Center"
                                                    Visibility="{Binding IsPaid, Converter={StaticResource BoolToVis}}"/>
@@ -213,20 +226,12 @@
                     <DockPanel Margin="0,0,0,14">
                         <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedTotalLabel}" FontSize="22"
                                    FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                        <TextBlock FontSize="15" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" VerticalAlignment="Bottom">
-                            <Run Text="{Binding SelectedCount, Mode=OneWay}"/><Run Text=" ΕΠΙΛΕΓΜΕΝΑ"/>
-                        </TextBlock>
+                        <TextBlock Text="{Binding SelectedCountLabel}" FontSize="15" FontWeight="ExtraBold"
+                                   Foreground="{DynamicResource Ink}" VerticalAlignment="Bottom"/>
                     </DockPanel>
-                    <!-- Χωριστά μετρητά/κάρτα ώστε να καταγράφεται ΠΩΣ πληρώθηκε το κάθε προϊόν — μπαίνει
-                         στον διαχωρισμό της αναφοράς ημέρας (βλ. TablePaymentsService). -->
-                    <UniformGrid Columns="2" Margin="0,0,0,10">
-                        <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource PrimaryButton}"
-                                Height="46" FontSize="13.5" HorizontalContentAlignment="Center"
-                                Margin="0,0,5,0" Command="{Binding SettleSelectedCashCommand}"/>
-                        <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource PrimaryButton}"
-                                Height="46" FontSize="13.5" HorizontalContentAlignment="Center"
-                                Margin="5,0,0,0" Command="{Binding SettleSelectedCardCommand}"/>
-                    </UniformGrid>
+                    <Button Content="{Binding SettleSelectedLabel}" Style="{StaticResource PrimaryButton}"
+                            Height="46" FontSize="13.5" HorizontalContentAlignment="Center"
+                            Margin="0,0,0,10" Command="{Binding RequestSettleSelectedCommand}"/>
                     <Button Content="✕ ΑΚΥΡΩΣΗ (ΔΙΑΓΡΑΦΗ)" Style="{StaticResource FlatButton}"
                             Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
                             Foreground="{DynamicResource Accent700}" BorderBrush="{DynamicResource Accent}"
@@ -244,20 +249,42 @@
                     <Button Content="{Binding NewRoundLabel}" Style="{StaticResource PrimaryButton}"
                             Height="46" FontSize="14" HorizontalContentAlignment="Center"
                             Margin="0,0,0,10" Command="{Binding RequestNewRoundCommand}"/>
-                    <!-- Κλείσιμο τραπεζιού με τρόπο πληρωμής: ό,τι έχει μείνει ανεξόφλητο θεωρείται ότι
-                         πληρώθηκε τώρα, με αυτόν τον τρόπο. -->
-                    <TextBlock Text="ΠΛΗΡΩΜΗ ΥΠΟΛΟΙΠΟΥ ΚΑΙ ΚΛΕΙΣΙΜΟ" FontSize="11" FontWeight="ExtraBold"
-                               Foreground="{DynamicResource Neutral600}" Margin="0,4,0,6"/>
-                    <UniformGrid Columns="2">
-                        <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource FlatButton}"
-                                Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                Margin="0,0,5,0" Command="{Binding CloseTableCashCommand}"/>
-                        <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource FlatButton}"
-                                Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                Margin="5,0,0,0" Command="{Binding CloseTableCardCommand}"/>
-                    </UniformGrid>
+                    <!-- Κλείσιμο τραπεζιού: ό,τι έχει μείνει ανεξόφλητο θεωρείται ότι πληρώθηκε τώρα —
+                         ο τρόπος ρωτιέται στο επόμενο βήμα. -->
+                    <Button Content="✕ ΠΛΗΡΩΜΗ ΥΠΟΛΟΙΠΟΥ ΚΑΙ ΚΛΕΙΣΙΜΟ" Style="{StaticResource FlatButton}"
+                            Height="42" FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                            Command="{Binding RequestCloseTableCommand}"/>
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <!-- «Πώς πληρώθηκε;» — παραθυράκι στη ΜΕΣΗ, πάνω από όλη την οθόνη. Το είχα βάλει στην κάτω
+             μπάρα και ο ταμίας έπρεπε να κατεβάσει το μάτι του στη γωνία· εδώ πέφτει ακριβώς εκεί που
+             κοιτάει μόλις πατήσει «ΠΛΗΡΩΜΗ». Το σκούρο φόντο πιάνει και τα κλικ, ώστε να μην πατηθεί
+             κατά λάθος κάτι από κάτω όσο περιμένει απάντηση. -->
+        <Border Grid.RowSpan="3" Background="#99000000"
+                Visibility="{Binding IsChoosingPayment, Converter={StaticResource BoolToVis}}">
+            <Border Background="{DynamicResource Surface}" CornerRadius="14" Padding="22,20" Width="330"
+                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{Binding PendingPaymentTitle}" FontSize="14" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding PendingPaymentAmountLabel}" FontSize="30" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,6,0,18"/>
+                    <UniformGrid Columns="2" Margin="0,0,0,10">
+                        <Button Content="💶 ΜΕΤΡΗΤΑ" Style="{StaticResource PrimaryButton}"
+                                Height="52" FontSize="13.5" HorizontalContentAlignment="Center"
+                                Margin="0,0,5,0" Command="{Binding PayCashCommand}"/>
+                        <Button Content="💳 ΚΑΡΤΑ" Style="{StaticResource PrimaryButton}"
+                                Height="52" FontSize="13.5" HorizontalContentAlignment="Center"
+                                Margin="5,0,0,0" Command="{Binding PayCardCommand}"/>
+                    </UniformGrid>
+                    <Button Content="ΑΚΥΡΟ" Style="{StaticResource FlatButton}"
+                            Height="38" FontSize="12" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                            Command="{Binding CancelPaymentCommand}"/>
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </Window>

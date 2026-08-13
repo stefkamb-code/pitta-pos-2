@@ -567,14 +567,35 @@ public static class WaiterApiService
         if (order is null || req.LineIndex < 0 || req.LineIndex >= order.Lines.Count)
             return (400, new { error = "Άκυρη γραμμή" });
 
-        // Το κινητό δεν ρωτάει τρόπο πληρωμής — θεωρείται μετρητά. Το ποσό όμως πρέπει να περάσει, αλλιώς
-        // η είσπραξη δεν θα μετρούσε καθόλου στον διαχωρισμό μετρητά/κάρτα της αναφοράς ημέρας.
-        // Εξοφλείται ολόκληρη η γραμμή (το κινητό δεν έχει επιλογή ανά τεμάχιο).
-        var settledLine = order.Lines[req.LineIndex];
-        TableSettlementService.Instance.Settle(table, req.OrderNumber, req.LineIndex,
-            PaymentMethod.Cash, settledLine.Revenue);
+        SettleWholeLine(table, order, req.LineIndex, MethodOf(req.Method));
         AutoCloseIfNothingOwed(table);
         return (200, new { ok = true });
+    }
+
+    /// <summary>«cash»/«card» όπως το στέλνει το κινητό. Ό,τι άλλο — και το null ενός παλιότερου APK
+    /// που δεν ρωτούσε καν — θεωρείται μετρητά, δηλαδή ό,τι ίσχυε πριν.</summary>
+    private static PaymentMethod MethodOf(string? method) =>
+        string.Equals(method, "card", StringComparison.OrdinalIgnoreCase) ? PaymentMethod.Card : PaymentMethod.Cash;
+
+    /// <summary>
+    /// Εξοφλεί ό,τι έχει μείνει απλήρωτο σε μια γραμμή — <b>ανά τεμάχιο</b>, όπως το ταμείο. Το κινητό
+    /// δεν έχει επιλογή ανά τεμάχιο, το ταμείο όμως έχει: αν είχε ήδη πληρωθεί η μία από τις τρεις ίδιες
+    /// πίττες, ένα κλειδί «όλη η γραμμή» θα κατέγραφε ΞΑΝΑ ολόκληρο το ποσό στις εισπράξεις της ημέρας.
+    /// Η έκπτωση της παραγγελίας μπαίνει μέσα (το Revenue της γραμμής δεν την ξέρει), αλλιώς η είσπραξη
+    /// βγαίνει μεγαλύτερη από την πώληση — ίδιος υπολογισμός με το TableDetailViewModel.
+    /// </summary>
+    private static void SettleWholeLine(int table, CompletedOrder order, int lineIndex, PaymentMethod method)
+    {
+        var line = order.Lines[lineIndex];
+        var units = Math.Max(1, line.Quantity);
+        var unitPrice = line.Revenue / units * (1 - order.OrderDiscountPct / 100m);
+        for (var u = 0; u < units; u++)
+            // Ο έλεγχος ΠΡΙΝ το Settle δεν είναι περιττός: το TryAdd μέσα στο Settle κοιτάει μόνο το
+            // κλειδί ανά τεμάχιο, ενώ μια γραμμή μπορεί να είναι εξοφλημένη με το παλιό κλειδί «όλης
+            // της γραμμής» (αρχείο από προηγούμενη έκδοση). Χωρίς αυτό, το κλείσιμο τραπεζιού θα
+            // ξανακατέγραφε ολόκληρη την είσπραξη και τα μετρητά/κάρτα της ημέρας θα φούσκωναν.
+            if (!TableSettlementService.Instance.IsSettled(table, order.OrderNumber, lineIndex, u))
+                TableSettlementService.Instance.Settle(table, order.OrderNumber, lineIndex, u, method, unitPrice);
     }
 
     /// <summary>
@@ -597,8 +618,20 @@ public static class WaiterApiService
     {
         if (!SettingsStore.Instance.VerifyPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" });
-        if (!TableStatusService.Instance.OpenSince.ContainsKey(table))
+        if (!TableStatusService.Instance.OpenSince.TryGetValue(table, out var since))
             return (400, new { error = "Το τραπέζι δεν είναι ανοιχτό" });
+
+        // Ό,τι έμεινε ανεξόφλητο θεωρείται ότι πληρώθηκε ΤΩΡΑ, με τον τρόπο που είπε ο σερβιτόρος —
+        // ακριβώς το «ΠΛΗΡΩΜΗ ΥΠΟΛΟΙΠΟΥ ΚΑΙ ΚΛΕΙΣΙΜΟ» του ταμείου. Πριν, το κλείσιμο από το κινητό
+        // απλώς ελευθέρωνε το τραπέζι: τα λεφτά του δεν έμπαιναν ΠΟΤΕ στον διαχωρισμό μετρητά/κάρτα,
+        // γιατί τα τραπέζια μετριούνται εκεί μόνο από τις εισπράξεις τους (βλ. DayReportService).
+        // Ήδη εξοφλημένα τεμάχια δεν ξαναχρεώνονται — κρατούν τον δικό τους τρόπο πληρωμής.
+        var method = MethodOf(req.Method);
+        foreach (var o in SalesStatsService.Instance.Orders
+                     .Where(o => o.Type == OrderType.Table && o.Who == "Τραπέζι " + table && o.PlacedAt >= since)
+                     .ToList())
+            for (var i = 0; i < o.Lines.Count; i++)
+                SettleWholeLine(table, o, i, method);
 
         TableStatusService.Instance.MarkClosed(table);
         return (200, new { ok = true });
@@ -882,5 +915,5 @@ public static class WaiterApiService
     /// <summary>Μία μόνο πηγή αλήθειας πλέον (βλ. SalesStatsService.NextOrderNumber) — πριν υπολόγιζε τον
     /// ίδιο τύπο «max+1» ξεχωριστά εδώ, που μπορούσε να συγκρουστεί με το wizard του ταμείου όταν ο
     /// ταμίας κρατούσε δεσμευμένο αριθμό από νωρίτερα (βλ. σχόλιο εκεί για το πραγματικό συμβάν).</summary>
-    private static int NextOrderNumber() => SalesStatsService.Instance.NextOrderNumber();
+    private static int NextOrderNumber() => SalesStatsService.Instance.NextOrderNumber(hasOwnNumber: true);
 }

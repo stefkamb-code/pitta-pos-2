@@ -92,10 +92,46 @@ public sealed class CompletedOrder
     /// αδιάκριτες μεταξύ τους.</summary>
     public string WhoWithPersonLabel => HasPerson ? WhoLabel + " · " + PersonLabel : WhoLabel;
     public bool HasDeliveryInfo => DeliveryAddress.Length > 0 || DeliveryFloor.Length > 0 || DeliveryNotes.Length > 0;
-    /// <summary>Αριθμός # στην απόδειξη — προτιμά τον αριθμό της πλατφόρμας (Wolt/e-food/BOX) όταν υπάρχει.</summary>
+    /// <summary>Ο αριθμός τραπεζιού, βγαλμένος από το <see cref="Who"/> («Τραπέζι 5») — κενό για ό,τι δεν
+    /// είναι τραπέζι. Δεν κρατιέται χωριστό πεδίο: το Who γράφεται πάντα έτσι, ενώ ένα ακόμα πεδίο θα
+    /// έπρεπε να αντιγράφεται σε πέντε ανακατασκευές (WithOrderNumber/RemoveLine/UpdatePaymentMethod/
+    /// UpdateChannel) — αρκεί να ξεχαστεί σε μία και ο αριθμός χάνεται σιωπηλά.</summary>
+    /// <remarks>Ο έλεγχος του προθέματος είναι απαραίτητος: μια παραγγελία που διορθώθηκε σε ΤΡΑΠΕΖΙ από
+    /// το Ιστορικό (UpdateChannel) κρατά το όνομα πελάτη στο Who — χωρίς αυτόν, ένα «Μαρία 2» θα
+    /// εμφανιζόταν ως τραπέζι 2.</remarks>
+    public string TableNumberLabel =>
+        Type == OrderType.Table && Who.StartsWith("Τραπέζι", StringComparison.Ordinal)
+            ? new string(Who.Where(char.IsDigit).ToArray())
+            : "";
+
+    /// <summary>
+    /// Ο αριθμός που βλέπει ο άνθρωπος — οθόνη, χαρτί και Ιστορικό λένε το ΙΔΙΟ πράγμα.
+    ///
+    /// Πάντα ο αριθμός που όρισε ο χρήστης όπου υπάρχει: ο κωδικός της πλατφόρμας σε Wolt/e-food/BOX,
+    /// ο αριθμός τραπεζιού στα τραπέζια. Μόνο ΟΡΘΙΟΣ και ΔΙΑΝΟΜΗ δεν έχουν δικό τους, οπότε παίρνουν
+    /// τη σειρά της βάρδιας, διψήφια («01», «02») — έτσι τη φωνάζουν στο μαγαζί και έτσι ξεχωρίζει με
+    /// τη μία από κωδικό πλατφόρμας. Ο εσωτερικός <see cref="OrderNumber"/> των υπολοίπων (ζώνη 1000+,
+    /// βλ. SalesStatsService.ExternalBandStart) δεν εμφανίζεται πουθενά.
+    /// </summary>
     public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
         ? AppOrderRef!
-        : OrderNumber.ToString();
+        : TableNumberLabel.Length > 0
+            ? TableNumberLabel
+            : OrderNumber < SalesStatsService.ExternalBandStart
+                ? OrderNumber.ToString("00")
+                : OrderNumber.ToString();
+
+    /// <summary>
+    /// Έχει δικό της αριθμό, δοσμένο από αλλού; ΤΡΑΠΕΖΙ (ο αριθμός τραπεζιού) και ΕΦΑΡΜΟΓΕΣ με
+    /// συμπληρωμένο κωδικό πλατφόρμας — **και το BOX έχει κωδικό**, ας το παραδίδει ο δικός μας διανομέας.
+    ///
+    /// Ο έλεγχος του κωδικού δεν είναι θεωρητικός: το BOX επιτρέπεται να προχωρήσει χωρίς αριθμό (βλ.
+    /// OrderWizardViewModel.Step2ContinueEnabled — του αρκεί όνομα/διεύθυνση). Χωρίς αυτό, μια τέτοια
+    /// παραγγελία τύπωνε «BOX #1002», δηλαδή ακριβώς τον εσωτερικό αριθμό που δεν πρέπει να φαίνεται
+    /// πουθενά. Χωρίς δικό της αριθμό μπαίνει στη σειρά της βάρδιας, όπως ο ΟΡΘΙΟΣ και η ΔΙΑΝΟΜΗ.
+    /// </summary>
+    public bool HasOwnNumber => Type == OrderType.Table
+        || (Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef));
 
     public string? PaymentIcon => PaymentMethod switch
     {
@@ -150,11 +186,31 @@ public class SalesStatsService
     /// που καταχωρούνταν ΔΕΥΤΕΡΗ αντικαθιστούσε σιωπηλά την πρώτη στο Dictionary (ίδιο κλειδί), η πρώτη
     /// «χανόταν» εντελώς — ούτε στο Ιστορικό. Καλώντας αυτό ΤΗΝ ΤΕΛΕΥΤΑΙΑ ΣΤΙΓΜΗ (όχι νωρίτερα), χωρίς
     /// await ανάμεσα σε υπολογισμό και καταχώρηση, το παράθυρο σύγκρουσης κλείνει.</summary>
-    public int NextOrderNumber() => 1 + Math.Max(
-        1043,
-        Math.Max(
-            Orders.Select(o => o.OrderNumber).DefaultIfEmpty(0).Max(),
-            OrderBoardService.Instance.Orders.Select(o => o.OrderNumber).DefaultIfEmpty(0).Max()));
+    /// <summary>
+    /// Από πού ξεκινούν οι αριθμοί των παραγγελιών που έχουν ΔΙΚΟ ΤΟΥΣ αριθμό (e-food/Wolt/BOX ο κωδικός
+    /// της πλατφόρμας, ΤΡΑΠΕΖΙ ο αριθμός του τραπεζιού). Αυτές χρειάζονται κι εδώ ένα κλειδί — πάνω του
+    /// κρέμονται εξοφλήσεις, ακυρώσεις, εισπράξεις — αλλά ΔΕΝ το δείχνουμε πουθενά: στην οθόνη και στο
+    /// χαρτί βγαίνει ο δικός τους αριθμός (βλ. DisplayNumber). Χωριστή ζώνη ώστε να μη «φάει» νούμερα
+    /// από τη σειρά της βάρδιας.
+    /// </summary>
+    public const int ExternalBandStart = 1000;
+
+    /// <summary>
+    /// Ο επόμενος αριθμός για παραγγελία αυτού του τύπου.
+    ///
+    /// Τη σειρά της βάρδιας (#1, #2, #3…) την παίρνουν ΜΟΝΟ ΟΡΘΙΟΣ και ΔΙΑΝΟΜΗ — οι μόνες χωρίς δικό
+    /// τους αριθμό (βλ. CompletedOrder.HasOwnNumber). Ξεκινά από το 1 κάθε μέρα, γιατί το ιστορικό
+    /// καθαρίζει με το κλείσιμο ημέρας. Πρώτα ένας όρθιος → #1· μετά μια διανομή → #2.
+    /// </summary>
+    public int NextOrderNumber(bool hasOwnNumber)
+    {
+        var used = Orders.Select(o => o.OrderNumber)
+            .Concat(OrderBoardService.Instance.Orders.Select(o => o.OrderNumber))
+            .ToList();
+        return hasOwnNumber
+            ? 1 + Math.Max(ExternalBandStart - 1, used.DefaultIfEmpty(0).Max())
+            : 1 + used.Where(n => n < ExternalBandStart).DefaultIfEmpty(0).Max();
+    }
 
     private SalesStatsService()
     {
@@ -265,7 +321,7 @@ public class SalesStatsService
             var number = order.OrderNumber;
             if (_orders.ContainsKey(number))
             {
-                number = NextOrderNumber();
+                number = NextOrderNumber(order.HasOwnNumber);
                 // Καταγράφεται ώστε να φαίνεται ότι ΣΥΝΕΒΗ σύγκρουση (και πόσο συχνά) — παλιότερα η
                 // παραγγελία απλώς εξαφανιζόταν χωρίς κανένα ίχνος πουθενά.
                 AppLog.Write("orders", $"Σύγκρουση αριθμού #{order.OrderNumber} — δόθηκε #{number} " +

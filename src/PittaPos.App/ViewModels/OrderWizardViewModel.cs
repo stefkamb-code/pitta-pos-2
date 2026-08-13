@@ -311,7 +311,14 @@ public partial class OrderWizardViewModel : ObservableObject
     /// παραγγελίες από το κινητό ή το δεύτερο ταμείο). Ο ΟΡΙΣΤΙΚΟΣ αριθμός δεσμεύεται πάντα ξανά, την
     /// τελευταία στιγμή, στο ContinueStep3 — αυτός εδώ είναι μόνο για εμφάνιση.
     /// </summary>
-    private static int NextDisplayNumber() => SalesStatsService.Instance.NextOrderNumber();
+    /// <remarks>Πριν διαλεγεί τύπος, δείχνουμε τη σειρά της βάρδιας (ΟΡΘΙΟΣ) — είναι η πιο συχνή
+    /// περίπτωση και ο αριθμός ξαναδεσμεύεται σωστά μόλις πατηθεί ο τύπος (βλ. SelectOrderType).</remarks>
+    /// <remarks>Ίδιο κριτήριο με το CompletedOrder.HasOwnNumber — το BOX χωρίς κωδικό μπαίνει κι αυτό
+    /// στη σειρά της βάρδιας. Ο οριστικός αριθμός δεσμεύεται στο ContinueStep3, δηλαδή ΜΕΤΑ το Βήμα 2
+    /// όπου πληκτρολογείται ο κωδικός, οπότε εκεί το κριτήριο είναι ήδη σωστό.</remarks>
+    private int NextDisplayNumber() => SalesStatsService.Instance.NextOrderNumber(
+        OrderType == Core.Models.OrderType.Table
+        || (OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0));
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStep1))]
@@ -451,7 +458,13 @@ public partial class OrderWizardViewModel : ObservableObject
     /// πριν καν καταχωρηθεί η παραγγελία στον πίνακα· διαφορετικά ο εσωτερικός μας μετρητής, όπως πάντα.</summary>
     public string DisplayOrderNumber => OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0
         ? AppOrderRef.Trim()
-        : Products.OrderNumber.ToString();
+        // ΤΡΑΠΕΖΙ: ο αριθμός τραπεζιού, ίδιος με ό,τι θα τυπώσει η απόδειξη και θα δείξει το Ιστορικό
+        // (βλ. CompletedOrder.DisplayNumber). Χωρίς αυτό η κεφαλίδα έγραφε τον εσωτερικό «#1001».
+        : OrderType == Core.Models.OrderType.Table && TableNumber is { } table
+            ? table.ToString()
+            : Products.OrderNumber < SalesStatsService.ExternalBandStart
+                ? Products.OrderNumber.ToString("00")
+                : Products.OrderNumber.ToString();
 
     public string Step2Header => ShowAppPlatformPicker ? "Ποια εφαρμογή;" : "Στοιχεία πελάτη";
     public string Step2Sub => ShowAppPlatformPicker
@@ -462,6 +475,7 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
     [NotifyPropertyChangedFor(nameof(ReceiptTypeLabel))]
     [NotifyPropertyChangedFor(nameof(ReceiptWho))]
+    [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
     private int? _tableNumber;
 
     [ObservableProperty]
@@ -697,6 +711,9 @@ public partial class OrderWizardViewModel : ObservableObject
     private void SelectOrderType(OrderTypeOptionViewModel option)
     {
         OrderType = option.Key;
+        // Ο αριθμός εξαρτάται πλέον από τον τύπο (σειρά βάρδιας μόνο σε ΟΡΘΙΟ/ΔΙΑΝΟΜΗ) — ξαναϋπολογίζεται
+        // ώστε η οθόνη να μη δείχνει αριθμό άλλης ζώνης όσο γράφεται η παραγγελία.
+        Products.OrderNumber = NextDisplayNumber();
         TableNumber = null;
         foreach (var o in OrderTypeOptions)
             o.IsSelected = o == option;
@@ -1519,7 +1536,7 @@ public partial class OrderWizardViewModel : ObservableObject
         // Φρέσκος αριθμός ΤΩΡΑ, όχι αυτός που δείχνει η οθόνη από νωρίτερα — βλ. SalesStatsService.NextOrderNumber
         // για το γιατί (αποφυγή σιωπηλής απώλειας παραγγελίας σε σύγκρουση με το κινητό σερβιτόρου). Πρέπει
         // να γίνει ΠΡΙΝ το PushBoardOrder, ώστε BoardOrder/CompletedOrder να μοιράζονται τον ίδιο αριθμό.
-        Products.OrderNumber = SalesStatsService.Instance.NextOrderNumber();
+        Products.OrderNumber = NextDisplayNumber();
 
         // ΕΦΑΡΜΟΓΕΣ έχει ήδη διαλέξει πλατφόρμα στο Βήμα 2 (βλ. SelectAppMethod) — ολοκληρώνεται
         // εδώ μαζί με τη ΔΙΑΝΟΜΗ, και τα δύο περνάνε από τον πίνακα ζωντανών παραγγελιών.
@@ -1572,7 +1589,7 @@ public partial class OrderWizardViewModel : ObservableObject
         foreach (var person in _personDrafts.Keys.Order().ToList())
         {
             LoadPerson(person);
-            Products.OrderNumber = SalesStatsService.Instance.NextOrderNumber();
+            Products.OrderNumber = NextDisplayNumber();
             var order = RecordStats();
 
             // Ο γύρος ΕΙΝΑΙ το άτομο: όλα του τα τεμάχια χρεώνονται στον ίδιο.

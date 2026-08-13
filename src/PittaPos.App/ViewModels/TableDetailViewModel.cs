@@ -36,13 +36,18 @@ public partial class TableLineViewModel : ObservableObject
 /// Το «ΑΧΡΕΩΤΑ» (Person = -1) μαζεύει ό,τι δεν χρεώθηκε σε κανέναν: παραγγελία γραμμένη από το ταμείο
 /// πριν μπουν τα άτομα, ή κοινό πιάτο. Φαίνεται ξεχωριστά ώστε να μην ξεφύγει από την καταμέτρηση.
 /// </summary>
-public class TablePersonGroupViewModel
+public partial class TablePersonGroupViewModel : ObservableObject
 {
     public required int Person { get; init; }
     public required string Label { get; init; }
     public required ObservableCollection<TableLineViewModel> Lines { get; init; }
     /// <summary>Πόσα οφείλει ακόμα — αυτό είναι και το ποσό που θα πληκτρολογηθεί στην ταμειακή.</summary>
     public required decimal Outstanding { get; init; }
+
+    /// <summary>Διαλεγμένος με κλικ πάνω στην κάρτα του — μαρκάρει ΟΛΑ του τα απλήρωτα προϊόντα, ώστε η
+    /// κάτω μπάρα να δείχνει «Ν ΕΠΙΛΕΓΜΕΝΑ» και να πληρωθούν μαζί. Ίδια χειρονομία με το κινητό.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
 
     public string OutstandingLabel => Order.FormatPrice(Outstanding);
     public bool CanSettle => Outstanding > 0;
@@ -54,6 +59,15 @@ public class TablePersonGroupViewModel
 
 /// <summary>Παράμετρος για το CancelRoundCommand — ποια παραγγελία και ποιος την ακυρώνει.</summary>
 public record CancelRoundRequest(int OrderNumber, string CancelledBy);
+
+/// <summary>Ποια είσπραξη περιμένει το «μετρητά ή κάρτα» (βλ. TableDetailViewModel.PendingPayment).</summary>
+public enum PendingPaymentKind
+{
+    /// <summary>Όσα προϊόντα έχει επιλέξει ο ταμίας — ένα-ένα ή όλο το άτομο με κλικ στην κάρτα του.</summary>
+    Selected,
+    /// <summary>Ό,τι έχει μείνει ανεξόφλητο, με κλείσιμο του τραπεζιού.</summary>
+    CloseTable,
+}
 
 /// <summary>Ένας γύρος (μία υποβληθείσα παραγγελία) μέσα στο τραπέζι.</summary>
 public class TableRoundViewModel
@@ -124,20 +138,59 @@ public partial class TableDetailViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private void SettlePersonCash(TablePersonGroupViewModel person) => SettlePerson(person, PaymentMethod.Cash);
+    /// <summary>
+    /// Ποια είσπραξη περιμένει να δηλωθεί «μετρητά ή κάρτα» — <c>null</c> όσο δεν ρωτάμε τίποτα.
+    ///
+    /// Ένα κουμπί «πληρωμή» και μετά η ερώτηση, αντί για ζευγάρι 💶/💳 σε κάθε άτομο και σε κάθε
+    /// ενέργεια: με τέσσερα άτομα στο τραπέζι η οθόνη γέμιζε κουμπιά και το μάτι δεν έβρισκε τίποτα.
+    /// Ίδια ροή με το κινητό (βλ. TableDetailScreen.PaymentBar), ώστε να μαθαίνεται μία φορά.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsChoosingPayment))]
+    [NotifyPropertyChangedFor(nameof(PendingPaymentTitle))]
+    [NotifyPropertyChangedFor(nameof(PendingPaymentAmountLabel))]
+    private PendingPaymentKind? _pendingPayment;
+
+    public bool IsChoosingPayment => PendingPayment is not null;
+
+    public string PendingPaymentTitle => PendingPayment == PendingPaymentKind.CloseTable
+        ? "ΠΩΣ ΠΛΗΡΩΘΗΚΕ ΤΟ ΥΠΟΛΟΙΠΟ;"
+        : "ΠΩΣ ΠΛΗΡΩΘΗΚΕ;";
+
+    public string PendingPaymentAmountLabel => Order.FormatPrice(
+        PendingPayment == PendingPaymentKind.CloseTable ? OutstandingTotal : SelectedTotal);
 
     [RelayCommand]
-    private void SettlePersonCard(TablePersonGroupViewModel person) => SettlePerson(person, PaymentMethod.Card);
+    private void RequestSettleSelected() => PendingPayment = PendingPaymentKind.Selected;
 
-    /// <summary>Εξοφλεί ΟΛΑ όσα χρωστά το άτομο με ένα πάτημα — μία πληρωμή, μία απόδειξη.</summary>
-    private void SettlePerson(TablePersonGroupViewModel person, PaymentMethod method)
+    [RelayCommand]
+    private void RequestCloseTable() => PendingPayment = PendingPaymentKind.CloseTable;
+
+    [RelayCommand]
+    private void CancelPayment() => PendingPayment = null;
+
+    [RelayCommand]
+    private void PayCash() => Pay(PaymentMethod.Cash);
+
+    [RelayCommand]
+    private void PayCard() => Pay(PaymentMethod.Card);
+
+    /// <summary>Η απάντηση στο «πώς πληρώθηκε;» — εκτελεί την είσπραξη που περίμενε.</summary>
+    private void Pay(PaymentMethod method)
     {
-        // ToList πριν τον βρόχο: το Settle σηκώνει Changed που ξαναχτίζει τις λίστες από κάτω μας.
-        foreach (var l in person.Lines.Where(l => !l.IsSettled).ToList())
-            _settlement.Settle(_table, l.OrderNumber, l.LineIndex, l.Unit, method, l.Revenue);
-        Refresh();
-        AutoCloseIfNothingOwed();
+        var kind = PendingPayment;
+        // Καθαρίζει ΠΡΩΤΑ: η ίδια η είσπραξη ξαναχτίζει τις λίστες (Refresh) και μπορεί να κλείσει το
+        // τραπέζι, οπότε δεν πρέπει να μείνει η ερώτηση κρεμασμένη σε ό,τι έχει ήδη πληρωθεί.
+        PendingPayment = null;
+        switch (kind)
+        {
+            case PendingPaymentKind.Selected:
+                ConfirmSettleSelected(method);
+                break;
+            case PendingPaymentKind.CloseTable:
+                CloseTableWith(method);
+                break;
+        }
     }
 
     [ObservableProperty]
@@ -150,6 +203,8 @@ public partial class TableDetailViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     [NotifyPropertyChangedFor(nameof(NoSelection))]
+    [NotifyPropertyChangedFor(nameof(SelectedCountLabel))]
+    [NotifyPropertyChangedFor(nameof(SettleSelectedLabel))]
     private int _selectedCount;
 
     [ObservableProperty]
@@ -159,6 +214,10 @@ public partial class TableDetailViewModel : ObservableObject
     public string SelectedTotalLabel => Order.FormatPrice(SelectedTotal);
     public bool HasSelection => SelectedCount > 0;
     public bool NoSelection => SelectedCount == 0;
+
+    // Ενικός στο ένα προϊόν: «ΠΛΗΡΩΜΕΝΑ» με ένα επιλεγμένο διαβάζεται σαν να πληρώνονται πολλά.
+    public string SelectedCountLabel => SelectedCount + (SelectedCount == 1 ? " ΕΠΙΛΕΓΜΕΝΟ" : " ΕΠΙΛΕΓΜΕΝΑ");
+    public string SettleSelectedLabel => SelectedCount == 1 ? "✓ ΠΛΗΡΩΜΕΝΟ" : "✓ ΠΛΗΡΩΜΕΝΑ";
 
     /// <summary>Ζητά από το παράθυρο να ξεκινήσει νέο γύρο παραγγελίας γι' αυτό το τραπέζι. Η παράμετρος
     /// είναι σε ΠΟΙΟΝ γράφεται (0-based)· -1 = «όποιος δεν έχει παραγγείλει ακόμα», όπως πάντα.</summary>
@@ -188,6 +247,23 @@ public partial class TableDetailViewModel : ObservableObject
     [RelayCommand]
     private void AddToPerson(TablePersonGroupViewModel person) => NewRoundRequested?.Invoke(person.Person);
 
+    /// <summary>
+    /// Κλικ πάνω στην κάρτα ενός ατόμου — διαλέγει ΟΛΑ του τα απλήρωτα προϊόντα (δεύτερο κλικ τα
+    /// ξεδιαλέγει). Από κει και πέρα η ροή είναι μία για όλα: «✓ ΠΛΗΡΩΜΕΝΟ» κάτω και μετά το
+    /// παραθυράκι μετρητά/κάρτα — ακριβώς όπως στο κινητό, χωρίς ξεχωριστό κουμπί μέσα σε κάθε άτομο.
+    /// </summary>
+    [RelayCommand]
+    private void TogglePerson(TablePersonGroupViewModel person)
+    {
+        var unpaid = person.Lines.Where(l => !l.IsSettled).ToList();
+        if (unpaid.Count == 0)
+            return;
+        var select = unpaid.Any(l => !l.IsSelected);
+        foreach (var l in unpaid)
+            l.IsSelected = select;
+        RecomputeSelection();
+    }
+
     /// <summary>Κλικ πάνω σε προϊόν — toggle επιλογής· μπορούν να μείνουν επιλεγμένα πολλά μαζί.</summary>
     [RelayCommand]
     private void SelectLine(TableLineViewModel line)
@@ -200,12 +276,6 @@ public partial class TableDetailViewModel : ObservableObject
 
     /// <summary>Εξοφλεί μαζί όλα τα επιλεγμένα προϊόντα (π.χ. ό,τι πήρε ένας από την παρέα), σημειώνοντας
     /// και τον τρόπο πληρωμής — ώστε να μετρήσει στον διαχωρισμό μετρητά/κάρτα της αναφοράς ημέρας.</summary>
-    [RelayCommand]
-    private void SettleSelectedCash() => ConfirmSettleSelected(PaymentMethod.Cash);
-
-    [RelayCommand]
-    private void SettleSelectedCard() => ConfirmSettleSelected(PaymentMethod.Card);
-
     private void ConfirmSettleSelected(PaymentMethod method)
     {
         // ToList ΠΡΙΝ τον βρόχο: το Settle σηκώνει Changed, που ξαναχτίζει τα Rounds (βλ. Refresh) —
@@ -258,12 +328,6 @@ public partial class TableDetailViewModel : ObservableObject
         AutoCloseIfNothingOwed();
     }
 
-    [RelayCommand]
-    private void CloseTableCash() => CloseTableWith(PaymentMethod.Cash);
-
-    [RelayCommand]
-    private void CloseTableCard() => CloseTableWith(PaymentMethod.Card);
-
     /// <summary>
     /// Κλείνει το τραπέζι σημειώνοντας ό,τι έχει μείνει ανεξόφλητο ως πληρωμένο με τον δοσμένο τρόπο.
     /// Οι ήδη εξοφλημένες γραμμές δεν ξαναχρεώνονται — κρατούν τον δικό τους τρόπο πληρωμής (π.χ. ένας
@@ -291,6 +355,13 @@ public partial class TableDetailViewModel : ObservableObject
         var selected = Rounds.SelectMany(r => r.Lines).Where(l => l.IsSelected).ToList();
         SelectedCount = selected.Count;
         SelectedTotal = selected.Sum(l => l.Revenue);
+        // Η κάρτα του ατόμου ανάβει όταν είναι διαλεγμένα ΟΛΑ του τα απλήρωτα — και όταν ο ταμίας τα
+        // διάλεξε ένα-ένα, όχι μόνο με κλικ πάνω στην κάρτα.
+        foreach (var p in Persons)
+        {
+            var unpaid = p.Lines.Where(l => !l.IsSettled).ToList();
+            p.IsSelected = unpaid.Count > 0 && unpaid.All(l => l.IsSelected);
+        }
     }
 
     private void Refresh()
