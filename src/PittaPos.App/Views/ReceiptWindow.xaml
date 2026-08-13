@@ -44,8 +44,13 @@
                  ημερομηνία/ώρα στην ΙΔΙΑ γραμμή (πριν έπιαναν δύο), μετά ο αριθμός παραγγελίας. Η
                  συνένωση γίνεται στο code-behind ώστε να μη μένει ορφανό «·» όταν λείπει το ένα από
                  τα δύο (π.χ. κλειστή η ρύθμιση ημερομηνίας ή κενό «στοιχεία καταστήματος»). -->
-            <TextBlock x:Name="TitleText" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontSize="16" FontWeight="ExtraBold"
-                       Foreground="Black" HorizontalAlignment="Center"/>
+            <!-- Το λογότυπο στη θέση του τίτλου. Ασπρόμαυρη (1-bit) εκδοχή του ίδιου σήματος —
+                 NearestNeighbor ώστε να μην μπει ούτε ένα γκρι pixel στην κλιμάκωση: ο θερμικός
+                 εκτυπωτής σπάει κάθε γκρι σε αραιές κουκκίδες και το σήμα βγαίνει βρόμικο.
+                 Το πλάτος το ορίζει το code-behind από τη ρύθμιση «μέγεθος τίτλου». -->
+            <Image x:Name="LogoImage" Source="pack://application:,,,/Assets/receipt-logo.png"
+                   Width="200" Stretch="Uniform" HorizontalAlignment="Center"
+                   RenderOptions.BitmapScalingMode="NearestNeighbor"/>
             <TextBlock x:Name="InfoText" FontSize="11" Foreground="Black"
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                        Margin="0,2,0,0" Visibility="Collapsed"/>

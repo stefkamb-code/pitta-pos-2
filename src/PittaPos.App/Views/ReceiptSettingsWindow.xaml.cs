@@ -21,7 +21,6 @@ public partial class ReceiptSettingsWindow : Window
         _itemsFontSize = s.ReceiptItemsFontSize;
         _totalFontSize = s.ReceiptTotalFontSize;
         _metaFontSize = s.ReceiptMetaFontSize;
-        ReceiptTitleBox.Text = s.ReceiptTitle;
         ReceiptInfoBox.Text = s.ReceiptInfo;
         ShowDateTimeCheck.IsChecked = s.ReceiptShowDateTime;
         ShowCustomerCheck.IsChecked = s.ReceiptShowCustomer;
@@ -46,10 +45,9 @@ public partial class ReceiptSettingsWindow : Window
     /// ανεξάρτητες ενότητες μεγέθους, ίδια λογική με το ReceiptWindow (βλ. εκεί).</summary>
     private void UpdatePreview()
     {
-        if (PvTitle is null)
+        if (PvLogo is null)
             return; // κατά την αρχικοποίηση, πριν φτιαχτούν τα στοιχεία
 
-        PvTitle.Text = ReceiptTitleBox.Text;
         PvInfo.Text = ReceiptInfoBox.Text;
         PvInfo.Visibility = ReceiptInfoBox.Text.Trim().Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         // Το υποσέλιδο δεν ρυθμίζεται πια — δείχνει πάντα δείγμα του τύπου/αριθμού (βλ. ReceiptWindow).
@@ -62,7 +60,9 @@ public partial class ReceiptSettingsWindow : Window
         TotalFontSizeText.Text = _totalFontSize.ToString("0") + "pt";
         MetaFontSizeText.Text = _metaFontSize.ToString("0") + "pt";
 
-        PvTitle.FontSize = _titleFontSize;
+        // Ίδιος κανόνας με το χαρτί (15 = 200 μονάδες), επί 0,7 γιατί η μικρογραφία είναι στενότερη
+        // από την πραγματική απόδειξη (260 έναντι 372 μονάδες ωφέλιμο πλάτος).
+        PvLogo.Width = _titleFontSize * (200.0 / 15.0) * 0.7;
 
         PvItemName.FontSize = _itemsFontSize;
         PvItemPrice.FontSize = _itemsFontSize;
@@ -83,7 +83,9 @@ public partial class ReceiptSettingsWindow : Window
 
     private void SaveReceipt_Click(object sender, RoutedEventArgs e)
     {
-        _store.SetReceipt(ReceiptTitleBox.Text, ReceiptInfoBox.Text,
+        // Ο τίτλος δεν ρυθμίζεται πια (μπήκε λογότυπο) — περνάει ό,τι είχε, ώστε να μην αλλάξει το
+        // αποθηκευμένο settings.json ούτε ο συγχρονισμός με το δεύτερο ταμείο.
+        _store.SetReceipt(_store.Settings.ReceiptTitle, ReceiptInfoBox.Text,
             ShowDateTimeCheck.IsChecked == true, ShowCustomerCheck.IsChecked == true,
             ShowDetailsCheck.IsChecked == true,
             _titleFontSize, _itemsFontSize, _totalFontSize, _metaFontSize);

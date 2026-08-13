@@ -551,8 +551,9 @@
                         <Border x:Name="ReceiptCard" Width="420" BorderBrush="{DynamicResource Divider}" BorderThickness="2"
                                 Padding="24" Background="{DynamicResource Bg}">
                             <StackPanel>
-                                <TextBlock x:Name="TitleText" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontSize="16" FontWeight="ExtraBold"
-                                           Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+                                <!-- Ίδια κορυφή με το χαρτί: λογότυπο, όχι κείμενο (βλ. ReceiptWindow.xaml). -->
+                                <Image x:Name="LogoImage" Source="pack://application:,,,/Assets/receipt-logo.png"
+                                       Width="200" Stretch="Uniform" HorizontalAlignment="Center"/>
                                 <TextBlock x:Name="InfoText" FontSize="11" Foreground="{DynamicResource Neutral600}"
                                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                                            Margin="0,2,0,0" Visibility="Collapsed"/>

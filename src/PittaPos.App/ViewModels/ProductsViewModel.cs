@@ -464,11 +464,9 @@ public partial class ProductsViewModel : ObservableObject
             Customizer = open;
         }
 
-        open.Commit(); // μπαίνει στο δελτίο· το CommitCustomizedLine κλείνει τα υλικά
-
-        // Ξανανοίγουν αμέσως, καθαρά, για το ίδιο φαγητό: η στήλη δεν αδειάζει μπροστά στον ταμία,
-        // αλλά ούτε κουβαλάει τα έξτρα της προηγούμενης πίττας στην επόμενη.
-        Customizer = new CustomizerViewModel(this, tile.Product, ActiveCategory?.Category.Name ?? "");
+        // Μπαίνει στο δελτίο. Τα υλικά τα ξανανοίγει καθαρά, για το ίδιο φαγητό, το
+        // CommitCustomizedLine — ίδια συμπεριφορά με το κουμπί ΠΡΟΣΘΗΚΗ.
+        open.Commit();
     }
 
     /// <summary>Κλικ στο badge ποσότητας του tile: αφαίρεση ενός.</summary>
@@ -529,7 +527,14 @@ public partial class ProductsViewModel : ObservableObject
         line.DescLine1 = descLine1;
         line.DescLine2 = descLine2;
 
-        Customizer = null;
+        // Το κουμπί ΠΡΟΣΘΗΚΗ φέρεται ΑΚΡΙΒΩΣ όπως το διπλό κλικ: η στήλη των υλικών δεν κλείνει, το
+        // φαγητό μένει ανοιχτό και τα υλικά του ξαναγυρίζουν στα προεπιλεγμένα — έτοιμα για την
+        // επόμενη ίδια πίττα. Τα έξτρα ΔΕΝ μένουν πατημένα: αφορούσαν τη γραμμή που μόλις μπήκε στο
+        // δελτίο, και αν έμεναν θα χρεώνονταν σιωπηλά και στην επόμενη.
+        // Η διόρθωση υπάρχουσας γραμμής (✎) κλείνει κανονικά — εκεί δεν προσθέτεις, τελειώνεις.
+        Customizer = editingLine is null
+            ? new CustomizerViewModel(this, product, Customizer?.CategoryLabel ?? ActiveCategory?.Category.Name ?? "")
+            : null;
         OnCartChanged();
     }
 

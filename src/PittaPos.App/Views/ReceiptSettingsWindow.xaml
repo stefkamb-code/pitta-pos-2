@@ -35,10 +35,8 @@
             <!-- fields -->
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="30,26" MaxWidth="460" HorizontalAlignment="Left">
-                    <TextBlock Text="Τίτλος" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                    <TextBox x:Name="ReceiptTitleBox" Style="{StaticResource PosTextBox}" Height="38" Margin="0,0,0,12"
-                             TextChanged="Receipt_Changed"/>
-
+                    <!-- Το πεδίο «Τίτλος» έφυγε: στην κορυφή της απόδειξης τυπώνεται πλέον το ΛΟΓΟΤΥΠΟ
+                         (βλ. ReceiptWindow.xaml), όχι κείμενο. Το μέγεθός του ρυθμίζεται πιο κάτω. -->
                     <TextBlock Text="Στοιχεία καταστήματος (διεύθυνση, τηλέφωνο, ΑΦΜ)" FontSize="12"
                                Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
                     <TextBox x:Name="ReceiptInfoBox" Style="{StaticResource PosTextBox}" Height="80" Margin="0,0,0,12"
@@ -69,7 +67,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Τίτλος" FontSize="11.5" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                            <TextBlock Text="Λογότυπο" FontSize="11.5" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
                             <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Height="44">
                                 <StackPanel Orientation="Horizontal">
                                     <Button Content="−" Width="38" Style="{StaticResource GlyphButton}" FontSize="15" Click="DecTitleFontSize_Click"/>
@@ -136,8 +134,8 @@
                         <Border Width="300" HorizontalAlignment="Center" BorderBrush="{DynamicResource Divider}" BorderThickness="2"
                                 Padding="20" Background="{DynamicResource Bg}">
                             <StackPanel>
-                                <TextBlock x:Name="PvTitle" FontSize="16" FontWeight="ExtraBold"
-                                           Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                <Image x:Name="PvLogo" Source="pack://application:,,,/Assets/receipt-logo.png"
+                                       Width="150" Stretch="Uniform" HorizontalAlignment="Center"/>
                                 <TextBlock x:Name="PvInfo" FontSize="11" Foreground="{DynamicResource Neutral600}"
                                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                 <TextBlock x:Name="PvOrderLabel" Text="ΠΑΡΑΓΓΕΛΙΑ #1044" FontSize="11" Foreground="{DynamicResource Neutral600}"

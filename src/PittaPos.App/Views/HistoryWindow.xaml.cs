@@ -21,7 +21,6 @@ public partial class HistoryWindow : Window
     private void ApplyReceiptSettings()
     {
         var s = Services.SettingsStore.Instance.Settings;
-        TitleText.Text = s.ReceiptTitle;
         InfoText.Text = s.ReceiptInfo;
         InfoText.Visibility = s.ReceiptInfo.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         FooterText.Text = s.ReceiptFooter;
