@@ -285,7 +285,6 @@ public partial class ProductsViewModel : ObservableObject
         Cart.Clear();
         Customizer = null;
         _useDeliveryPrices = false;
-        OrderDiscountPct = 0;
         OrderNumber = newOrderNumber;
         ContinueLabel = "ΣΥΝΕΧΕΙΑ";
         ShowNoteField = false;
@@ -301,18 +300,6 @@ public partial class ProductsViewModel : ObservableObject
         OnCartChanged();
     }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalLabel))]
-    [NotifyPropertyChangedFor(nameof(OrderDiscountLabel))]
-    [NotifyPropertyChangedFor(nameof(HasOrderDiscount))]
-    private int _orderDiscountPct;
-
-    partial void OnOrderDiscountPctChanged(int value)
-    {
-        if (value is < 0 or > 100)
-            OrderDiscountPct = Math.Clamp(value, 0, 100);
-    }
-
     public string ActiveCategoryName => ActiveCategory?.Category.Name ?? "";
     public string ProductCountLabel => Tiles.Count + " προϊόντα";
     public string CartCountLabel => Cart.Count + " είδη";
@@ -321,15 +308,9 @@ public partial class ProductsViewModel : ObservableObject
 
     public decimal Subtotal => Cart.Sum(l => l.SubtotalContribution);
     public decimal LineTotal => Cart.Sum(l => l.Total);
-    public decimal ItemsDiscount => Subtotal - LineTotal;
-    public decimal OrderDiscountAmount => LineTotal * (OrderDiscountPct / 100m);
-    public decimal Total => LineTotal - OrderDiscountAmount;
+    public decimal Total => LineTotal;
 
     public string SubtotalLabel => Order.FormatPrice(Subtotal);
-    public bool HasItemsDiscount => ItemsDiscount > 0.001m;
-    public string ItemsDiscountLabel => "−" + Order.FormatPrice(ItemsDiscount);
-    public bool HasOrderDiscount => OrderDiscountAmount > 0.001m;
-    public string OrderDiscountLabel => "−" + Order.FormatPrice(OrderDiscountAmount);
     public string TotalLabel => Order.FormatPrice(Total);
 
     internal void OnCartChanged()
@@ -339,10 +320,6 @@ public partial class ProductsViewModel : ObservableObject
         OnPropertyChanged(nameof(CartNotEmpty));
         OnPropertyChanged(nameof(ContinueEnabled));
         OnPropertyChanged(nameof(SubtotalLabel));
-        OnPropertyChanged(nameof(HasItemsDiscount));
-        OnPropertyChanged(nameof(ItemsDiscountLabel));
-        OnPropertyChanged(nameof(HasOrderDiscount));
-        OnPropertyChanged(nameof(OrderDiscountLabel));
         OnPropertyChanged(nameof(TotalLabel));
         RefreshTileQuantities();
     }
@@ -504,7 +481,7 @@ public partial class ProductsViewModel : ObservableObject
     /// έρχεται ήδη έτοιμο από τον CustomizerViewModel (αποφασίζει αν/πώς φαίνεται το ψωμί ανάλογα με
     /// την κατηγορία — βλ. MenuSeed.HasBreadChoice/FuseBreadIntoName).</summary>
     public void CommitCustomizedLine(CartLineViewModel? editingLine, Product product,
-        LineCustomization customization, int quantity, decimal unitPrice, int discountPct,
+        LineCustomization customization, int quantity, decimal unitPrice,
         bool noCharge, string name, string descLine1, string descLine2, string printName = "")
     {
         var line = editingLine;
@@ -522,7 +499,6 @@ public partial class ProductsViewModel : ObservableObject
         line.Customization = customization;
         line.UnitPrice = unitPrice;
         line.Quantity = quantity;
-        line.DiscountPct = discountPct;
         line.NoCharge = noCharge;
         line.DescLine1 = descLine1;
         line.DescLine2 = descLine2;
@@ -561,7 +537,4 @@ public partial class ProductsViewModel : ObservableObject
         Cart.Remove(line);
         OnCartChanged();
     }
-
-    [RelayCommand] private void IncOrderDiscount() => OrderDiscountPct = Math.Min(100, OrderDiscountPct + 5);
-    [RelayCommand] private void DecOrderDiscount() => OrderDiscountPct = Math.Max(0, OrderDiscountPct - 5);
 }

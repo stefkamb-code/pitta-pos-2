@@ -61,7 +61,6 @@ public partial class CustomizerViewModel : ObservableObject
         {
             Quantity = editingLine.Quantity;
             NoCharge = editingLine.NoCharge;
-            DiscountPct = editingLine.DiscountPct;
         }
     }
 
@@ -107,11 +106,6 @@ public partial class CustomizerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TotalLabel))]
     private bool _noCharge;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalLabel))]
-    [NotifyPropertyChangedFor(nameof(DiscountLabel))]
-    private int _discountPct;
-
     /// <summary>Όλα τα επιτρεπτά έξτρα του προϊόντος. Υπήρχε και πεδίο αναζήτησης από πάνω, αλλά σε
     /// ταμείο με αφή είναι πιο γρήγορο να τα βλέπεις όλα μαζί παρά να πληκτρολογείς.</summary>
     public IReadOnlyList<ExtraViewModel> VisibleExtras => Extras;
@@ -121,9 +115,8 @@ public partial class CustomizerViewModel : ObservableObject
 
     public decimal UnitPriceWithExtras =>
         BasePrice + Extras.Sum(e => e.Quantity * e.Item.Price) + (IsDoublePita ? DoublePitaPrice : 0m);
-    public decimal Total => NoCharge ? 0m : Quantity * UnitPriceWithExtras * (1 - DiscountPct / 100m);
+    public decimal Total => NoCharge ? 0m : Quantity * UnitPriceWithExtras;
     public string TotalLabel => Order.FormatPrice(Total);
-    public string DiscountLabel => $"ΕΚΠΤ. {DiscountPct}%";
 
     internal void OnCustomizationChanged()
     {
@@ -152,8 +145,6 @@ public partial class CustomizerViewModel : ObservableObject
     [RelayCommand] private void ToggleDoublePita() => IsDoublePita = !IsDoublePita;
 
     [RelayCommand] private void ToggleNoCharge() => NoCharge = !NoCharge;
-    [RelayCommand] private void IncDiscount() => DiscountPct = Math.Min(50, DiscountPct + 5);
-    [RelayCommand] private void DecDiscount() => DiscountPct = Math.Max(0, DiscountPct - 5);
 
     [RelayCommand] private void Close() => _owner.CloseCustomizer();
 
@@ -183,7 +174,6 @@ public partial class CustomizerViewModel : ObservableObject
         mods.AddRange(Extras.Where(e => e.Quantity > 0)
             .Select(e => "+ " + e.Name + (e.Quantity > 1 ? " ×" + e.Quantity : "")));
         if (NoCharge) mods.Add("ΔΩΡΕΑΝ");
-        else if (DiscountPct > 0) mods.Add("−" + DiscountPct + "%");
 
         // ΤΥΛΙΧΤΑ: το ψωμί χωνεύεται στο ίδιο το όνομα («ΑΡ. Κοτόπουλο»). ΜΕΡΙΔΕΣ/ΜΕΡΙΔΕΣ ΠΑΠΠΟΥ: το
         // όνομα μένει ως έχει, το ψωμί γράφεται ολόγραφο σε ξεχωριστή γραμμή («Αραβική»), όπως πριν.
@@ -208,9 +198,9 @@ public partial class CustomizerViewModel : ObservableObject
             ? customization.Note.Length > 0 ? customization.Bread + "\n" + customization.Note : customization.Bread
             : customization.Note;
 
-        // Κάθε ιδιαιτερότητα (χωρίς/μόνο με/έξτρα/έκπτωση) σε δική της γραμμή αντί για μία αράδα με "·" —
+        // Κάθε ιδιαιτερότητα (χωρίς/μόνο με/έξτρα) σε δική της γραμμή αντί για μία αράδα με "·" —
         // πιο ευανάγνωστο στην απόδειξη όταν ένα προϊόν έχει πολλές τροποποιήσεις.
         _owner.CommitCustomizedLine(_editingLine, Product, customization, Quantity,
-            UnitPriceWithExtras, DiscountPct, NoCharge, name, descLine1, string.Join("\n", mods), printName);
+            UnitPriceWithExtras, NoCharge, name, descLine1, string.Join("\n", mods), printName);
     }
 }

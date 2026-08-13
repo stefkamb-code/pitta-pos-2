@@ -78,7 +78,8 @@ public partial class ReceiptSettingsWindow : Window
         PvTypeValue.FontSize = _metaFontSize * (12.5 / 11.0);
         PvWhoLabel.FontSize = _metaFontSize * (12.5 / 11.0);
         PvWhoValue.FontSize = _metaFontSize * (12.5 / 11.0);
-        PvFooter.FontSize = _titleFontSize;
+        // Ο τύπος/αριθμός ανήκει στα «Λοιπά», όχι στο «Λογότυπο» — ίδια αναλογία με το χαρτί.
+        PvFooter.FontSize = _metaFontSize * (15.0 / 13.0);
     }
 
     private void SaveReceipt_Click(object sender, RoutedEventArgs e)

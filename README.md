@@ -27,13 +27,13 @@ Fixed 1280×800 layout, Greek UI, with a step bar: **1 ΤΥΠΟΣ → 2 ΠΕΛΑ
 **Step 3 — Products.** Three-pane layout:
 - Left: category rail (ΣΟΥΒΛΑΚΙΑ, ΠΙΤΤΕΣ, ΜΕΡΙΔΕΣ, BURGERS, ΣΑΛΑΤΕΣ, ΟΡΕΚΤΙΚΑ, ΑΝΑΨΥΚΤΙΚΑ).
 - Middle: product tile grid. Tapping a tile adds it to the order (tapping again increments the quantity; a quantity badge on the tile decrements). Optional secondary English names on tiles.
-- Right: the live order ticket — per-line quantity stepper, edit (✎) and remove (×), per-line description of customizations, subtotal, item discounts, a whole-order discount (% stepper + editable field), and the total.
+- Right: the live order ticket — per-line quantity stepper, edit (✎) and remove (×), per-line description of customizations, subtotal, and the total.
 
 **Customizer** (for customizable categories, e.g. ΠΙΤΤΕΣ): opens in the middle pane with
 - bread choice (Ελληνική / Αραβική / Ψωμί) as a segmented control,
 - included ingredients (Ντομάτα, Μίγμα, Κρεμμύδι, Αλάτι, Πιπέρι, Κίτρινη σάλτσα) shown as chips — tap to remove/restore, plus a ΣΚΕΤΟ toggle that removes all,
 - extras with per-extra prices and quantity (max ×2), searchable; free extras show «δωρεάν»,
-- per-item note («Παρατηρήσεις»), «Χωρίς χρέωση» (no-charge) toggle, per-item discount stepper (0–50 %, step 5),
+- per-item note («Παρατηρήσεις») and a «Χωρίς χρέωση» (no-charge) toggle,
 - quantity stepper and a live-priced ΠΡΟΣΘΗΚΗ button.
 Cart lines created this way can be re-opened and edited from the ticket.
 

@@ -146,7 +146,6 @@ internal sealed class PersonDraftViewModel
     /// <summary>Οι ίδιες γραμμές που δείχνει η δεξιά στήλη — μπαινοβγαίνουν στο Products.Cart αυτούσιες,
     /// γι' αυτό και ξαναγίνονται ζωντανά επεξεργάσιμες (ποσότητα, έξτρα, σβήσιμο).</summary>
     public required List<CartLineViewModel> Lines { get; init; }
-    public required int DiscountPct { get; init; }
     public required decimal Total { get; init; }
 }
 
@@ -241,8 +240,7 @@ public partial class OrderWizardViewModel : ObservableObject
         {
             var units = Math.Max(1, x.l.Quantity);
             var unpaid = units - TableSettlementService.Instance.SettledUnits(table, o.OrderNumber, x.i, units);
-            // Με την έκπτωση παραγγελίας μέσα — ίδιος υπολογισμός με την οθόνη τραπεζιού.
-            return x.l.Revenue / units * unpaid * (1 - o.OrderDiscountPct / 100m);
+            return x.l.Revenue / units * unpaid;
         }));
 
     /// <summary>Λειτουργία «σύρε τα τραπέζια όπου θέλεις» στην κάτοψη, αντί για επιλογή τραπεζιού.</summary>
@@ -388,10 +386,9 @@ public partial class OrderWizardViewModel : ObservableObject
             Total = Products.Total,
             Lines = Products.Cart
                 .Select(l => new SoldLine(l.Name, l.Quantity, l.Total,
-                    string.Join("\n", new[] { l.DescLine1, l.DescLine2 }.Where(s => s.Length > 0)), l.DiscountPct,
+                    string.Join("\n", new[] { l.DescLine1, l.DescLine2 }.Where(s => s.Length > 0)),
                     l.ProductId, l.Customization, l.PrintName))
                 .ToList(),
-            OrderDiscountPct = Products.OrderDiscountPct,
             IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift,
         };
 
@@ -835,7 +832,6 @@ public partial class OrderWizardViewModel : ObservableObject
             _personDrafts[TablePerson] = new PersonDraftViewModel
             {
                 Lines = [.. Products.Cart],
-                DiscountPct = Products.OrderDiscountPct,
                 Total = Products.Total,
             };
     }
@@ -846,15 +842,8 @@ public partial class OrderWizardViewModel : ObservableObject
         TablePerson = person;
         Products.Cart.Clear();
         if (_personDrafts.TryGetValue(person, out var draft))
-        {
             foreach (var line in draft.Lines)
                 Products.Cart.Add(line);
-            Products.OrderDiscountPct = draft.DiscountPct;
-        }
-        else
-        {
-            Products.OrderDiscountPct = 0;
-        }
         Products.Customizer = null;
         Products.OnCartChanged();
         RefreshPersonBlocks();

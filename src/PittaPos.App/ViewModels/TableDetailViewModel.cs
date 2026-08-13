@@ -399,10 +399,7 @@ public partial class TableDetailViewModel : ObservableObject
                 // Ένα τεμάχιο = μία σειρά. Έτσι μπορεί ο καθένας από την παρέα να πληρώσει ακριβώς ό,τι
                 // πήρε, ακόμα κι όταν πάρθηκαν πολλά ίδια μαζί.
                 var units = Math.Max(1, l.Quantity);
-                // Με την έκπτωση της παραγγελίας ΜΕΣΑ: το Revenue της γραμμής δεν την ξέρει (μπαίνει
-                // στο σύνολο), οπότε χωρίς αυτό το τραπέζι ζητούσε περισσότερα απ' όσα λέει η απόδειξη
-                // — και η είσπραξη που γραφόταν ήταν επίσης μεγαλύτερη από την πώληση.
-                var unitPrice = l.Revenue / units * (1 - o.OrderDiscountPct / 100m);
+                var unitPrice = l.Revenue / units;
                 for (var u = 0; u < units; u++)
                 {
                     var settled = _settlement.IsSettled(_table, o.OrderNumber, i, u);

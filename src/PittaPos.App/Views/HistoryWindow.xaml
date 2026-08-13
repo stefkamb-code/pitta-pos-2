@@ -256,25 +256,11 @@
                             </Button.Style>
                         </Button>
                         <Button Content="ΑΚΥΡΩΜΕΝΑ" FontSize="12" FontWeight="ExtraBold" Padding="12,7"
-                                Margin="0,0,8,0" Command="{Binding SelectCancelledTabCommand}">
+                                Command="{Binding SelectCancelledTabCommand}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ShowCancelledTab}" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource Accent}"/>
-                                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                            <Setter Property="Foreground" Value="White"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button Content="ΕΚΠΤΩΣΕΙΣ" FontSize="12" FontWeight="ExtraBold" Padding="12,7"
-                                Command="{Binding SelectDiscountsTabCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ShowDiscountsTab}" Value="True">
                                             <Setter Property="Background" Value="{DynamicResource Accent}"/>
                                             <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
                                             <Setter Property="Foreground" Value="White"/>
@@ -455,40 +441,6 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- ΕΚΠΤΩΣΕΙΣ -->
-                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto"
-                                  Visibility="{Binding ShowDiscountsTab, Converter={StaticResource BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock Text="Καμία έκπτωση σήμερα" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
-                                       HorizontalAlignment="Center" Margin="0,24"
-                                       Visibility="{Binding NoDiscountEntries, Converter={StaticResource BoolToVis}}"/>
-                            <ItemsControl ItemsSource="{Binding DiscountEntries}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:DiscountEntryViewModel}">
-                                        <Border Padding="16,14" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource Divider}">
-                                            <StackPanel>
-                                                <DockPanel Margin="0,0,0,4">
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding TimeLabel}" FontSize="13"
-                                                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral700}"/>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
-                                                        <TextBlock Text="{Binding DiscountLabel}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"/>
-                                                    </StackPanel>
-                                                </DockPanel>
-                                                <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding AmountLabel}" FontSize="13"
-                                                               FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                    <TextBlock Text="{Binding Description}" FontSize="13" Foreground="{DynamicResource Ink}"/>
-                                                </DockPanel>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
                 </Grid>
             </Border>
 

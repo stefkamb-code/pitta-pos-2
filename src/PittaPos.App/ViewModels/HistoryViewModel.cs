@@ -7,7 +7,7 @@ using PittaPos.Core.Models;
 namespace PittaPos.App.ViewModels;
 
 /// <summary>Ποια λίστα δείχνει το ιστορικό αυτή τη στιγμή.</summary>
-public enum HistoryTab { Orders, Cancelled, Discounts }
+public enum HistoryTab { Orders, Cancelled }
 
 /// <summary>
 /// Μία γραμμή της λίστας του Ιστορικού. Για τα ΤΡΑΠΕΖΙΑ είναι ΟΛΟΣ ο λογαριασμός της παρέας — όλα τα
@@ -148,19 +148,6 @@ public class CancelledEntryViewModel
     public string SummaryLabel => Lines.Count + " προϊόντα";
 }
 
-/// <summary>Μία γραμμή έκπτωσης (ανά προϊόν ή ανά ολόκληρη παραγγελία) για τη λίστα «ΕΚΠΤΩΣΕΙΣ».</summary>
-public class DiscountEntryViewModel
-{
-    /// <summary>Ο αριθμός που ξέρει ο ταμίας — βλ. <see cref="CompletedOrder.DisplayNumber"/>.</summary>
-    public required string DisplayNumber { get; init; }
-    public required string TimeLabel { get; init; }
-    public required string Description { get; init; }
-    public required int DiscountPct { get; init; }
-    public required decimal Amount { get; init; }
-    public string AmountLabel => Order.FormatPrice(Amount);
-    public string DiscountLabel => "-" + DiscountPct + "%";
-}
-
 /// <summary>Ιστορικό παραγγελιών ημέρας — προβολή, διόρθωση πληρωμής, ακύρωση/διαγραφή, επανεκτύπωση.</summary>
 public partial class HistoryViewModel : ObservableObject
 {
@@ -184,7 +171,6 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowOrdersTab))]
     [NotifyPropertyChangedFor(nameof(ShowCancelledTab))]
-    [NotifyPropertyChangedFor(nameof(ShowDiscountsTab))]
     private HistoryTab _activeTab = HistoryTab.Orders;
 
     /// <summary>Εύρος ημερών που δείχνει το ιστορικό — προεπιλογή μόνο η σημερινή ημέρα-επιχείρησης.</summary>
@@ -208,11 +194,9 @@ public partial class HistoryViewModel : ObservableObject
 
     public bool ShowOrdersTab => ActiveTab == HistoryTab.Orders;
     public bool ShowCancelledTab => ActiveTab == HistoryTab.Cancelled;
-    public bool ShowDiscountsTab => ActiveTab == HistoryTab.Discounts;
 
     [RelayCommand] private void SelectOrdersTab() => ActiveTab = HistoryTab.Orders;
     [RelayCommand] private void SelectCancelledTab() => ActiveTab = HistoryTab.Cancelled;
-    [RelayCommand] private void SelectDiscountsTab() => ActiveTab = HistoryTab.Discounts;
 
     public IReadOnlyList<CompletedOrder> Orders { get; private set; } = [];
 
@@ -295,7 +279,6 @@ public partial class HistoryViewModel : ObservableObject
         OnPropertyChanged(nameof(Persons));
     }
     public IReadOnlyList<CancelledEntryViewModel> CancelledEntries { get; private set; } = [];
-    public IReadOnlyList<DiscountEntryViewModel> DiscountEntries { get; private set; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelected))]
@@ -380,7 +363,6 @@ public partial class HistoryViewModel : ObservableObject
     public bool NothingSelected => SelectedOrder is null && Orders.Count > 0;
     public bool NoOrders { get; private set; } = true;
     public bool NoCancelledEntries { get; private set; } = true;
-    public bool NoDiscountEntries { get; private set; } = true;
 
     [RelayCommand]
     private void SelectOrder(CompletedOrder order) => SelectedOrder = order;
@@ -500,28 +482,6 @@ public partial class HistoryViewModel : ObservableObject
         };
         _stats.UpdateChannel(SelectedOrder.OrderNumber, type, channel);
         ShowChannelOptions = false;
-    }
-
-    private static IEnumerable<DiscountEntryViewModel> BuildDiscountEntries(CompletedOrder o)
-    {
-        foreach (var l in o.Lines.Where(l => l.HasDiscount))
-            yield return new DiscountEntryViewModel
-            {
-                DisplayNumber = o.DisplayNumber,
-                TimeLabel = o.TimeLabel,
-                Description = l.QtyNameLabel,
-                DiscountPct = l.DiscountPct,
-                Amount = l.Revenue,
-            };
-        if (o.OrderDiscountPct > 0)
-            yield return new DiscountEntryViewModel
-            {
-                DisplayNumber = o.DisplayNumber,
-                TimeLabel = o.TimeLabel,
-                Description = "Όλη η παραγγελία" + (o.WhoLabel != "—" ? " · " + o.WhoLabel : ""),
-                DiscountPct = o.OrderDiscountPct,
-                Amount = o.Total,
-            };
     }
 
     /// <summary>
@@ -682,9 +642,6 @@ public partial class HistoryViewModel : ObservableObject
             .ToList();
         NoCancelledEntries = CancelledEntries.Count == 0;
 
-        DiscountEntries = Orders.SelectMany(BuildDiscountEntries).ToList();
-        NoDiscountEntries = DiscountEntries.Count == 0;
-
         OnPropertyChanged(nameof(Orders));
         // ΧΩΡΙΣ ΑΥΤΟ η λίστα δεν ξαναζωγραφίζεται ποτέ: δένεται στο Entries, όχι στο Orders — γι' αυτό
         // «δεν δούλευε το φίλτρο» (ούτε η αλλαγή ημερομηνίας ούτε οι νέες παραγγελίες φαίνονταν).
@@ -694,7 +651,5 @@ public partial class HistoryViewModel : ObservableObject
         OnPropertyChanged(nameof(NothingSelected));
         OnPropertyChanged(nameof(CancelledEntries));
         OnPropertyChanged(nameof(NoCancelledEntries));
-        OnPropertyChanged(nameof(DiscountEntries));
-        OnPropertyChanged(nameof(NoDiscountEntries));
     }
 }

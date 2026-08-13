@@ -498,8 +498,7 @@ public static class WaiterApiService
         {
             var units = Math.Max(1, x.l.Quantity);
             var unpaid = units - TableSettlementService.Instance.SettledUnits(table, o.OrderNumber, x.i, units);
-            // Με την έκπτωση παραγγελίας μέσα — ίδιος υπολογισμός με το ταμείο.
-            return x.l.Revenue / units * unpaid * (1 - o.OrderDiscountPct / 100m);
+            return x.l.Revenue / units * unpaid;
         }));
 
     // Τα υλικά στέλνονται ήδη λυμένα ανά προϊόν (IngredientsFor), όχι ως «null = τα κοινά»: το κινητό
@@ -581,14 +580,12 @@ public static class WaiterApiService
     /// Εξοφλεί ό,τι έχει μείνει απλήρωτο σε μια γραμμή — <b>ανά τεμάχιο</b>, όπως το ταμείο. Το κινητό
     /// δεν έχει επιλογή ανά τεμάχιο, το ταμείο όμως έχει: αν είχε ήδη πληρωθεί η μία από τις τρεις ίδιες
     /// πίττες, ένα κλειδί «όλη η γραμμή» θα κατέγραφε ΞΑΝΑ ολόκληρο το ποσό στις εισπράξεις της ημέρας.
-    /// Η έκπτωση της παραγγελίας μπαίνει μέσα (το Revenue της γραμμής δεν την ξέρει), αλλιώς η είσπραξη
-    /// βγαίνει μεγαλύτερη από την πώληση — ίδιος υπολογισμός με το TableDetailViewModel.
     /// </summary>
     private static void SettleWholeLine(int table, CompletedOrder order, int lineIndex, PaymentMethod method)
     {
         var line = order.Lines[lineIndex];
         var units = Math.Max(1, line.Quantity);
-        var unitPrice = line.Revenue / units * (1 - order.OrderDiscountPct / 100m);
+        var unitPrice = line.Revenue / units;
         for (var u = 0; u < units; u++)
             // Ο έλεγχος ΠΡΙΝ το Settle δεν είναι περιττός: το TryAdd μέσα στο Settle κοιτάει μόνο το
             // κλειδί ανά τεμάχιο, ενώ μια γραμμή μπορεί να είναι εξοφλημένη με το παλιό κλειδί «όλης
@@ -857,7 +854,6 @@ public static class WaiterApiService
             Lines = order.Lines,
             Note = order.Note,
             DeliveryNotes = order.DeliveryNotes,
-            OrderDiscountPct = order.OrderDiscountPct,
             IsEveningShift = order.IsEveningShift,
             PlacedAt = order.PlacedAt,
         };

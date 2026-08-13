@@ -183,8 +183,12 @@ public partial class ReceiptWindow : Window
         PaymentText.FontSize = s.ReceiptMetaFontSize;
         // Ίδιο μέγεθος πάνω και κάτω: είναι ο ίδιος αριθμός, για να διαβάζεται κρεμασμένη η απόδειξη
         // από όποια άκρη μείνει ακάλυπτη.
-        TypeText.FontSize = s.ReceiptTitleFontSize;
-        FooterText.FontSize = s.ReceiptTitleFontSize;
+        // Κρέμονται από το «Λοιπά» και ΟΧΙ από το «Λογότυπο» (όπως πριν): η ρύθμιση του λογότυπου
+        // πρέπει να αλλάζει ΜΟΝΟ την εικόνα, αλλιώς μίκραινε μαζί της και το «ΟΡΘΙΟΣ #01». Λίγο
+        // μεγαλύτερα από τα υπόλοιπα meta (15 έναντι 13 στο αρχικό σχέδιο) — ο αριθμός διαβάζεται
+        // από απόσταση.
+        TypeText.FontSize = s.ReceiptMetaFontSize * (15.0 / 13.0);
+        FooterText.FontSize = s.ReceiptMetaFontSize * (15.0 / 13.0);
 
         UpdateLayout();
     }

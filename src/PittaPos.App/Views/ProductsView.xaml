@@ -540,19 +540,6 @@
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="17" VerticalAlignment="Center"/>
                                     </DockPanel>
                                 </Button>
-                                <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12"
-                                        Height="40" Margin="12,0,0,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="−" Width="30" Style="{StaticResource GlyphButton}" FontSize="14"
-                                                Command="{Binding DecDiscountCommand}"/>
-                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1,0">
-                                            <TextBlock Text="{Binding DiscountLabel}" FontSize="11" FontWeight="ExtraBold"
-                                                       VerticalAlignment="Center" Margin="8,0"/>
-                                        </Border>
-                                        <Button Content="+" Width="30" Style="{StaticResource GlyphButton}" FontSize="14"
-                                                Foreground="{DynamicResource Accent}" Command="{Binding IncDiscountCommand}"/>
-                                    </StackPanel>
-                                </Border>
                                 <Button DockPanel.Dock="Right" Style="{StaticResource FlatButton}" Height="40" Padding="14,0"
                                         Margin="12,0,0,0" Command="{Binding ToggleNoChargeCommand}">
                                     <StackPanel Orientation="Horizontal">
@@ -696,38 +683,6 @@
                             <TextBlock DockPanel.Dock="Right" Text="{Binding SubtotalLabel}" FontSize="13" Foreground="{DynamicResource Neutral700}"/>
                             <TextBlock Text="Υποσύνολο" FontSize="13" Foreground="{DynamicResource Neutral700}"/>
                         </DockPanel>
-                        <DockPanel Margin="0,0,0,5" Visibility="{Binding HasItemsDiscount, Converter={StaticResource BoolToVis}}">
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding ItemsDiscountLabel}" FontSize="13" Foreground="{DynamicResource Accent700}"/>
-                            <TextBlock Text="Έκπτωση ειδών" FontSize="13" Foreground="{DynamicResource Neutral700}"/>
-                        </DockPanel>
-                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="10,8" Margin="0,6,0,5">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Right" BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12"
-                                        Background="{DynamicResource Bg}" Height="30">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="−" Width="26" Style="{StaticResource GlyphButton}" FontSize="15"
-                                                Command="{Binding DecOrderDiscountCommand}"/>
-                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1,0">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBox Width="34" BorderThickness="0" Background="Transparent"
-                                                         FontSize="13" FontWeight="ExtraBold" TextAlignment="Right"
-                                                         VerticalContentAlignment="Center" Foreground="{DynamicResource Ink}"
-                                                         Text="{Binding OrderDiscountPct, UpdateSourceTrigger=PropertyChanged}"/>
-                                                <TextBlock Text="%" FontSize="13" FontWeight="ExtraBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Button Content="+" Width="26" Style="{StaticResource GlyphButton}" FontSize="15"
-                                                Foreground="{DynamicResource Accent}" Command="{Binding IncOrderDiscountCommand}"/>
-                                    </StackPanel>
-                                </Border>
-                                <StackPanel>
-                                    <TextBlock Text="ΕΚΠΤΩΣΗ ΠΑΡΑΓΓΕΛΙΑΣ" FontSize="10" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                                    <TextBlock Text="{Binding OrderDiscountLabel}" FontSize="13" FontWeight="ExtraBold"
-                                               Foreground="{DynamicResource Accent700}" Margin="0,2,0,0"
-                                               Visibility="{Binding HasOrderDiscount, Converter={StaticResource BoolToVis}}"/>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
                         <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,2,0,0" Padding="0,9,0,0" Margin="0,6,0,0">
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="23" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>

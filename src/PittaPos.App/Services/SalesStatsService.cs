@@ -17,7 +17,7 @@ namespace PittaPos.App.Services;
 /// <paramref name="Details"/> είναι μόνο το ΚΕΙΜΕΝΟ τους για εμφάνιση/εκτύπωση· χωρίς τα δομημένα
 /// δεδομένα εδώ, το «ΜΙΑ ΑΠΟ ΤΑ ΙΔΙΑ» δεν μπορούσε να τις επαναφέρει και ξανάβαζε το προϊόν σκέτο.</param>
 public sealed record SoldLine(string Name, int Quantity, decimal Revenue, string Details = "",
-    int DiscountPct = 0, string ProductId = "", LineCustomization? Customization = null,
+    string ProductId = "", LineCustomization? Customization = null,
     string PrintName = "")
 {
     /// <summary>Το όνομα για το χαρτί: το ειδικό αν το προϊόν έχει ορίσει ένα, αλλιώς της οθόνης.
@@ -27,7 +27,6 @@ public sealed record SoldLine(string Name, int Quantity, decimal Revenue, string
     public string QtyNameLabel => Quantity + " × " + Name;
     public string RevenueLabel => Order.FormatPrice(Revenue);
     public bool HasDetails => Details.Length > 0;
-    public bool HasDiscount => DiscountPct > 0;
 }
 
 /// <summary>Ολοκληρωμένη παραγγελία όπως μετράει στα στατιστικά και στο ιστορικό.</summary>
@@ -73,8 +72,6 @@ public sealed class CompletedOrder
     public required IReadOnlyList<SoldLine> Lines { get; init; }
     /// <summary>Γενική σημείωση παραγγελίας (όχι ανά προϊόν) — π.χ. από το κινητό του σερβιτόρου.</summary>
     public string Note { get; init; } = "";
-    /// <summary>Έκπτωση σε όλη την παραγγελία (βήμα 5) — ξεχωριστή από τυχόν έκπτωση ανά προϊόν.</summary>
-    public int OrderDiscountPct { get; init; }
     public DateTime PlacedAt { get; init; } = DateTime.Now;
     /// <summary>Ποια βάρδια ήταν ενεργή (χειροκίνητος διακόπτης) τη στιγμή της παραγγελίας — όχι με βάση την ώρα.</summary>
     public bool IsEveningShift { get; init; }
@@ -149,8 +146,6 @@ public sealed class CompletedOrder
         OrderType.Table => "ΤΡΑΠΕΖΙ",
         _ => "",
     };
-
-    public bool HasAnyDiscount => OrderDiscountPct > 0 || Lines.Any(l => l.HasDiscount);
 }
 
 /// <summary>
@@ -390,7 +385,6 @@ public class SalesStatsService
         Total = order.Total,
         Lines = order.Lines,
         Note = order.Note,
-        OrderDiscountPct = order.OrderDiscountPct,
         PlacedAt = order.PlacedAt,
         IsEveningShift = order.IsEveningShift,
         TablePerson = order.TablePerson,
@@ -468,10 +462,9 @@ public class SalesStatsService
                 DeliveryAddress = order.DeliveryAddress,
                 DeliveryFloor = order.DeliveryFloor,
                 DeliveryNotes = order.DeliveryNotes,
-                Total = lines.Sum(l => l.Revenue) * (1 - order.OrderDiscountPct / 100m),
+                Total = lines.Sum(l => l.Revenue),
                 Lines = lines,
                 Note = order.Note,
-                OrderDiscountPct = order.OrderDiscountPct,
                 PlacedAt = order.PlacedAt,
                 IsEveningShift = order.IsEveningShift,
                 TablePerson = order.TablePerson,
@@ -510,7 +503,6 @@ public class SalesStatsService
             Total = order.Total,
             Lines = order.Lines,
             Note = order.Note,
-            OrderDiscountPct = order.OrderDiscountPct,
             PlacedAt = order.PlacedAt,
             IsEveningShift = order.IsEveningShift,
             TablePerson = order.TablePerson,
@@ -553,7 +545,6 @@ public class SalesStatsService
             Total = order.Total,
             Lines = order.Lines,
             Note = order.Note,
-            OrderDiscountPct = order.OrderDiscountPct,
             PlacedAt = order.PlacedAt,
             IsEveningShift = order.IsEveningShift,
             TablePerson = order.TablePerson,

@@ -37,10 +37,6 @@ public partial class CartLineViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TotalLabel))]
-    private int _discountPct;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalLabel))]
     private bool _noCharge;
 
     /// <summary>Ψωμί + σημείωση (πρώτη γκρίζα γραμμή).</summary>
@@ -49,7 +45,7 @@ public partial class CartLineViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DescLine1Inline))]
     private string _descLine1 = "";
 
-    /// <summary>Τροποποιήσεις — χωρίς/έξτρα/έκπτωση (δεύτερη κόκκινη γραμμή).</summary>
+    /// <summary>Τροποποιήσεις — χωρίς/έξτρα (δεύτερη κόκκινη γραμμή).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMods))]
     [NotifyPropertyChangedFor(nameof(DescLine2Inline))]
@@ -82,14 +78,13 @@ public partial class CartLineViewModel : ObservableObject
     public bool HasDesc => DescLine1.Length > 0;
     public bool HasMods => DescLine2.Length > 0;
 
-    public decimal Total => NoCharge ? 0m : Quantity * UnitPrice * (1 - DiscountPct / 100m);
+    public decimal Total => NoCharge ? 0m : Quantity * UnitPrice;
     public string TotalLabel => Order.FormatPrice(Total);
 
     public decimal SubtotalContribution => Quantity * UnitPrice;
 
     partial void OnQuantityChanged(int value) => _owner.OnCartChanged();
     partial void OnUnitPriceChanged(decimal value) => _owner.OnCartChanged();
-    partial void OnDiscountPctChanged(int value) => _owner.OnCartChanged();
     partial void OnNoChargeChanged(bool value) => _owner.OnCartChanged();
 
     public void Rename(string name)
