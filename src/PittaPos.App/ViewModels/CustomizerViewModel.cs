@@ -106,9 +106,34 @@ public partial class CustomizerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TotalLabel))]
     private bool _noCharge;
 
-    /// <summary>Όλα τα επιτρεπτά έξτρα του προϊόντος. Υπήρχε και πεδίο αναζήτησης από πάνω, αλλά σε
-    /// ταμείο με αφή είναι πιο γρήγορο να τα βλέπεις όλα μαζί παρά να πληκτρολογείς.</summary>
-    public IReadOnlyList<ExtraViewModel> VisibleExtras => Extras;
+    /// <summary>Όλα τα επιτρεπτά έξτρα του προϊόντος, στρωμένα ώστε να ΔΙΑΒΑΖΟΝΤΑΙ ΚΑΤΑΚΟΡΥΦΑ.
+    /// Υπήρχε και πεδίο αναζήτησης από πάνω, αλλά σε ταμείο με αφή είναι πιο γρήγορο να τα βλέπεις
+    /// όλα μαζί παρά να πληκτρολογείς.
+    /// <para>Ο customizer τα δείχνει σε <c>&lt;UniformGrid Columns="2"/&gt;</c>
+    /// (ProductsView.xaml), που γεμίζει κατά ΓΡΑΜΜΕΣ: η αλφαβητική λίστα έβγαινε έτσι ζιγκ-ζαγκ —
+    /// το δεύτερο όνομα καθόταν δεξιά από το πρώτο και το μάτι πηγαινοερχόταν για να βρει υλικό.
+    /// Μπλέκοντας εδώ το πρώτο με το δεύτερο μισό, το ίδιο γέμισμα κατά γραμμές διαβάζεται
+    /// αλφαβητικά ΚΑΤΩ στην αριστερή στήλη και συνεχίζει από την κορυφή της δεξιάς.</para>
+    /// <para>Η ίδια η σειρά των έξτρα δεν πειράζεται καθόλου — μόνο πού πέφτει το καθένα στην
+    /// οθόνη. Ό,τι έχει βάλει πρώτο ο ταμίας (οι Πατάτες) μένει πρώτο, πάνω αριστερά.</para></summary>
+    public IReadOnlyList<ExtraViewModel> VisibleExtras
+    {
+        get
+        {
+            // Περιττός αριθμός έξτρα: το παραπανίσιο πάει στην ΑΡΙΣΤΕΡΗ στήλη, οπότε το μόνο κελί
+            // που μένει άδειο είναι το τελευταίο κάτω δεξιά — καμία τρύπα στη μέση που θα μετακινούσε
+            // όσα ακολουθούν.
+            var leftColumn = (Extras.Count + 1) / 2;
+            var laidOut = new List<ExtraViewModel>(Extras.Count);
+            for (var row = 0; row < leftColumn; row++)
+            {
+                laidOut.Add(Extras[row]);
+                if (leftColumn + row < Extras.Count)
+                    laidOut.Add(Extras[leftColumn + row]);
+            }
+            return laidOut;
+        }
+    }
 
     /// <summary>ΣΚΕΤΟ — όλα τα υλικά αφαιρεμένα.</summary>
     public bool IsSketo => Ingredients.All(i => i.IsRemoved);

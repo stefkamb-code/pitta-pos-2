@@ -8,6 +8,13 @@ namespace PittaPos.App.Services;
 public sealed record TableDto(int Number, bool IsOpen, decimal Total, int RoundCount, string? LastOrderTime,
     int Persons = 0);
 
+/// <summary>Ποια βάρδια τρέχει ΤΩΡΑ στο ταμείο, για να τη δείχνει το κινητό.
+/// <para>Ο διακόπτης είναι χειροκίνητος (<see cref="SettingsStore.SetShift"/>) και κάθε παραγγελία
+/// σφραγίζεται με ό,τι βρει τη στιγμή που φτάνει εδώ. Το κινητό δεν έχει τρόπο να το μαντέψει από την
+/// ώρα — και δεν πρέπει: αν το ταμείο δεν έχει γυρίσει ακόμα σε ΒΡΑΔΙΝΗ, η παραγγελία ανήκει όντως
+/// στην πρωινή. Γι' αυτό η βάρδια <b>διαβάζεται</b> από εδώ αντί να υπολογίζεται.</para></summary>
+public sealed record ShiftDto(bool IsEveningShift);
+
 /// <summary>Προϊόν όπως το βλέπει η εφαρμογή κινητού.
 /// <para><paramref name="Ingredients"/> = τα βασικά υλικά ΤΟΥ ΣΥΓΚΕΚΡΙΜΕΝΟΥ προϊόντος, ήδη λυμένα μέσω
 /// <see cref="MenuStore.IngredientsFor"/> (άδεια λίστα = προϊόν χωρίς βασικά υλικά). Πριν υπάρξει αυτό το

@@ -53,6 +53,12 @@ public static class WaiterApiService
             app.MapGet("/api/tables", () => Results.Json(OnUi(GetTables)));
             app.MapGet("/api/tables/{table:int}/orders", (int table) => Results.Json(OnUi(() => GetTableOrders(table))));
             app.MapGet("/api/menu", () => Results.Json(OnUi(GetMenu)));
+            // Η τρέχουσα βάρδια, για να τη δείχνει το κινητό. Ο σερβιτόρος δεν έβλεπε πουθενά αν το
+            // ταμείο είναι σε ΠΡΩΙΝΗ ή ΒΡΑΔΙΝΗ, οπότε η παραγγελία του σφραγιζόταν με ό,τι είχε ο
+            // ταμίας εκείνη τη στιγμή — και η αλλαγή βάρδιας στη μέση της εξυπηρέτησης φαινόταν μόνο
+            // στα στατιστικά της ημέρας, όταν πια δεν διορθωνόταν. OnUi όπως όλα: το SettingsStore το
+            // πειράζει το UI thread από τα κουμπιά ☀/🌙 της κεφαλίδας.
+            app.MapGet("/api/shift", () => Results.Json(OnUi(() => new ShiftDto(SettingsStore.Instance.Settings.IsEveningShift))));
             // OnUi όπως όλα τα υπόλοιπα: διαβάζει τον κατάλογο (κατηγορίες/έξτρα) που μπορεί να τον
             // αλλάζει εκείνη τη στιγμή ο ταμίας από τη Διαχείριση — χωρίς αυτό, μια ταυτόχρονη
             // επεξεργασία μενού και ένα άνοιγμα προϊόντος από το κινητό μπορούσαν να συμπέσουν.
@@ -733,13 +739,20 @@ public static class WaiterApiService
             var unitPrice = p.Price + extras.Sum(e => e.Value * extraPrices.GetValueOrDefault(e.Key)) + doublePitaSurcharge;
             var lineTotal = unitPrice * l.Quantity;
             total += lineTotal;
-            var name = doublePita
-                ? MenuSeed.ComposeDoublePitaName(p.Name, category, bread)
+            // Ακριβώς η ίδια σύνθεση με τον customizer του ταμείου (βλ. CustomizerViewModel.Add):
+            // τρέχει δύο φορές, μία για την οθόνη και μία για το χαρτί, ώστε το «όνομα εκτύπωσης» του
+            // προϊόντος να παίρνει κι αυτό κανονικά το ψωμί μπροστά και τη «ΔΙΠΛΗ ΠΙΤΑ».
+            string Compose(string baseName) => doublePita
+                ? MenuSeed.ComposeDoublePitaName(baseName, category, bread)
                 : p.Customizable && MenuStore.Instance.HasBreadChoice(category) && MenuStore.Instance.FuseBreadIntoName(category)
-                    ? MenuSeed.ComposeCustomizedName(p.Name, bread)
-                    : p.Name;
-            lines.Add(new SoldLine(name, l.Quantity, lineTotal, BuildDetails(p, l, extras, category, bread),
-                ProductId: p.Id));
+                    ? MenuSeed.ComposeCustomizedName(baseName, bread)
+                    : baseName;
+
+            // PrintName: χωρίς αυτό, ό,τι ερχόταν από το κινητό τυπωνόταν με το όνομα του ΜΕΝΟΥ — το
+            // «όνομα εκτύπωσης» της Διαχείρισης Καταλόγου ίσχυε μόνο για όσα χτυπούσε ο ταμίας. Ίδια
+            // παραγγελία έβγαζε άλλο χαρτί ανάλογα με το από πού μπήκε (βλ. ReceiptWindow, NameForPrint).
+            lines.Add(new SoldLine(Compose(p.Name), l.Quantity, lineTotal, BuildDetails(p, l, extras, category, bread),
+                ProductId: p.Id, PrintName: Compose(p.NameForPrint)));
             persons.Add(l.Person);
         }
         if (skipped > 0)
