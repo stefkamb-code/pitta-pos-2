@@ -1,6 +1,8 @@
 using System.Windows;
 using PittaPos.App.ViewModels;
 
+using PittaPos.App.Services;
+
 namespace PittaPos.App.Views;
 
 public partial class LiveOrdersWindow : Window
@@ -14,6 +16,8 @@ public partial class LiveOrdersWindow : Window
     public LiveOrdersWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = _vm;
         Closed += (_, _) => _vm.Shutdown();
     }

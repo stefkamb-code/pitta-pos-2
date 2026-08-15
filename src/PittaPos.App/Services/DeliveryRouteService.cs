@@ -253,6 +253,12 @@ public static class DeliveryRouteService
     /// γεωκωδικοποιηθούν όλες οι παραδόσεις· ίδιο cache, άρα κανένα επιπλέον αίτημα προς το Nominatim.</summary>
     public static async Task<(double Lat, double Lon)?> GetShopCoordsAsync()
     {
+        // 1) Το σημείο που έδειξε ο ίδιος ο ταμίας στον χάρτη — υπερισχύει πάντα, και δουλεύει ακόμα κι
+        //    όταν το πεδίο διεύθυνσης είναι κενό ή η διεύθυνση δεν βρίσκεται πουθενά.
+        if (AddressPointsService.Instance.Get(AddressPointsService.ShopPointKey) is { } pinned)
+            return (pinned.Lat, pinned.Lon);
+
+        // 2) Αλλιώς, η γραμμένη διεύθυνση (ίδιο cache/σημεία με τις παραδόσεις).
         var address = SettingsStore.Instance.Settings.ShopAddress.Trim();
         return address.Length == 0 ? null : await GeocodeNominatimCachedAsync(address);
     }
@@ -621,11 +627,19 @@ public static class DeliveryRouteService
 
     private static async Task<(double Lat, double Lon)?> GeocodeNominatimCachedAsync(string address)
     {
+        // Και το κατάστημα περνάει από τα δικά μας σημεία: αν η διεύθυνσή του δεν εντοπίζεται σωστά (ή
+        // καθόλου) στον χάρτη, ο ταμίας τη δείχνει μία φορά και η πινέζα του μαγαζιού μένει εκεί.
+        if (AddressPointsService.Instance.Get(address) is { } known)
+            return (known.Lat, known.Lon);
+
         if (_osmGeocodeCache.TryGetValue(address, out var cached))
             return cached;
         var geo = await GeocodeNominatimAsync(address);
         if (geo is { } g)
+        {
             _osmGeocodeCache[address] = g;
+            AddressPointsService.Instance.Set(address, g.Lat, g.Lon, manual: false);
+        }
         return geo;
     }
 
@@ -640,6 +654,11 @@ public static class DeliveryRouteService
     private static async Task<(double Lat, double Lon)?> GeocodeDeliveryCachedAsync(
         string address, (double Lat, double Lon)? shopCoords)
     {
+        // ΠΡΩΤΑ τα δικά μας σημεία: μια διεύθυνση που έχει ήδη εντοπιστεί — και κυρίως μία που τη
+        // διόρθωσε ο ταμίας πάνω στον χάρτη — δεν ξαναρωτιέται ποτέ σε geocoder (βλ. AddressPointsService).
+        if (AddressPointsService.Instance.Get(address) is { } known)
+            return (known.Lat, known.Lon);
+
         if (_osmGeocodeCache.TryGetValue(address, out var cached))
             return cached;
 
@@ -659,7 +678,12 @@ public static class DeliveryRouteService
         }
 
         if (geo is { } g)
+        {
             _osmGeocodeCache[address] = g;
+            // Ό,τι βρέθηκε μένει γραμμένο στο μαγαζί (manual: false — ο ταμίας μπορεί να το διορθώσει
+            // από πάνω): την επόμενη φορά η πινέζα μπαίνει ακαριαία, χωρίς internet και χωρίς αναμονή.
+            AddressPointsService.Instance.Set(address, g.Lat, g.Lon, manual: false);
+        }
         return geo;
     }
 
@@ -669,15 +693,15 @@ public static class DeliveryRouteService
     {
         var result = new DeliveryRouteResult();
 
+        // Ίδια σειρά με το GetShopCoordsAsync: πρώτα το σημείο που έδειξε ο ταμίας, μετά η διεύθυνση.
+        // Χωρίς αυτό, το καρφιτσωμένο μαγαζί φαινόταν στο άνοιγμα του χάρτη αλλά εξαφανιζόταν μόλις
+        // υπήρχε έστω μία παράδοση (οπότε ο κώδικας περνούσε από εδώ).
         RouteStop? shop = null;
-        if (!string.IsNullOrWhiteSpace(shopAddress))
-        {
-            var geo = await GeocodeNominatimCachedAsync(shopAddress);
-            if (geo is { } g)
-                shop = new RouteStop("Κατάστημα", shopAddress, g.Lat, g.Lon);
-            else
-                result.FailedAddresses.Add("Κατάστημα: " + shopAddress);
-        }
+        var shopCoordsNow = await GetShopCoordsAsync();
+        if (shopCoordsNow is { } sc)
+            shop = new RouteStop("Κατάστημα", shopAddress, sc.Lat, sc.Lon);
+        else if (!string.IsNullOrWhiteSpace(shopAddress))
+            result.FailedAddresses.Add("Κατάστημα: " + shopAddress);
 
         var shopCoords = shop is { } s0 ? (s0.Lat, s0.Lon) : ((double Lat, double Lon)?)null;
         var stops = new List<RouteStop>();
@@ -765,9 +789,19 @@ public static class DeliveryRouteService
         var stops = new List<RouteStop>();
         foreach (var (label, address) in deliveries)
         {
+            // Ίδια σειρά με το OSM μονοπάτι: πρώτα τα σημεία που ξέρει το μαγαζί (βλ. AddressPointsService),
+            // και μόνο για άγνωστη διεύθυνση ρωτιέται η Google — που χρεώνεται κιόλας ανά αίτημα.
+            if (AddressPointsService.Instance.Get(address) is { } known)
+            {
+                stops.Add(new RouteStop(label, address, known.Lat, known.Lon));
+                continue;
+            }
             var geo = await GeocodeGoogleAsync(address, key);
             if (geo is { } g)
+            {
                 stops.Add(new RouteStop(label, address, g.Lat, g.Lon));
+                AddressPointsService.Instance.Set(address, g.Lat, g.Lon, manual: false);
+            }
             else
                 result.FailedAddresses.Add(label + ": " + address);
         }

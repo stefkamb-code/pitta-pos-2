@@ -19,6 +19,8 @@ public partial class ChangePinDialog : Window
     public ChangePinDialog()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
     }
 
     /// <summary>Δείχνει τον οδηγό αλλαγής κωδικού· true αν ο κωδικός άλλαξε.</summary>

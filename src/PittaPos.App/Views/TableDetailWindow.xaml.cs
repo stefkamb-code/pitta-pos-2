@@ -1,6 +1,8 @@
 using System.Windows;
 using PittaPos.App.ViewModels;
 
+using PittaPos.App.Services;
+
 namespace PittaPos.App.Views;
 
 public partial class TableDetailWindow : Window
@@ -10,6 +12,8 @@ public partial class TableDetailWindow : Window
     public TableDetailWindow(int table)
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         _vm = new TableDetailViewModel(table);
         DataContext = _vm;
         Closed += (_, _) => _vm.Detach();

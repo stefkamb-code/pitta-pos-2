@@ -76,11 +76,189 @@ public static class RemoteSync
     private static void ReportOutcome(Exception? ex)
     {
         var message = ex is null ? null : DescribeError(ex);
+        if (message is not null)
+            _ = TryRediscoverHostAsync();
         if (message == LastError)
             return;
         LastError = message;
         if (message is not null)
             AppLog.Write("remote-sync", $"Δεν φτάνει το κύριο ταμείο στο {BaseUrl}: {message}");
+    }
+
+    // ---- αυτόματη εύρεση του κύριου ταμείου στο τοπικό δίκτυο ----
+    //
+    // Η γραμμένη διεύθυνση του κύριου ταμείου παύει να ισχύει μόνη της: το router μοιράζει IP με DHCP,
+    // οπότε ένα restart (ρεύμα, αναβάθμιση των Windows, αλλαγή router) μπορεί να δώσει στο κύριο ταμείο
+    // ΑΛΛΗ IP από αυτήν που είναι γραμμένη εδώ. Από εκείνη τη στιγμή το δεύτερο ταμείο δεν βρίσκει
+    // τίποτα — ούτε τραπέζια ούτε εκτύπωση — χωρίς να έχει αλλάξει κανείς τίποτα. Αντί να ξαναγράφεται
+    // η IP στο χέρι κάθε φορά, το ταμείο τη βρίσκει μόνο του: σαρώνει το τοπικό δίκτυο για ένα ταμείο
+    // που δηλώνει «είμαι το κύριο» (βλ. /api/whoami) και αποθηκεύει τη νέα διεύθυνση.
+
+    private static DateTime _lastDiscovery = DateTime.MinValue;
+    private static bool _discovering;
+
+    /// <summary>Πόσο συχνά το πολύ ξαναψάχνει — η σάρωση είναι φθηνή αλλά όχι δωρεάν, και οι αποτυχίες
+    /// έρχονται κατά δεκάδες (κάθε store κάνει το δικό του poll κάθε 2-3 δευτερόλεπτα).</summary>
+    private static readonly TimeSpan DiscoveryCooldown = TimeSpan.FromSeconds(45);
+
+    private static async Task TryRediscoverHostAsync()
+    {
+        if (DateTime.Now - _lastDiscovery < DiscoveryCooldown)
+            return;
+        await FindAndSaveHostAsync();
+    }
+
+    /// <summary>Ζει το κύριο ταμείο στη διεύθυνση που ξέρουμε; Ελαφρύ, χωρίς παρενέργειες — δεν περνάει
+    /// από το ReportOutcome, ώστε ο περιοδικός έλεγχος (βλ. RemoteSyncStatus) να μη σκανδαλίζει μόνος του
+    /// σάρωση σε κάθε χτύπο.</summary>
+    public static async Task<bool> PingHostAsync()
+    {
+        var host = SettingsStore.Instance.Settings.HostAddress.Trim();
+        if (host.Length == 0)
+            return false;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            var who = await http.GetFromJsonAsync<WhoAmIDto>($"http://{host}:{WaiterApiService.Port}/api/whoami");
+            return who is not null && who.Mode == "host";
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Ψάχνει το κύριο ταμείο στο δίκτυο και, αν το βρει σε άλλη διεύθυνση, την αποθηκεύει.
+    /// Επιστρέφει τη διεύθυνση που ισχύει τώρα, ή null αν δεν βρέθηκε τίποτα.</summary>
+    public static async Task<string?> FindAndSaveHostAsync()
+    {
+        if (_discovering || !IsClient)
+            return null;
+        _discovering = true;
+        _lastDiscovery = DateTime.Now;
+        try
+        {
+            var found = await DiscoverHostAsync();
+            if (found is null)
+                return null;
+            if (found == SettingsStore.Instance.Settings.HostAddress.Trim())
+                return found;
+
+            AppLog.Write("remote-sync",
+                $"Το κύριο ταμείο βρέθηκε σε νέα διεύθυνση: {found} (ήταν {SettingsStore.Instance.Settings.HostAddress}). " +
+                "Η ρύθμιση ενημερώθηκε αυτόματα.");
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+                SettingsStore.Instance.SetNetworkMode("client", found);
+            else
+                dispatcher.Invoke(() => SettingsStore.Instance.SetNetworkMode("client", found));
+            return found;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("remote-sync", $"Απέτυχε η αυτόματη εύρεση κύριου ταμείου: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            _discovering = false;
+        }
+    }
+
+    /// <summary>
+    /// Σαρώνει το τοπικό δίκτυο (το /24 της κάθε κάρτας δικτύου) για ένα ταμείο που απαντά στη θύρα μας
+    /// ΚΑΙ δηλώνει ότι είναι το κύριο. Επιστρέφει την IP του, ή null αν δεν βρέθηκε.
+    /// Χρησιμοποιείται και από το κουμπί «Εύρεση κύριου ταμείου» στις Ρυθμίσεις Δικτύου.
+    /// </summary>
+    public static async Task<string?> DiscoverHostAsync()
+    {
+        var mine = LocalIPv4Addresses();
+        if (mine.Count == 0)
+            return null;
+
+        // Το ίδιο μας το ταμείο ακούει επίσης σε αυτή τη θύρα — χωρίς αυτόν τον αποκλεισμό θα «έβρισκε»
+        // τον εαυτό του και θα προωθούσε τις παραγγελίες στον εαυτό του (βλ. HostIsThisMachine).
+        var skip = mine.ToHashSet(StringComparer.Ordinal);
+        var candidates = mine
+            .Select(ip => ip[..(ip.LastIndexOf('.') + 1)])
+            .Distinct(StringComparer.Ordinal)
+            .SelectMany(prefix => Enumerable.Range(1, 254).Select(last => prefix + last))
+            .Where(ip => !skip.Contains(ip))
+            .ToList();
+
+        // Παράλληλα, αλλά με φρένο: 64 ταυτόχρονες συνδέσεις σαρώνουν ένα /24 σε ~2 δευτερόλεπτα χωρίς
+        // να πνίγουν το δίκτυο του μαγαζιού την ώρα που δουλεύει.
+        using var gate = new SemaphoreSlim(64);
+        using var found = new CancellationTokenSource();
+        string? result = null;
+
+        var probes = candidates.Select(async ip =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                if (found.IsCancellationRequested || !await IsHostAtAsync(ip, found.Token))
+                    return;
+                result = ip;
+                found.Cancel();
+            }
+            catch (Exception)
+            {
+                // Μια IP που δεν απαντά είναι το φυσιολογικό εδώ, όχι σφάλμα
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+        await Task.WhenAll(probes);
+        return result;
+    }
+
+    /// <summary>Απαντά σε αυτή την IP ταμείο σε λειτουργία ΚΥΡΙΟΥ; Πρώτα σκέτο TCP (γρήγορο «όχι» για τις
+    /// 250 IP που δεν τρέχουν τίποτα), και μόνο μετά η ερώτηση ταυτότητας.</summary>
+    private static async Task<bool> IsHostAtAsync(string ip, CancellationToken token)
+    {
+        using var socket = new System.Net.Sockets.Socket(
+            System.Net.Sockets.AddressFamily.InterNetwork,
+            System.Net.Sockets.SocketType.Stream,
+            System.Net.Sockets.ProtocolType.Tcp);
+        using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        connectTimeout.CancelAfter(TimeSpan.FromMilliseconds(600));
+        try
+        {
+            await socket.ConnectAsync(System.Net.IPAddress.Parse(ip), WaiterApiService.Port, connectTimeout.Token);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        var who = await http.GetFromJsonAsync<WhoAmIDto>($"http://{ip}:{WaiterApiService.Port}/api/whoami", token);
+        return who is not null && who.Mode == "host" && who.Store == AppIdentity.StoreName;
+    }
+
+    /// <summary>Ταυτότητα ταμείου, όπως την επιστρέφει το /api/whoami — βλ. WaiterApiService.</summary>
+    public sealed record WhoAmIDto(string Mode, string Store);
+
+    private static List<string> LocalIPv4Addresses()
+    {
+        try
+        {
+            return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+                    && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                    && !System.Net.IPAddress.IsLoopback(a.Address))
+                .Select(a => a.Address.ToString())
+                .ToList();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
     }
 
     private static string DescribeError(Exception ex) => ex switch

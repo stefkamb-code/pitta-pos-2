@@ -15,6 +15,8 @@ public partial class PinDialog : Window
     public PinDialog()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
     }
 
     /// <summary>Δείχνει το παράθυρο κωδικού· true μόνο αν μπήκε ο σωστός.</summary>

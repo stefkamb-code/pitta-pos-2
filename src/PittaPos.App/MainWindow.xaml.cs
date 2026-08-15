@@ -21,10 +21,40 @@ public partial class MainWindow : Window
     private CustomersWindow? _customers;
     private TableDetailWindow? _tableDetail;
 
+    /// <summary>
+    /// Στενό παράθυρο; Η κεφαλίδα κουβαλά πολλά (λογότυπο, τίτλο, τέσσερα κουμπιά, παραγγελίες, ώρα,
+    /// βάρδια, ρυθμίσεις, κουμπιά παραθύρου) και σε μικρό παράθυρο στριμώχνονταν το ένα πάνω στο άλλο.
+    /// Όταν ανάψει αυτό, τα διακοσμητικά υποχωρούν (τίτλος, ώρα, κείμενα βάρδιας) και μένουν μόνο όσα
+    /// χρειάζεται πραγματικά ο ταμίας. Μεγιστοποιημένο — που είναι και η κανονική χρήση — δεν αλλάζει τίποτα.
+    /// </summary>
+    public static readonly DependencyProperty IsNarrowProperty =
+        DependencyProperty.Register(nameof(IsNarrow), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
+    public bool IsNarrow
+    {
+        get => (bool)GetValue(IsNarrowProperty);
+        set => SetValue(IsNarrowProperty, value);
+    }
+
+    /// <summary>Κάτω από αυτό το πλάτος η κεφαλίδα δεν χωράει άνετα — μετρημένο: στα 1280 το κουμπί
+    /// «ΠΑΡΑΓΓΕΛΙΕΣ» έβγαινε ήδη κομμένο σε «ΠΑΡΑ».</summary>
+    private const double NarrowWidth = 1420;
+
     public MainWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = _wizard;
+
+        // Χωρίς πλαίσιο παραθύρου, το μεγιστοποιημένο παράθυρο ξεχείλιζε 7px σε κάθε πλευρά και τα
+        // κουμπιά πάνω δεξιά κόβονταν (βλ. MaximizeFix).
+        MaximizeFix.Attach(this);
+        SizeChanged += (_, _) => IsNarrow = ActualWidth < NarrowWidth;
+
+        // Ανοίγει σε όλη την οθόνη. Ορίζεται ΕΔΩ και όχι στο XAML: με WindowStyle="None" το WPF αγνοούσε
+        // το WindowState="Maximized" της δήλωσης και το παράθυρο άνοιγε στο μικρό του μέγεθος (μετρημένο).
+        Loaded += (_, _) => WindowState = WindowState.Maximized;
         _wizard.AutoPrintRequested += AutoPrintReceipt;
         _wizard.TableDetailRequested += OpenTableDetail;
         _wizard.PersonsAskRequested += table => PersonsDialog.Ask(this, table);
@@ -87,6 +117,49 @@ public partial class MainWindow : Window
         if (e.Key == Key.Escape)
             _wizard.GoToStepCommand.Execute(1);
     }
+
+    // ---- δική μας μπάρα τίτλου (βλ. WindowChrome στο MainWindow.xaml) ----
+    //
+    // Με WindowStyle="None" το παράθυρο δεν έχει πια τη μπάρα των Windows, οπότε το σύρσιμο και το διπλό
+    // κλικ για μεγιστοποίηση γίνονται εδώ, πάνω στην κεφαλίδα της εφαρμογής. Τα κουμπιά μέσα στην
+    // κεφαλίδα δεν επηρεάζονται: το WPF σταματά το δικό τους κλικ πριν φτάσει ως εδώ.
+
+    /// <summary>Σύρσιμο του παραθύρου από την κεφαλίδα, και διπλό κλικ για μεγιστοποίηση/επαναφορά —
+    /// ό,τι ακριβώς κάνει και η κανονική μπάρα τίτλου των Windows.</summary>
+    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleMaximize();
+            return;
+        }
+
+        // Μεγιστοποιημένο δεν σέρνεται. Το DragMove σε μεγιστοποιημένο παράθυρο δεν το επαναφέρει όπως
+        // κάνουν τα Windows — το κουβαλάει ολόκληρο, και ένα κατά λάθος τράβηγμα στη βάρδια θα έστελνε
+        // το ταμείο μισό εκτός οθόνης. Και επειδή έτσι δουλεύει σχεδόν πάντα (ανοίγει μεγιστοποιημένο),
+        // ο ταμίας δεν χάνει τίποτα: για μετακίνηση υπάρχει πρώτα η επαναφορά με το ▢.
+        if (WindowState == WindowState.Maximized)
+            return;
+
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // Το DragMove θέλει το κουμπί ΑΚΟΜΑ πατημένο· αν προλάβει να αφεθεί (γρήγορο κλικ) πετάει.
+            // Δεν είναι σφάλμα: απλά δεν υπάρχει τίποτα να συρθεί.
+        }
+    }
+
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void MaximizeWindow_Click(object sender, RoutedEventArgs e) => ToggleMaximize();
+
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ToggleMaximize() =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     // ---- κάτοψη τραπεζιών: σύρε-και-άσε σε λειτουργία διάταξης ----
 
@@ -165,13 +238,13 @@ public partial class MainWindow : Window
     /// χωρίς να ταξιδέψει το χέρι μέχρι το ΣΥΝΕΧΕΙΑ — μετράει σε ώρα αιχμής. Το πρώτο από τα δύο
     /// κλικ έχει ήδη κάνει την επιλογή μέσω του SelectAppMethodCommand.
     ///
-    /// Αν λείπει ο υποχρεωτικός αριθμός παραγγελίας της πλατφόρμας, δεν γίνεται τίποτα — ίδιος
-    /// ακριβώς κανόνας με το κουμπί ΣΥΝΕΧΕΙΑ (βλ. OrderWizardViewModel.Step2ContinueEnabled), ώστε
-    /// να μη γλιστράει μια παραγγελία Wolt/e-food χωρίς τον αριθμό της.
+    /// Αν λείπει κάτι υποχρεωτικό (ο αριθμός παραγγελίας της πλατφόρμας, ή τα στοιχεία πελάτη στο BOX)
+    /// δεν προχωράει — ίδιος ακριβώς κανόνας με το κουμπί ΣΥΝΕΧΕΙΑ, γιατί περνάει από την ίδια εντολή:
+    /// εκείνη κοκκινίζει τα άδεια πεδία αντί να προχωρήσει (βλ. OrderWizardViewModel.ContinueStep2).
     /// </summary>
     private void AppMethod_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (!_wizard.Step2ContinueEnabled || !_wizard.ContinueStep2Command.CanExecute(null))
+        if (!_wizard.ContinueStep2Command.CanExecute(null))
             return;
 
         _wizard.ContinueStep2Command.Execute(null);

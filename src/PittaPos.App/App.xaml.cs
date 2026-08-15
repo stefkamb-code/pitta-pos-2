@@ -35,7 +35,10 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
-        // Εφαρμογή του αποθηκευμένου θέματος πριν ανοίξει οποιοδήποτε παράθυρο
+        // Εφαρμογή του αποθηκευμένου θέματος πριν ανοίξει οποιοδήποτε παράθυρο. Το HookNewWindows
+        // προηγείται ώστε να πιάσει και το πρώτο παράθυρο: κάθε παράθυρο που ανοίγει από δω και πέρα
+        // παίρνει μόνο του τη σωστή μπάρα τίτλου (βλ. TitleBarTheme).
+        TitleBarTheme.HookNewWindows();
         ThemeManager.Apply(SettingsStore.Instance.IsDark);
 
         // Αν ο κατάλογος του μαγαζιού δεν διαβάστηκε (π.χ. στιγμιαίο κλείδωμα του αρχείου), η εφαρμογή
@@ -59,6 +62,10 @@ public partial class App : Application
 
         // API για την εφαρμογή κινητού του σερβιτόρου (μόνο μέσα στο WiFi του μαγαζιού)
         WaiterApiService.Start();
+
+        // Δεύτερο ταμείο: σιωπηλός σκοπός που κρατά ζωντανή τη σύνδεση με το κύριο — μόλις αλλάξει η IP
+        // του, τη βρίσκει ξανά μόνος του μέσα σε δευτερόλεπτα (βλ. HostWatchdog).
+        HostWatchdog.Start();
 
         // Αναγνώριση κλήσεων μέσω AMI του Grandstream UCM — ανενεργό αν δεν έχει ρυθμιστεί
         AmiClientService.Start();

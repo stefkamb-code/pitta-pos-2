@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Input;
 using PittaPos.App.ViewModels;
 
+using PittaPos.App.Services;
+
 namespace PittaPos.App.Views;
 
 /// <summary>Διαχείριση του κοινού καταλόγου έξτρα (προσθήκη/τιμή/διαγραφή) — μοιράζεται το ίδιο
@@ -11,6 +13,8 @@ public partial class ManageExtrasWindow : Window
     public ManageExtrasWindow(MenuManagerViewModel viewModel)
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = viewModel;
     }
 

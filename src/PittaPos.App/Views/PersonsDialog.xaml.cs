@@ -21,6 +21,8 @@ public partial class PersonsDialog : Window
     private PersonsDialog(int table)
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         TitleText.Text = $"ΤΡΑΠΕΖΙ {table} — πόσα άτομα;";
     }
 

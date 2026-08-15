@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using PittaPos.App.ViewModels;
 
+using PittaPos.App.Services;
+
 namespace PittaPos.App.Views;
 
 public partial class StatsWindow : Window
@@ -11,6 +13,8 @@ public partial class StatsWindow : Window
     public StatsWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = _vm;
         Closed += (_, _) => _vm.Detach();
     }

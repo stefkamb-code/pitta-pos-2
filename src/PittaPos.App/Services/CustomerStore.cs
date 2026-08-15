@@ -354,6 +354,84 @@ public class CustomerStore
             || (qDigits.Length >= 3 && DigitsOnly(c.Phone).Contains(qDigits));
     }
 
+    // ---- Αυτόματη συμπλήρωση από ό,τι έχει ήδη περαστεί ----
+    // Οι προτάσεις διεύθυνσης έρχονταν παλιά από τον χάρτη (Nominatim/Google, βλ. DeliveryRouteService):
+    // πρότεινε δρόμους όλης της Ελλάδας, συχνά λάθος περιοχή, και εξαρτιόταν από το internet. Τώρα οι
+    // προτάσεις βγαίνουν από τους ίδιους μας τους πελάτες — ό,τι έχει ξαναγραφτεί στο μαγαζί, τίποτα άλλο.
+
+    /// <summary>
+    /// Μικρά ονόματα που έχουν ήδη περαστεί — ΜΟΝΟ το πρώτο κομμάτι του ονοματεπώνυμου.
+    ///
+    /// Κάθε κελί προτείνει αυστηρά ό,τι γράφεται σε ΕΚΕΙΝΟ το κελί: γράφοντας «ΣΤΕΦΑΝΟΣ» στο Όνομα, η
+    /// πρόταση δεν πρέπει να φέρνει μαζί και το επώνυμο κάποιου άλλου πελάτη — που κατέληγε να γράφεται
+    /// ολόκληρο μέσα στο κελί του ονόματος.
+    /// </summary>
+    public IReadOnlyList<string> SuggestFirstNames(string typed) =>
+        Suggest(_customers.Select(c => FirstNameOf(c.Name)), typed);
+
+    /// <summary>Επώνυμα που έχουν ήδη περαστεί — ό,τι ακολουθεί το πρώτο κενό.</summary>
+    public IReadOnlyList<string> SuggestLastNames(string typed) =>
+        Suggest(_customers.Select(c => LastNameOf(c.Name)), typed);
+
+    /// <summary>Ο χωρισμός γίνεται στο πρώτο κενό, ίδια λογική με τα δύο κελιά της φόρμας
+    /// (βλ. OrderWizardViewModel.CustomerFirstName/CustomerLastName) — από κάτω παραμένει ΕΝΑ πεδίο.</summary>
+    private static string FirstNameOf(string name)
+    {
+        var s = name.Trim();
+        var i = s.IndexOf(' ');
+        return i < 0 ? s : s[..i];
+    }
+
+    private static string LastNameOf(string name)
+    {
+        var s = name.Trim();
+        var i = s.IndexOf(' ');
+        return i < 0 ? "" : s[(i + 1)..].TrimStart();
+    }
+
+    /// <summary>Οδοί που έχουν ήδη περαστεί — και οι κύριες και οι πρόσθετες διευθύνσεις.</summary>
+    public IReadOnlyList<string> SuggestStreets(string typed) =>
+        Suggest(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Address).Prepend(c.Address)), typed);
+
+    /// <summary>Περιοχές που έχουν ήδη περαστεί.</summary>
+    public IReadOnlyList<string> SuggestAreas(string typed) =>
+        Suggest(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Area).Prepend(c.Area)), typed);
+
+    /// <summary>
+    /// Όσα ταιριάζουν με ό,τι πληκτρολογείται, χωρίς διπλότυπα. Πρώτα αυτά που ΑΡΧΙΖΟΥΝ από το
+    /// γραμμένο κείμενο (αυτό περιμένει ο ταμίας όταν γράφει τα πρώτα γράμματα) και μετά όσα απλώς το
+    /// περιέχουν· μέσα σε κάθε ομάδα, πρώτα τα πιο συχνά — έτσι οι καθημερινές περιοχές/δρόμοι του
+    /// μαγαζιού ανεβαίνουν από μόνες τους στην κορυφή.
+    /// </summary>
+    private static IReadOnlyList<string> Suggest(IEnumerable<string> values, string typed)
+    {
+        var q = typed.Trim();
+        if (q.Length < 2)
+            return [];
+
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in values)
+        {
+            // Κεφαλαία και εδώ: οι παλιοί πελάτες είναι γραμμένοι όπως τύχαινε, και χωρίς αυτό ο ίδιος
+            // δρόμος εμφανιζόταν δύο φορές στη λίστα («Μαγνησίας» και «ΜΑΓΝΗΣΙΑΣ»).
+            var v = GreekText.Upper(value).Trim();
+            if (v.Length == 0 || v.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+            counts[v] = counts.TryGetValue(v, out var n) ? n + 1 : 1;
+        }
+
+        return counts
+            // Ό,τι έχει ήδη γραφτεί ολόκληρο δεν είναι πρόταση — αλλιώς η λίστα έμενε ανοιχτή από κάτω
+            // ακόμα και αφού ο ταμίας διάλεγε από αυτήν.
+            .Where(p => !string.Equals(p.Key, q, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Key.StartsWith(q, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenByDescending(p => p.Value)
+            .ThenBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(p => p.Key)
+            .Take(6)
+            .ToList();
+    }
+
     /// <summary>Αναζήτηση για το autocomplete στις παραγγελίες (μέχρι 6 αποτελέσματα).</summary>
     public IReadOnlyList<Customer> Search(string query)
     {

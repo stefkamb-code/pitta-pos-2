@@ -14,6 +14,8 @@ public partial class NetworkSettingsWindow : Window
     public NetworkSettingsWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         RefreshUi();
 
         // Δείχνει live αν το δεύτερο ταμείο φτάνει το κύριο, ενόσω είναι ανοιχτό αυτό το παράθυρο —
@@ -101,6 +103,40 @@ public partial class NetworkSettingsWindow : Window
         MessageBox.Show(
             "Αποθηκεύτηκε. Κλείσε και ξανάνοιξε την εφαρμογή για να πιάσει η αλλαγή.",
             "Δεύτερο ταμείο", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>Σαρώνει το δίκτυο του μαγαζιού για το κύριο ταμείο και γράφει τη διεύθυνσή του — η ίδια
+    /// σάρωση που τρέχει και μόνη της μόλις χαθεί η σύνδεση (βλ. RemoteSync.DiscoverHostAsync). Υπάρχει
+    /// σαν κουμπί γιατί η IP του κύριου ταμείου αλλάζει από το router χωρίς να το κάνει κανείς.</summary>
+    private async void FindHost_Click(object sender, RoutedEventArgs e)
+    {
+        FindHostBtn.IsEnabled = false;
+        var previous = FindHostBtn.Content;
+        FindHostBtn.Content = "ΨΑΧΝΩ…";
+        try
+        {
+            var found = await RemoteSync.DiscoverHostAsync();
+            if (found is null)
+            {
+                MessageBox.Show(
+                    "Δεν βρέθηκε κύριο ταμείο στο δίκτυο.\n\n" +
+                    "Έλεγξε ότι ο άλλος υπολογιστής είναι ανοιχτός, ότι τρέχει το πρόγραμμα, ότι είναι " +
+                    "ρυθμισμένος ως ΚΥΡΙΟ ΤΑΜΕΙΟ και ότι είναι στο ίδιο WiFi/δίκτυο.",
+                    "Εύρεση κύριου ταμείου", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _store.SetNetworkMode("client", found);
+            RefreshUi();
+            MessageBox.Show(
+                $"Βρέθηκε στο {found} και αποθηκεύτηκε.\n\nΚλείσε και ξανάνοιξε την εφαρμογή.",
+                "Εύρεση κύριου ταμείου", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally
+        {
+            FindHostBtn.Content = previous;
+            FindHostBtn.IsEnabled = true;
+        }
     }
 
     private void ApplyAmiConfig_Click(object sender, RoutedEventArgs e)

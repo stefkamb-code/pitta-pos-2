@@ -23,6 +23,10 @@
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
                 <Button x:Name="RefreshBtn" DockPanel.Dock="Right" Content="↻ ΑΝΑΝΕΩΣΗ" FontSize="12" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,6" Click="Refresh_Click"/>
+                <!-- Διόρθωση λάθος πινέζας: η αναζήτηση διεύθυνσης δεν βρίσκει πάντα τη σωστή πόρτα, οπότε
+                     ο ταμίας τη δείχνει ο ίδιος μία φορά και μένει έτσι για πάντα (βλ. AddressPointsService). -->
+                <Button x:Name="FixPinBtn" DockPanel.Dock="Right" Content="📍 ΔΙΟΡΘΩΣΗ ΣΗΜΕΙΟΥ" FontSize="12" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,6" Margin="0,0,8,0" Click="FixPin_Click"/>
             </DockPanel>
         </Border>
 
@@ -55,6 +59,28 @@
                  DeliveryRouteResult.FailedAddresses γέμιζε κανονικά αλλά δεν το διάβαζε κανείς: η
                  παραγγελία εξαφανιζόταν σιωπηλά από τον χάρτη και ο ταμίας νόμιζε ότι δεν καταχωρήθηκε.
                  Κόκκινο και με τον αριθμό παραγγελίας, ώστε να ξέρει ΠΟΙΑ να ψάξει χειροκίνητα. -->
+            <!-- Επιλογή παραγγελίας για διόρθωση σημείου — ένα παραθυράκι στη μέση, όχι κουμπιά παντού. -->
+            <Border x:Name="FixPinPanel" Background="{DynamicResource Bg}" BorderBrush="{DynamicResource Divider}"
+                    BorderThickness="2" CornerRadius="14" Padding="20" MaxWidth="420" MaxHeight="440"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="ΠΟΙΑΣ ΠΑΡΑΓΓΕΛΙΑΣ ΤΟ ΣΗΜΕΙΟ;" FontSize="13" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
+                    <TextBlock DockPanel.Dock="Top" Text="Διάλεξε παραγγελία και μετά πάτα στον χάρτη τη σωστή θέση."
+                               FontSize="11.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Button DockPanel.Dock="Bottom" Content="ΑΚΥΡΟ" FontSize="12" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" Padding="14,8" Margin="0,12,0,0"
+                            HorizontalAlignment="Right" Click="CancelFixPin_Click"/>
+                    <ListBox x:Name="FixPinList" BorderThickness="0" Background="Transparent" FontSize="12.5"
+                             MaxHeight="280" SelectionChanged="FixPinList_SelectionChanged"/>
+                </DockPanel>
+            </Border>
+            <!-- Οδηγία όσο ο ταμίας διαλέγει σημείο πάνω στον χάρτη. -->
+            <Border x:Name="PickPointBadge" Background="{DynamicResource Ink}" CornerRadius="10"
+                    HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,14,0,0"
+                    Padding="16,10" Visibility="Collapsed">
+                <TextBlock x:Name="PickPointText" FontSize="12.5" FontWeight="ExtraBold" Foreground="White"/>
+            </Border>
             <Border x:Name="FailedAddressesBadge" Background="{DynamicResource Accent}"
                     HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16,0,16,16"
                     Padding="16,10" CornerRadius="10" Visibility="Collapsed">

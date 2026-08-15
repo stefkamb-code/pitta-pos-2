@@ -12,6 +12,8 @@ public partial class HistoryWindow : Window
     public HistoryWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = _vm;
         Closed += (_, _) => _vm.Detach();
         ApplyReceiptSettings();

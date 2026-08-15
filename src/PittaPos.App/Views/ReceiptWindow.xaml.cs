@@ -17,6 +17,8 @@ public partial class ReceiptWindow : Window
     public ReceiptWindow(CompletedOrder order)
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
 
         // ΟΛΑ τα κείμενα της απόδειξης με ΚΕΦΑΛΑΙΑ (χωρίς τόνους) — ρητή απαίτηση για ευανάγνωστο σε
         // βιαστική ματιά. Τα στοιχεία καταστήματος έρχονται από τις Ρυθμίσεις όπως τα έγραψε ο χρήστης,

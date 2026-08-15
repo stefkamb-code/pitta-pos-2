@@ -268,8 +268,10 @@
                 <DockPanel>
                     <!-- shift toggle: φιλτράρει μόνο τα box e-food / Wolt / BOX -->
                     <StackPanel DockPanel.Dock="Top" Margin="10,14,10,4">
-                        <Button Content="☀ ΠΡΩΙΝΗ" FontSize="9.5" FontWeight="ExtraBold" Height="30"
+                        <!-- Ίδια έγχρωμα σήματα με την κεφαλίδα του ταμείου (βλ. MainWindow.xaml). -->
+                        <Button FontSize="9.5" FontWeight="ExtraBold" Height="30"
                                 Padding="2,0" Margin="0,0,0,6" Command="{Binding SelectMorningShiftCommand}">
+                            <TextBlock><Run Text="&#x2600;" FontFamily="Segoe UI Symbol" FontSize="14" Foreground="{DynamicResource SunGold}"/><Run Text=" ΠΡΩΙΝΗ"/></TextBlock>
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
                                     <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -283,8 +285,9 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="🌙 ΒΡΑΔΙΝΗ" FontSize="9.5" FontWeight="ExtraBold" Height="30"
+                        <Button FontSize="9.5" FontWeight="ExtraBold" Height="30"
                                 Padding="2,0" Command="{Binding SelectEveningShiftCommand}">
+                            <TextBlock><Run Text="&#x1F319;" FontFamily="Segoe UI Symbol" FontSize="14" Foreground="{DynamicResource MoonBlue}"/><Run Text=" ΒΡΑΔΙΝΗ"/></TextBlock>
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
                                     <Setter Property="HorizontalContentAlignment" Value="Center"/>

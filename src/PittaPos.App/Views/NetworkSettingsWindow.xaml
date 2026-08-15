@@ -131,6 +131,10 @@
                     <TextBox x:Name="HostAddressBox" Style="{StaticResource PosTextBox}" Width="220" Height="42" FontSize="14"/>
                     <Button Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Margin="10,0,0,0"
                             Style="{StaticResource PrimaryButton}" Padding="16,0" Click="ApplyHostAddress_Click"/>
+                    <!-- Χειροκίνητη σάρωση δικτύου, για όταν δεν θέλει κανείς να περιμένει την αυτόματη
+                         (βλ. RemoteSync.DiscoverHostAsync — τρέχει μόνη της μόλις χαθεί η σύνδεση). -->
+                    <Button x:Name="FindHostBtn" Content="ΕΥΡΕΣΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold"
+                            Margin="8,0,0,0" Style="{StaticResource FlatButton}" Padding="16,0" Click="FindHost_Click"/>
                 </StackPanel>
                 <TextBlock x:Name="ThisPcAddressText" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
                            TextWrapping="Wrap" Margin="0,0,0,4"/>

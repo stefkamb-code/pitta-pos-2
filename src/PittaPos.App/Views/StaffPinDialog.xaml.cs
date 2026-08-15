@@ -21,6 +21,8 @@ public partial class StaffPinDialog : Window
     public StaffPinDialog()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
     }
 
     /// <summary>Δείχνει το παράθυρο· επιστρέφει το όνομα του υπαλλήλου ή null αν ακυρώθηκε/απέτυχε.</summary>

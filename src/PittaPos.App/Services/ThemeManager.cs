@@ -39,6 +39,9 @@ public static class ThemeManager
             brush.Freeze();
             Application.Current.Resources[key] = brush;
         }
+        // Και η μπάρα τίτλου των Windows, που το WPF δεν την αγγίζει μόνο του — αλλιώς έμενε άσπρη
+        // λωρίδα πάνω από μαύρη οθόνη (βλ. TitleBarTheme).
+        TitleBarTheme.ApplyToAll(dark);
         Changed?.Invoke();
     }
 }

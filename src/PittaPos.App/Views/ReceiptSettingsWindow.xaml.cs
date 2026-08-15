@@ -15,6 +15,8 @@ public partial class ReceiptSettingsWindow : Window
     public ReceiptSettingsWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
 
         var s = _store.Settings;
         _titleFontSize = s.ReceiptTitleFontSize;

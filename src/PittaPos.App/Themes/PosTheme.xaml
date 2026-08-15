@@ -24,6 +24,11 @@
     <!-- night tokens: βραδινή βάρδια -->
     <SolidColorBrush x:Key="Night" Color="#2b3a67"/>
     <SolidColorBrush x:Key="NightBg" Color="#eef0f7"/>
+    <!-- Χρώματα για τα σήματα βάρδιας (ήλιος/φεγγάρι). Το WPF ΔΕΝ ζωγραφίζει έγχρωμα emoji — όποια
+         γραμματοσειρά κι αν ζητηθεί, το σύμβολο βγαίνει μονόχρωμο στο χρώμα του κειμένου. Οπότε το χρώμα
+         μπαίνει εδώ, ρητά, και τα σήματα φαίνονται όπως στο κινητό αντί για γκρίζα. -->
+    <SolidColorBrush x:Key="SunGold" Color="#f5a300"/>
+    <SolidColorBrush x:Key="MoonBlue" Color="#3d5a9e"/>
 
     <!-- Archivo when installed, otherwise Segoe UI -->
     <FontFamily x:Key="PosFont">Archivo, Segoe UI</FontFamily>
@@ -212,6 +217,18 @@
         </Setter>
     </Style>
 
+    <!-- Υποχρεωτικό πεδίο που έμεινε άδειο: κοκκινίζει το ίδιο το κουτί, μόνο αφού ο ταμίας πατήσει
+         ΣΥΝΕΧΕΙΑ (βλ. OrderWizardViewModel.Step2Validated). Το «κοκκίνισε;» έρχεται από το Tag του κάθε
+         κουτιού — ένα style για όλα τα πεδία, αντί για ξεχωριστό style ανά πεδίο. -->
+    <Style x:Key="RequiredTextBox" TargetType="TextBox" BasedOn="{StaticResource PosTextBox}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter Property="BorderThickness" Value="2"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="PosComboBox" TargetType="ComboBox">
         <Setter Property="FontFamily" Value="{StaticResource PosFont}"/>
         <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
@@ -282,6 +299,16 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- Ίδιο κοκκίνισμα με το RequiredTextBox, για το dropdown του ορόφου. -->
+    <Style x:Key="RequiredComboBox" TargetType="ComboBox" BasedOn="{StaticResource PosComboBox}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                <Setter Property="BorderThickness" Value="2"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <!-- Γραμμή στη λίστα προτάσεων που πέφτει κάτω από ένα πεδίο (Controls/AutoComplete.cs) — ίδιο

@@ -50,6 +50,13 @@ public static class WaiterApiService
             var app = builder.Build();
 
             app.MapGet("/", () => "Πίττα του Παππού — API σερβιτόρου ενεργό.");
+            // Ταυτότητα ταμείου: ποιο κατάστημα και αν είναι το ΚΥΡΙΟ. Το χρησιμοποιεί το δεύτερο ταμείο
+            // για να βρίσκει μόνο του το κύριο όταν αλλάξει η IP του (βλ. RemoteSync.DiscoverHostAsync) —
+            // ο έλεγχος καταστήματος εμποδίζει να «κολλήσει» κατά λάθος στο ταμείο του άλλου μαγαζιού,
+            // και ο έλεγχος λειτουργίας να θεωρήσει κύριο ένα άλλο δεύτερο ταμείο.
+            app.MapGet("/api/whoami", () => Results.Json(new RemoteSync.WhoAmIDto(
+                SettingsStore.Instance.Settings.NetworkMode == "client" ? "client" : "host",
+                AppIdentity.StoreName)));
             app.MapGet("/api/tables", () => Results.Json(OnUi(GetTables)));
             app.MapGet("/api/tables/{table:int}/orders", (int table) => Results.Json(OnUi(() => GetTableOrders(table))));
             app.MapGet("/api/menu", () => Results.Json(OnUi(GetMenu)));
@@ -373,6 +380,18 @@ public static class WaiterApiService
         });
 
         // ---- πελάτες ----
+        // Σημεία διευθύνσεων πάνω στον χάρτη (βλ. AddressPointsService) — μια διόρθωση που κάνει ο ταμίας
+        // στο ένα ταμείο πρέπει να ισχύει και στο άλλο, αλλιώς κάθε μηχάνημα θα κρατούσε δικές του πινέζες.
+        app.MapGet("/api/sync/address-points", () =>
+            Results.Json(OnUi(() => AddressPointsService.Instance.All.ToDictionary(p => p.Key, p => p.Value))));
+        app.MapPost("/api/sync/address-points/set", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<AddressPointRequest>();
+            if (req is not null)
+                OnUi(() => { AddressPointsService.Instance.Set(req.Address, req.Lat, req.Lon, req.Manual); return 0; });
+            return Results.Ok();
+        });
+
         app.MapGet("/api/sync/customers", () => Results.Json(OnUi(() => CustomerStore.Instance.All.ToList())));
         app.MapPost("/api/sync/customers/upsert", async (HttpContext ctx) =>
         {

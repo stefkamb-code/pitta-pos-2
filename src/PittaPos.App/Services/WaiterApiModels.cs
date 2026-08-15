@@ -166,6 +166,8 @@ public sealed record CustomerOrderLineDto(string Name, int Quantity);
 public sealed record CustomerRecordOrderRequest(string Name, string Phone, string Address, string StreetNumber,
     string Area, string PostalCode, string Floor, string Notes, decimal Total, List<CustomerOrderLineDto> Lines);
 public sealed record CustomerMemoRequest(string Name, string Phone, string Address, string Memo);
+/// <summary>Το σημείο μιας διεύθυνσης στον χάρτη, από το δεύτερο ταμείο προς το κύριο (βλ. AddressPointsService).</summary>
+public sealed record AddressPointRequest(string Address, double Lat, double Lon, bool Manual);
 public sealed record CustomerRemoveAddressRequest(string Name, string Phone, string Address,
     string OtherAddress, string OtherArea, string OtherNumber = "");
 public sealed record CustomerRemoveMainAddressRequest(string Name, string Phone, string Address);

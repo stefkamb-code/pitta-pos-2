@@ -66,6 +66,11 @@ echo   ------------------------
 echo.
 echo Κλείσιμο του προγράμματος αν είναι ανοιχτό...
 taskkill /IM "PittaPos2.App.exe" /F >nul 2>&1
+rem  Οι ρυθμίσεις (IP δεύτερου ταμείου, διεύθυνση μαγαζιού, εκτυπωτής, PIN) και ΟΛΑ τα δεδομένα
+rem  (πελάτες, ιστορικό, κατάλογος) ζουν στο %%AppData%%\PittaPos2 — η εγκατάσταση γράφει μόνο στο
+rem  C:\PittaPOS2, οπότε δεν τα ακουμπάει καν. Το αντίγραφο παρακάτω υπάρχει για κάθε ενδεχόμενο.
+echo Φύλαξη αντιγράφου των ρυθμίσεων...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { $s = Join-Path (Join-Path $env:AppData 'PittaPos2') 'settings.json'; if (Test-Path $s) { Copy-Item -LiteralPath $s -Destination ($s + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmm')) -Force } } catch { } }"
 echo Προετοιμασία αρχείων, περίμενε λίγο...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference='Stop'; try { Get-Process -Name 'PittaPos2.App' -ErrorAction SilentlyContinue | Stop-Process -Force; $dest='C:\PittaPOS2'; $exe = Join-Path $dest 'PittaPos2.App.exe'; for ($i = 0; $i -lt 20; $i++) { if (-not (Test-Path $exe)) { break }; try { $fs = [System.IO.File]::Open($exe, 'Open', 'ReadWrite', 'None'); $fs.Close(); break } catch { Start-Sleep -Milliseconds 300 } }; $lines = Get-Content -LiteralPath '%~f0'; $startIdx = ($lines | Select-String -Pattern '^:PAYLOAD$' | Select-Object -First 1).LineNumber; $b64 = ($lines[$startIdx..($lines.Count-1)] -join ''); $bytes = [System.Convert]::FromBase64String($b64); $zip = Join-Path $env:TEMP 'pittapos2-install.zip'; [System.IO.File]::WriteAllBytes($zip, $bytes); if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }; Expand-Archive -Path $zip -DestinationPath $dest -Force; Remove-Item $zip -Force; $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Pitta POS 2.lnk')); $s.TargetPath = $exe; $s.WorkingDirectory = $dest; $s.IconLocation = $exe; $s.Save(); Write-Host 'OK' } catch { Write-Host ('SFALMA: ' + $_.Exception.Message); exit 1 } }"
 if errorlevel 1 (
@@ -92,6 +97,9 @@ echo   ΠΡΟΣΟΧΗ: το πρόγραμμα εγκαταστάθηκε καν
 echo   Ο παλιός κατάλογος είναι ανέπαφος. Δες το μήνυμα παραπάνω.
 echo.
 :meta_katalogo
+echo.
+echo   Οι ρυθμίσεις που κρατήθηκαν:
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { $s = Join-Path (Join-Path $env:AppData 'PittaPos2') 'settings.json'; if (-not (Test-Path $s)) { Write-Host '   - (καθαρή εγκατάσταση, δεν υπήρχαν ρυθμίσεις)'; exit 0 }; $j = Get-Content -LiteralPath $s -Raw | ConvertFrom-Json; $net = if ($j.NetworkMode -eq 'client') { 'ΔΕΥΤΕΡΟ ΤΑΜΕΙΟ -> ' + $j.HostAddress } else { 'ΚΥΡΙΟ ΤΑΜΕΙΟ' }; Write-Host ('   - Δίκτυο: ' + $net); Write-Host ('   - Εκτυπωτής: ' + $(if ($j.PrinterName) { $j.PrinterName } else { '(κανένας)' })); Write-Host ('   - Διεύθυνση μαγαζιού: ' + $(if ($j.ShopAddress) { $j.ShopAddress } else { '(δεν έχει οριστεί)' })) } catch { Write-Host '   - (δεν διαβάστηκαν)' } }"
 echo.
 echo   Ολοκληρώθηκε! Βρες το εικονίδιο "Pitta POS 2" στην Επιφάνεια Εργασίας.
 echo.

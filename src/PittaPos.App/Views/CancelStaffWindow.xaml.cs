@@ -23,6 +23,8 @@ public partial class CancelStaffWindow : Window
     public CancelStaffWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         var saved = SettingsStore.Instance.Settings.CancelStaffPins;
         for (var i = 0; i < 4; i++)
         {

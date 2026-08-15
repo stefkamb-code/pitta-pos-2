@@ -97,22 +97,6 @@ public class CustomerAddressOptionViewModel
     public required bool IsMain { get; init; }
 }
 
-/// <summary>Πρόταση διεύθυνσης από τον χάρτη, καθώς πληκτρολογεί ο ταμίας (βλ. DeliveryRouteService).</summary>
-public class AddressSuggestionViewModel
-{
-    public required DeliveryRouteService.AddressSuggestion Suggestion { get; init; }
-    public string Display => Suggestion.Display;
-
-    /// <summary>Οδός/αριθμός — πρώτο κομμάτι πριν το πρώτο κόμμα, σε έντονα. Το Nominatim επιστρέφει
-    /// ολόκληρη διεύθυνση σε ένα string («Λεωφ. Χ 12, Δήμος, Περιφέρεια, Τ.Κ., Ελλάδα») — ο χωρισμός
-    /// δείχνει πρώτα το πιο χρήσιμο κομμάτι, σαν προτάσεις του Google Maps.</summary>
-    public string Primary => Display.Split(',')[0].Trim();
-
-    /// <summary>Ό,τι απομένει μετά το πρώτο κόμμα — περιοχή/πόλη, σε μικρότερα/πιο αχνά γράμματα.</summary>
-    public string Secondary => Display.Contains(',') ? Display[(Display.IndexOf(',') + 1)..].Trim() : "";
-    public bool HasSecondary => Secondary.Length > 0;
-}
-
 /// <summary>Το 5-βημα wizard παραγγελίας — κατέχει την κατάσταση και τη ροή.</summary>
 /// <summary>Ένα άτομο που έχει ήδη περάσει στο τρέχον τραπέζι — μόνο για εμφάνιση στη δεξιά στήλη της
 /// παραγγελιοληψίας. Η παραγγελία του έχει ήδη καταχωρηθεί και δεν πειράζεται από εκεί.</summary>
@@ -278,14 +262,14 @@ public partial class OrderWizardViewModel : ObservableObject
         CustomerPhone = phone;
         if (customer is not null)
         {
+            // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξουν οι
+            // προτάσεις (ίδιο πρόβλημα με SelectCustomer/SelectCustomerAddressOption).
+            _suppressSuggestions = true;
             CustomerName = customer.Name;
-            // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξει τις
-            // προτάσεις διεύθυνσης (ίδιο πρόβλημα με SelectCustomer/SelectCustomerAddressOption).
-            _suppressAddressAutocomplete = true;
             CustomerAddress = customer.Address;
-            _suppressAddressAutocomplete = false;
-            CustomerStreetNumber = customer.StreetNumber;
             CustomerArea = customer.Area;
+            _suppressSuggestions = false;
+            CustomerStreetNumber = customer.StreetNumber;
             CustomerPostalCode = customer.PostalCode;
             CustomerFloor = customer.Floor;
             CustomerNotes = customer.Notes;
@@ -326,6 +310,7 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsStep5))]
     [NotifyPropertyChangedFor(nameof(StepItems))]
     [NotifyPropertyChangedFor(nameof(ShowHeader))]
+    [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
     private int _step = 1;
 
     [ObservableProperty]
@@ -420,6 +405,7 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowCustomerForm))]
     [NotifyPropertyChangedFor(nameof(ShowAppPlatformPicker))]
     [NotifyPropertyChangedFor(nameof(ShowStep2ContinueButton))]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     [NotifyPropertyChangedFor(nameof(Step2Header))]
     [NotifyPropertyChangedFor(nameof(Step2Sub))]
     [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
@@ -503,7 +489,14 @@ public partial class OrderWizardViewModel : ObservableObject
             var i = s.IndexOf(' ');
             return i < 0 ? s : s[..i];
         }
-        set => SetFullName(value, CustomerLastName);
+        set
+        {
+            SetFullName(value, CustomerLastName);
+            // Οι προτάσεις βγαίνουν από ΤΟ ΚΕΛΙ που γράφεται, όχι από το ενιαίο όνομα από κάτω — αλλιώς
+            // γράφοντας «ΣΤΕΦΑΝΟΣ» στο Όνομα προτεινόταν ολόκληρο το «ΣΤΕΦΑΝΟΣ ΚΑΜΠΟΥΡΗΣ» και το επώνυμο
+            // κατέληγε μέσα στο κελί του ονόματος.
+            RefreshFirstNameSuggestions(value);
+        }
     }
 
     public string CustomerLastName
@@ -514,7 +507,11 @@ public partial class OrderWizardViewModel : ObservableObject
             var i = s.IndexOf(' ');
             return i < 0 ? "" : s[(i + 1)..].TrimStart();
         }
-        set => SetFullName(CustomerFirstName, value);
+        set
+        {
+            SetFullName(CustomerFirstName, value);
+            RefreshLastNameSuggestions(value);
+        }
     }
 
     private void SetFullName(string first, string last) =>
@@ -524,29 +521,57 @@ public partial class OrderWizardViewModel : ObservableObject
     /// και τα δύο κελιά.</summary>
     partial void OnCustomerNameChanged(string value)
     {
+        if (ForceUpper(value, v => CustomerName = v))
+            return;
         OnPropertyChanged(nameof(CustomerFirstName));
         OnPropertyChanged(nameof(CustomerLastName));
+        NotifyStep2Validation();
+    }
+
+    partial void OnCustomerPhoneChanged(string value) => NotifyStep2Validation();
+    partial void OnCustomerFloorChanged(string value) => NotifyStep2Validation();
+
+    /// <summary>
+    /// Τα στοιχεία πελάτη γράφονται ΠΑΝΤΑ κεφαλαία (ζητήθηκε 15/8/2026): ίδια εικόνα σε οθόνη και
+    /// απόδειξη, και ο ίδιος δρόμος δεν διχάζεται σε «Μαγνησίας»/«μαγνησίας» στις προτάσεις.
+    /// Γίνεται εδώ, στο ViewModel, και όχι μόνο με CharacterCasing στα κουτιά, ώστε να ισχύει και για
+    /// ό,τι μπαίνει χωρίς πληκτρολόγηση (αναγνώριση κλήσης, επιλογή αποθηκευμένης διεύθυνσης).
+    /// </summary>
+    /// <returns>true αν χρειάστηκε διόρθωση — τότε ο καλών σταματά, γιατί η ανάθεση ξανακαλεί τον ίδιο
+    /// handler με το κεφαλαίο κείμενο και η δουλειά γίνεται εκεί (χωρίς αυτό, όλα θα γίνονταν δύο φορές).</returns>
+    private static bool ForceUpper(string value, Action<string> assign)
+    {
+        var upper = GreekText.Upper(value);
+        if (upper == value)
+            return false;
+        assign(upper);
+        return true;
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     private string _customerPhone = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OrderContextLabel))]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     private string _customerAddress = "";
 
     /// <summary>Αριθμός οδού — ξεχωριστό πεδίο, ώστε ο Χάρτης Διανομής να εντοπίζει ακριβώς το σημείο.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     private string _customerStreetNumber = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     private string _customerArea = "";
 
-    /// <summary>Ταχυδρομικός κώδικας — βοηθάει τη γεωκωδικοποίηση όταν η περιοχή έχει κοινό όνομα δρόμου.</summary>
+    /// <summary>Ταχυδρομικός κώδικας — προαιρετικός (βλ. Step2Fields), δεν εμποδίζει το ΣΥΝΕΧΕΙΑ.</summary>
     [ObservableProperty]
     private string _customerPostalCode = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Step2ContinueEnabled))]
     private string _customerFloor = "";
 
     /// <summary>Επιλογές για το dropdown ορόφου — σταθερή λίστα, ώστε να μη γράφεται ελεύθερο κείμενο
@@ -623,6 +648,11 @@ public partial class OrderWizardViewModel : ObservableObject
         get
         {
             if (Step <= 1 || OrderType is null)
+                return "";
+            // Βήμα 2: τίποτα. Ό,τι θα έγραφε εδώ (όνομα, διεύθυνση) το βλέπει ήδη ο ταμίας μέσα στη
+            // φόρμα που συμπληρώνει — η γκρίζα επανάληψη πάνω-πάνω ήταν σκέτος θόρυβος. Από το Βήμα 3
+            // και μετά η φόρμα δεν φαίνεται πια, οπότε εκεί η υπενθύμιση έχει νόημα.
+            if (Step == 2)
                 return "";
             var type = TypeLabel();
             return OrderType == Core.Models.OrderType.Table
@@ -965,21 +995,75 @@ public partial class OrderWizardViewModel : ObservableObject
     // ---- βήμα 2 ----
 
     public bool ShowAddressField => OrderType is Core.Models.OrderType.Delivery or Core.Models.OrderType.Apps;
-    /// <summary>ΔΙΑΝΟΜΗ: όνομα. ΕΦΑΡΜΟΓΕΣ: πλατφόρμα επιλεγμένη, και αριθμός παραγγελίας — υποχρεωτικός
-    /// για Wolt/e-food, προαιρετικός για BOX (που έχει ήδη το πιο σημαντικό: όνομα/διεύθυνση πελάτη).</summary>
+
+    /// <summary>
+    /// Τα πεδία που πρέπει να έχουν συμπληρωθεί για να προχωρήσει η ΔΙΑΝΟΜΗ (και το BOX, που το
+    /// παραδίδει επίσης δικός μας διανομέας) — όνομα, επώνυμο, τηλέφωνο και ολόκληρη η διεύθυνση.
+    /// Ζητήθηκε 15/8/2026: μισοσυμπληρωμένα στοιχεία σήμαιναν διανομέα που ψάχνει όροφο ή τηλέφωνο
+    /// που δεν υπάρχει. Ο Τ.Κ. μένει ΕΞΩ επίτηδες («δεν μας πειράζει»), όπως και τα σχόλια.
+    /// </summary>
+    private IReadOnlyList<(string Label, bool Filled)> Step2Fields =>
+    [
+        ("Όνομα", CustomerFirstName.Trim().Length > 0),
+        ("Επώνυμο", CustomerLastName.Trim().Length > 0),
+        ("Τηλέφωνο", CustomerPhone.Trim().Length > 0),
+        ("Διεύθυνση", CustomerAddress.Trim().Length > 0),
+        ("Αριθμός", CustomerStreetNumber.Trim().Length > 0),
+        ("Περιοχή", CustomerArea.Trim().Length > 0),
+        ("Όροφος", CustomerFloor.Trim().Length > 0),
+    ];
+
+    /// <summary>
+    /// Άναψε ο έλεγχος; Γίνεται true μόνο όταν ο ταμίας πατήσει ΣΥΝΕΧΕΙΑ με κάτι κενό — τότε και μόνο
+    /// τότε κοκκινίζουν τα άδεια κουτιά. Μέχρι εκείνη τη στιγμή η φόρμα είναι καθαρή: κόκκινα σε πεδία
+    /// που απλώς δεν έχει προλάβει να συμπληρώσει ήταν σκέτος θόρυβος ενώ γράφει.
+    /// </summary>
+    [ObservableProperty]
+    private bool _step2Validated;
+
+    // Ποια κουτιά κοκκινίζουν. Ξεχωριστά ανά πεδίο, ώστε να δείχνει ακριβώς ΠΟΙΟ λείπει.
+    public bool MissingFirstName => Step2Validated && CustomerFirstName.Trim().Length == 0;
+    public bool MissingLastName => Step2Validated && CustomerLastName.Trim().Length == 0;
+    public bool MissingPhone => Step2Validated && CustomerPhone.Trim().Length == 0;
+    public bool MissingAddress => Step2Validated && CustomerAddress.Trim().Length == 0;
+    public bool MissingStreetNumber => Step2Validated && CustomerStreetNumber.Trim().Length == 0;
+    public bool MissingArea => Step2Validated && CustomerArea.Trim().Length == 0;
+    public bool MissingFloor => Step2Validated && CustomerFloor.Trim().Length == 0;
+
+    /// <summary>ΕΦΑΡΜΟΓΕΣ (Wolt/e-food): εκεί δεν φαίνεται καθόλου φόρμα πελάτη, οπότε το μόνο που
+    /// μπορεί να λείπει — και το μόνο που έχει νόημα να κοκκινίσει — είναι ο αριθμός της πλατφόρμας.</summary>
+    public bool MissingAppOrderRef => Step2Validated && ShowAppPlatformPicker
+        && AppPlatform is not null and not "BOX" && AppOrderRef.Trim().Length == 0;
+
+    /// <summary>Ξαναδιαβάζονται όλα μαζί σε κάθε πληκτρολόγηση — έτσι ένα κόκκινο κουτί ξεκοκκινίζει τη
+    /// στιγμή που γράφεται, χωρίς να ξαναπατηθεί το ΣΥΝΕΧΕΙΑ.</summary>
+    private void NotifyStep2Validation()
+    {
+        OnPropertyChanged(nameof(Step2ContinueEnabled));
+        OnPropertyChanged(nameof(MissingFirstName));
+        OnPropertyChanged(nameof(MissingLastName));
+        OnPropertyChanged(nameof(MissingPhone));
+        OnPropertyChanged(nameof(MissingAddress));
+        OnPropertyChanged(nameof(MissingStreetNumber));
+        OnPropertyChanged(nameof(MissingArea));
+        OnPropertyChanged(nameof(MissingFloor));
+        OnPropertyChanged(nameof(MissingAppOrderRef));
+    }
+
+    partial void OnAppOrderRefChanged(string value) => NotifyStep2Validation();
+    partial void OnAppPlatformChanged(string? value) => NotifyStep2Validation();
+
+    partial void OnStep2ValidatedChanged(bool value) => NotifyStep2Validation();
+
+    /// <summary>ΔΙΑΝΟΜΗ/BOX: όλα τα στοιχεία πελάτη εκτός Τ.Κ. (βλ. Step2Fields). ΕΦΑΡΜΟΓΕΣ (Wolt/e-food):
+    /// πλατφόρμα επιλεγμένη και αριθμός παραγγελίας — στοιχεία πελάτη δεν έχουμε, τα κρατά η εφαρμογή.</summary>
     public bool Step2ContinueEnabled
     {
         get
         {
-            if (OrderType == Core.Models.OrderType.Apps)
-            {
-                if (string.IsNullOrWhiteSpace(AppPlatform))
-                    return false;
-                return AppPlatform == "BOX"
-                    ? !string.IsNullOrWhiteSpace(CustomerName)
-                    : AppOrderRef.Trim().Length > 0;
-            }
-            return !string.IsNullOrWhiteSpace(CustomerName);
+            if (OrderType == Core.Models.OrderType.Apps && AppPlatform != "BOX")
+                return !string.IsNullOrWhiteSpace(AppPlatform) && AppOrderRef.Trim().Length > 0;
+            return Step2Fields.All(f => f.Filled);
         }
     }
 
@@ -1143,124 +1227,79 @@ public partial class OrderWizardViewModel : ObservableObject
         LoadCustomerAddressOptions(customer);
         IsAddingCustomerAddress = false;
 
-        _suppressAddressAutocomplete = true;
+        _suppressSuggestions = true;
         CustomerAddress = street;
-        _suppressAddressAutocomplete = false;
-        CustomerStreetNumber = number;
         CustomerArea = area;
+        _suppressSuggestions = false;
+        CustomerStreetNumber = number;
         CustomerPostalCode = postalCode;
         CustomerFloor = floor;
     }
 
-    // ---- προτάσεις διεύθυνσης για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια λογική με το OnCustomerAddressChanged
-    // παρακάτω, αλλά ξεχωριστή λίστα/dropdown (κάτω από το δικό της πεδίο Οδού), ώστε οι δύο φόρμες να μην
-    // μοιράζονται προτάσεις όταν είναι και οι δύο ορατές μαζί. ----
+    // ---- προτάσεις για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια πηγή με τα πεδία της παραγγελίας (ό,τι
+    // έχει ήδη περαστεί), αλλά ξεχωριστή λίστα κάτω από το δικό της πεδίο Οδού, ώστε οι δύο φόρμες να
+    // μην μοιράζονται προτάσεις όταν είναι και οι δύο ορατές μαζί. ----
 
-    private CancellationTokenSource? _newAddressSuggestCts;
-    private bool _suppressNewAddressAutocomplete;
-    private string _lastNewAddressSuggestQuery = "";
+    private bool _suppressNewAddressSuggestions;
 
-    public ObservableCollection<AddressSuggestionViewModel> NewAddressSuggestions { get; } = [];
+    public ObservableCollection<string> NewAddressSuggestions { get; } = [];
     public bool HasNewAddressSuggestions => NewAddressSuggestions.Count > 0;
+
+    public ObservableCollection<string> NewAreaSuggestions { get; } = [];
+    public bool HasNewAreaSuggestions => NewAreaSuggestions.Count > 0;
 
     partial void OnNewAddressStreetChanged(string value)
     {
-        _newAddressSuggestCts?.Cancel();
-        if (_suppressNewAddressAutocomplete || value.Trim().Length < 3)
-        {
-            NewAddressSuggestions.Clear();
-            _lastNewAddressSuggestQuery = "";
-            OnPropertyChanged(nameof(HasNewAddressSuggestions));
+        if (ForceUpper(value, v => NewAddressStreet = v))
             return;
-        }
-
-        var cts = new CancellationTokenSource();
-        _newAddressSuggestCts = cts;
-        _ = DebouncedSuggestNewAddressAsync(value.Trim(), cts.Token);
+        FillSuggestions(NewAddressSuggestions,
+            _suppressNewAddressSuggestions ? [] : CustomerStore.Instance.SuggestStreets(value),
+            nameof(HasNewAddressSuggestions));
     }
 
-    private async Task DebouncedSuggestNewAddressAsync(string query, CancellationToken token)
+    partial void OnNewAddressAreaChanged(string value)
     {
-        try
-        {
-            await Task.Delay(110, token);
-        }
-        catch (TaskCanceledException)
-        {
+        if (ForceUpper(value, v => NewAddressArea = v))
             return;
-        }
-        if (token.IsCancellationRequested)
-            return;
+        FillSuggestions(NewAreaSuggestions,
+            _suppressNewAddressSuggestions ? [] : CustomerStore.Instance.SuggestAreas(value),
+            nameof(HasNewAreaSuggestions));
+    }
 
-        var results = await DeliveryRouteService.SuggestAddressesAsync(query);
-        if (token.IsCancellationRequested)
-            return;
+    partial void OnNewAddressNumberChanged(string value) => ForceUpper(value, v => NewAddressNumber = v);
 
-        // Ίδιο fix με το OnCustomerAddressChanged/DebouncedSuggestAddressAsync — κρατάμε τη λίστα ορατή
-        // και όταν ο ταμίας διαγράφει χαρακτήρες (backspace) πάνω στην ίδια διεύθυνση, όχι μόνο όταν
-        // γράφει προς τα εμπρός· αλλιώς κάθε backspace σε μισοτελειωμένη λέξη άδειαζε τη λίστα οριστικά.
-        if (results.Count == 0)
-        {
-            var sameAddress = _lastNewAddressSuggestQuery.Length > 0
-                && (query.StartsWith(_lastNewAddressSuggestQuery, StringComparison.OrdinalIgnoreCase)
-                    || _lastNewAddressSuggestQuery.StartsWith(query, StringComparison.OrdinalIgnoreCase));
-            if (!sameAddress)
-            {
-                NewAddressSuggestions.Clear();
-                OnPropertyChanged(nameof(HasNewAddressSuggestions));
-            }
-            return;
-        }
+    [RelayCommand]
+    private void SelectNewAddressSuggestion(string street)
+    {
+        var typedNumber = Regex.Match(NewAddressStreet, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim();
 
-        _lastNewAddressSuggestQuery = query;
-        NewAddressSuggestions.Clear();
-        foreach (var r in results)
-            NewAddressSuggestions.Add(new AddressSuggestionViewModel { Suggestion = r });
-        OnPropertyChanged(nameof(HasNewAddressSuggestions));
+        _suppressNewAddressSuggestions = true;
+        NewAddressStreet = street;
+        _suppressNewAddressSuggestions = false;
+        FillSuggestions(NewAddressSuggestions, [], nameof(HasNewAddressSuggestions));
+
+        if (typedNumber.Length > 0 && NewAddressNumber.Trim().Length == 0)
+            NewAddressNumber = typedNumber;
     }
 
     [RelayCommand]
-    private async Task SelectNewAddressSuggestion(AddressSuggestionViewModel item)
+    private void SelectNewAreaSuggestion(string area)
     {
-        _newAddressSuggestCts?.Cancel();
-        NewAddressSuggestions.Clear();
-        _lastNewAddressSuggestQuery = "";
-        OnPropertyChanged(nameof(HasNewAddressSuggestions));
-
-        var suggestion = item.Suggestion;
-        if (suggestion.PlaceId is not null)
-        {
-            var resolved = await DeliveryRouteService.ResolveGooglePlaceAsync(suggestion.PlaceId);
-            if (resolved is not null)
-                suggestion = resolved;
-        }
-
-        var typedNumber = suggestion.HouseNumber.Length == 0
-            ? Regex.Match(NewAddressStreet, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim()
-            : "";
-
-        _suppressNewAddressAutocomplete = true;
-        NewAddressStreet = suggestion.Street;
-        _suppressNewAddressAutocomplete = false;
-        if (suggestion.HouseNumber.Length > 0)
-            NewAddressNumber = suggestion.HouseNumber;
-        else if (typedNumber.Length > 0 && NewAddressNumber.Trim().Length == 0)
-            NewAddressNumber = typedNumber;
-        if (suggestion.Area.Length > 0)
-            NewAddressArea = suggestion.Area;
-        if (suggestion.PostalCode.Length > 0)
-            NewAddressPostalCode = suggestion.PostalCode;
+        _suppressNewAddressSuggestions = true;
+        NewAddressArea = area;
+        _suppressNewAddressSuggestions = false;
+        FillSuggestions(NewAreaSuggestions, [], nameof(HasNewAreaSuggestions));
     }
 
     /// <summary>Ο ταμίας διάλεξε άλλη αποθηκευμένη διεύθυνση από το picker (Βήμα 2).</summary>
     [RelayCommand]
     private void SelectCustomerAddressOption(CustomerAddressOptionViewModel option)
     {
-        _suppressAddressAutocomplete = true;
+        _suppressSuggestions = true;
         CustomerAddress = option.Address;
-        _suppressAddressAutocomplete = false;
-        CustomerStreetNumber = option.StreetNumber;
         CustomerArea = option.Area;
+        _suppressSuggestions = false;
+        CustomerStreetNumber = option.StreetNumber;
         CustomerPostalCode = option.PostalCode;
         CustomerFloor = option.Floor;
     }
@@ -1268,15 +1307,15 @@ public partial class OrderWizardViewModel : ObservableObject
     [RelayCommand]
     private void SelectCustomer(CustomerMatchViewModel match)
     {
+        // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξουν οι
+        // προτάσεις (ίδιο πρόβλημα με το Τηλέφωνο/Διεύθυνση, βλ. CustomerMatches παραπάνω).
+        _suppressSuggestions = true;
         CustomerName = match.Customer.Name;
-        CustomerPhone = match.Customer.Phone;
-        // Συμπλήρωση από αποθηκευμένα στοιχεία πελάτη, όχι πληκτρολόγηση — δεν πρέπει να ανοίξει τις
-        // προτάσεις διεύθυνσης (ίδιο πρόβλημα με το Τηλέφωνο/Διεύθυνση, βλ. CustomerMatches παραπάνω).
-        _suppressAddressAutocomplete = true;
         CustomerAddress = match.Customer.Address;
-        _suppressAddressAutocomplete = false;
-        CustomerStreetNumber = match.Customer.StreetNumber;
         CustomerArea = match.Customer.Area;
+        _suppressSuggestions = false;
+        CustomerPhone = match.Customer.Phone;
+        CustomerStreetNumber = match.Customer.StreetNumber;
         CustomerPostalCode = match.Customer.PostalCode;
         CustomerFloor = match.Customer.Floor;
         CustomerNotes = match.Customer.Notes;
@@ -1285,129 +1324,120 @@ public partial class OrderWizardViewModel : ObservableObject
         LoadCustomerAddressOptions(match.Customer);
     }
 
-    // ---- προτάσεις διεύθυνσης από τον χάρτη, ενόσω πληκτρολογεί (βλ. DeliveryRouteService) ----
+    // ---- προτάσεις από ό,τι έχει ήδη περαστεί στο μαγαζί, ενόσω πληκτρολογεί (βλ. CustomerStore.Suggest) ----
+    //
+    // Πριν, οι προτάσεις διεύθυνσης έρχονταν από τον χάρτη (Nominatim/Google): πρότειναν δρόμους όλης της
+    // χώρας, συχνά σε λάθος περιοχή, με καθυστέρηση δικτύου και μόνο εφόσον υπήρχε internet. Τώρα η πηγή
+    // είναι οι ίδιοι μας οι πελάτες — ονόματα, οδοί και περιοχές που έχουν ήδη γραφτεί εδώ. Είναι τοπικό
+    // και ακαριαίο, οπότε δεν χρειάζεται ούτε debounce ούτε ακύρωση αιτημάτων όπως πριν.
 
-    private CancellationTokenSource? _addressSuggestCts;
-    private bool _suppressAddressAutocomplete;
-    /// <summary>Το τελευταίο κείμενο που έδωσε ΜΗ κενά αποτελέσματα — ώστε μια κενή απάντηση (βλ.
-    /// DebouncedSuggestAddressAsync) να ξέρουμε αν πρέπει να κρατήσουμε την τρέχουσα λίστα ορατή (ο
-    /// ταμίας απλά συνεχίζει να γράφει την ΙΔΙΑ διεύθυνση) ή να την αδειάσουμε (άλλαξε εντελώς κείμενο).</summary>
-    private string _lastAddressSuggestQuery = "";
+    /// <summary>Όσο συμπληρώνονται πεδία από αποθηκευμένα στοιχεία (επιλογή πελάτη, αναγνώριση κλήσης,
+    /// επιλογή αποθηκευμένης διεύθυνσης) δεν ανοίγουν προτάσεις — δεν πληκτρολογεί ο ταμίας.</summary>
+    private bool _suppressSuggestions;
 
-    public ObservableCollection<AddressSuggestionViewModel> AddressSuggestions { get; } = [];
+    public ObservableCollection<string> FirstNameSuggestions { get; } = [];
+    public bool HasFirstNameSuggestions => FirstNameSuggestions.Count > 0;
+
+    public ObservableCollection<string> LastNameSuggestions { get; } = [];
+    public bool HasLastNameSuggestions => LastNameSuggestions.Count > 0;
+
+    public ObservableCollection<string> AddressSuggestions { get; } = [];
     public bool HasAddressSuggestions => AddressSuggestions.Count > 0;
 
-    /// <summary>Καλείται σε κάθε πληκτρολόγηση της διεύθυνσης — περιμένει λίγο πριν ρωτήσει τον
-    /// χάρτη (το Nominatim θέλει &lt;= 1 αίτημα/δευτ., δεν αντέχει ερώτημα ανά χαρακτήρα).</summary>
+    public ObservableCollection<string> AreaSuggestions { get; } = [];
+    public bool HasAreaSuggestions => AreaSuggestions.Count > 0;
+
+    private void FillSuggestions(ObservableCollection<string> target, IReadOnlyList<string> values, string hasAnyProperty)
+    {
+        target.Clear();
+        foreach (var v in values)
+            target.Add(v);
+        OnPropertyChanged(hasAnyProperty);
+    }
+
+    private void RefreshFirstNameSuggestions(string value) =>
+        FillSuggestions(FirstNameSuggestions,
+            _suppressSuggestions || !ShowCustomerForm ? [] : CustomerStore.Instance.SuggestFirstNames(value),
+            nameof(HasFirstNameSuggestions));
+
+    private void RefreshLastNameSuggestions(string value) =>
+        FillSuggestions(LastNameSuggestions,
+            _suppressSuggestions || !ShowCustomerForm ? [] : CustomerStore.Instance.SuggestLastNames(value),
+            nameof(HasLastNameSuggestions));
+
     partial void OnCustomerAddressChanged(string value)
     {
-        _addressSuggestCts?.Cancel();
-
-        // Δεν καθαρίζουμε τις προτάσεις εδώ, σε κάθε πάτημα πλήκτρου — μόνο όταν φτάσουν οι καινούριες
-        // (βλ. DebouncedSuggestAddressAsync) ή όταν η αναζήτηση ακυρώνεται εντελώς παρακάτω. Αλλιώς η
-        // λίστα άδειαζε στιγμιαία σε κάθε χαρακτήρα πριν ξαναγεμίσει — φαινόταν σαν να «χάνεται»/τρεμοπαίζει
-        // η αυτόματη συμπλήρωση ενώ ο ταμίας πληκτρολογεί, ακόμα και όταν τα γράμματα ταίριαζαν κανονικά.
-        if (_suppressAddressAutocomplete || !ShowAddressField || value.Trim().Length < 3)
-        {
-            AddressSuggestions.Clear();
-            _lastAddressSuggestQuery = "";
-            OnPropertyChanged(nameof(HasAddressSuggestions));
+        if (ForceUpper(value, v => CustomerAddress = v))
             return;
-        }
-
-        var cts = new CancellationTokenSource();
-        _addressSuggestCts = cts;
-        _ = DebouncedSuggestAddressAsync(value.Trim(), cts.Token);
+        NotifyStep2Validation();
+        FillSuggestions(AddressSuggestions,
+            _suppressSuggestions || !ShowAddressField ? [] : CustomerStore.Instance.SuggestStreets(value),
+            nameof(HasAddressSuggestions));
     }
 
-    private async Task DebouncedSuggestAddressAsync(string query, CancellationToken token)
+    partial void OnCustomerAreaChanged(string value)
     {
-        try
-        {
-            // 110ms — πιο άμεσο χωρίς να ρισκάρει το όριο του Nominatim (<=1 αίτημα/δευτ.): κάθε νέος
-            // χαρακτήρας ακυρώνει το προηγούμενο αναμονή, οπότε φεύγει αίτημα μόνο όταν ο ταμίας
-            // σταματήσει πραγματικά να πληκτρολογεί, όχι ανά χαρακτήρα — ο πραγματικός ρυθμός αιτημάτων
-            // δεν εξαρτάται από αυτή την τιμή, μόνο πόσο γρήγορα αντιδρά μετά το τελευταίο πάτημα.
-            await Task.Delay(110, token);
-        }
-        catch (TaskCanceledException)
-        {
+        if (ForceUpper(value, v => CustomerArea = v))
             return;
-        }
-        if (token.IsCancellationRequested)
-            return;
-
-        var results = await DeliveryRouteService.SuggestAddressesAsync(query);
-        if (token.IsCancellationRequested)
-            return;
-
-        // Το Nominatim δεν κάνει καλό prefix-ταίριασμα σε μισοτελειωμένη λέξη (δοκιμασμένο: «28ης» δίνει
-        // αποτελέσματα, «28ης οκτ» δίνει μηδέν, μόνο η πλήρης «28ης Οκτωβρίου» ξαναδουλεύει) — μια κενή
-        // απάντηση εδώ είναι πολύ πιθανό να είναι στιγμιαία, όχι πραγματική «δεν υπάρχει τίποτα». Κρατάμε
-        // ορατή την τελευταία καλή λίστα όταν ο ταμίας συνεχίζει να επεξεργάζεται την ΙΔΙΑ διεύθυνση —
-        // είτε γράφοντας προς τα εμπρός (το νέο κείμενο ξεκινά με αυτό που έδωσε τη λίστα) ΕΙΤΕ διαγράφοντας
-        // μερικούς χαρακτήρες με backspace (το κείμενο που έδωσε τη λίστα ξεκινά με το νέο, μικρότερο
-        // κείμενο) — πριν έλεγχε μόνο την πρώτη κατεύθυνση, οπότε ΚΑΘΕ backspace που έπεφτε σε μισοτελειωμένη
-        // λέξη (πολύ συχνό, βλ. πάνω) άδειαζε αμέσως τη λίστα χωρίς να ξαναγεμίσει ποτέ, ακόμα κι αν ο
-        // ταμίας ξαναέγραφε προς τα εμπρός την ίδια σωστή διεύθυνση. Αλλιώς (κάτι εντελώς άλλο) πρέπει να
-        // αδειάσει, αλλιώς θα έδειχνε παλιές άσχετες προτάσεις.
-        if (results.Count == 0)
-        {
-            var sameAddress = _lastAddressSuggestQuery.Length > 0
-                && (query.StartsWith(_lastAddressSuggestQuery, StringComparison.OrdinalIgnoreCase)
-                    || _lastAddressSuggestQuery.StartsWith(query, StringComparison.OrdinalIgnoreCase));
-            if (!sameAddress)
-            {
-                AddressSuggestions.Clear();
-                OnPropertyChanged(nameof(HasAddressSuggestions));
-            }
-            return;
-        }
-
-        _lastAddressSuggestQuery = query;
-        AddressSuggestions.Clear();
-        foreach (var r in results)
-            AddressSuggestions.Add(new AddressSuggestionViewModel { Suggestion = r });
-        OnPropertyChanged(nameof(HasAddressSuggestions));
+        NotifyStep2Validation();
+        FillSuggestions(AreaSuggestions,
+            _suppressSuggestions || !ShowAddressField ? [] : CustomerStore.Instance.SuggestAreas(value),
+            nameof(HasAreaSuggestions));
     }
 
-    /// <summary>Στο Google, η πρόταση φτάνει με μόνο Display+PlaceId (βλ. DeliveryRouteService) — τα
-    /// πεδία της φόρμας λύνονται εδώ, μία φορά, μόνο για την επιλογή που πάτησε ο ταμίας.</summary>
+    partial void OnCustomerStreetNumberChanged(string value)
+    {
+        if (ForceUpper(value, v => CustomerStreetNumber = v))
+            return;
+        NotifyStep2Validation();
+    }
+    partial void OnCustomerNotesChanged(string value) => ForceUpper(value, v => CustomerNotes = v);
+
+    /// <summary>Ο ταμίας πάτησε ένα όνομα από τις προτάσεις — μπαίνει ΜΟΝΟ στο κελί του ονόματος, το
+    /// επώνυμο μένει όπως είναι. Τα υπόλοιπα στοιχεία δεν γεμίζουν από εδώ: γι' αυτό υπάρχει η αναζήτηση
+    /// πελάτη από πάνω (βλ. SelectCustomer), που ξέρει ποιον ακριβώς πελάτη διάλεξε ο ταμίας — δύο
+    /// πελάτες μπορεί κάλλιστα να λέγονται το ίδιο.</summary>
     [RelayCommand]
-    private async Task SelectAddressSuggestion(AddressSuggestionViewModel item)
+    private void SelectFirstNameSuggestion(string firstName)
     {
-        _addressSuggestCts?.Cancel();
-        AddressSuggestions.Clear();
-        _lastAddressSuggestQuery = "";
-        OnPropertyChanged(nameof(HasAddressSuggestions));
+        _suppressSuggestions = true;
+        CustomerFirstName = firstName;
+        _suppressSuggestions = false;
+        FillSuggestions(FirstNameSuggestions, [], nameof(HasFirstNameSuggestions));
+    }
 
-        var suggestion = item.Suggestion;
-        if (suggestion.PlaceId is not null)
-        {
-            var resolved = await DeliveryRouteService.ResolveGooglePlaceAsync(suggestion.PlaceId);
-            if (resolved is not null)
-                suggestion = resolved;
-        }
+    [RelayCommand]
+    private void SelectLastNameSuggestion(string lastName)
+    {
+        _suppressSuggestions = true;
+        CustomerLastName = lastName;
+        _suppressSuggestions = false;
+        FillSuggestions(LastNameSuggestions, [], nameof(HasLastNameSuggestions));
+    }
 
-        // Αν ο ταμίας έγραψε οδό ΚΑΙ αριθμό μαζί στο ίδιο κουτί (π.χ. «Μαγνησίας 12») αλλά το Nominatim
-        // δεν επέστρεψε house_number (δεν είναι πάντα καταχωρημένο ανά αριθμό στο OSM), ο αριθμός δεν
-        // πρέπει να χαθεί όταν το κουτί διεύθυνσης ξαναγραφεί με μόνο το όνομα δρόμου — τον κρατάμε από
-        // ό,τι είχε ήδη πληκτρολογηθεί και τον βάζουμε στο δικό του κουτί δίπλα.
-        var typedNumber = suggestion.HouseNumber.Length == 0
-            ? Regex.Match(CustomerAddress, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim()
-            : "";
+    [RelayCommand]
+    private void SelectAddressSuggestion(string street)
+    {
+        // Αν ο ταμίας έγραψε οδό ΚΑΙ αριθμό μαζί στο ίδιο κουτί (π.χ. «Μαγνησίας 12»), ο αριθμός δεν
+        // πρέπει να χαθεί όταν το κουτί ξαναγραφεί με μόνο το όνομα του δρόμου — πάει στο δικό του κουτί.
+        var typedNumber = Regex.Match(CustomerAddress, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim();
 
-        _suppressAddressAutocomplete = true;
-        CustomerAddress = suggestion.Street;
-        _suppressAddressAutocomplete = false;
-        if (suggestion.HouseNumber.Length > 0)
-            CustomerStreetNumber = suggestion.HouseNumber;
-        else if (typedNumber.Length > 0 && CustomerStreetNumber.Trim().Length == 0)
+        _suppressSuggestions = true;
+        CustomerAddress = street;
+        _suppressSuggestions = false;
+        FillSuggestions(AddressSuggestions, [], nameof(HasAddressSuggestions));
+
+        if (typedNumber.Length > 0 && CustomerStreetNumber.Trim().Length == 0)
             CustomerStreetNumber = typedNumber;
-        if (suggestion.Area.Length > 0)
-            CustomerArea = suggestion.Area;
-        if (suggestion.PostalCode.Length > 0)
-            CustomerPostalCode = suggestion.PostalCode;
+    }
+
+    [RelayCommand]
+    private void SelectAreaSuggestion(string area)
+    {
+        _suppressSuggestions = true;
+        CustomerArea = area;
+        _suppressSuggestions = false;
+        FillSuggestions(AreaSuggestions, [], nameof(HasAreaSuggestions));
     }
 
     [RelayCommand] private void BackStep2() => ResetForm();
@@ -1415,6 +1445,15 @@ public partial class OrderWizardViewModel : ObservableObject
     [RelayCommand]
     private void ContinueStep2()
     {
+        // Λείπει κάτι: δεν προχωράμε, αλλά ούτε βγάζουμε μήνυμα — κοκκινίζουν τα ίδια τα άδεια κουτιά,
+        // οπότε φαίνεται με μια ματιά ΠΟΥ πρέπει να γράψει ο ταμίας (βλ. Step2Validated/Missing*).
+        if (!Step2ContinueEnabled)
+        {
+            Step2Validated = true;
+            return;
+        }
+
+        Step2Validated = false;
         SaveCustomer();
         Products.SetRepeatableOrder(FindLastOrderLines(CustomerName));
         AdvanceTo(3);
@@ -1768,6 +1807,9 @@ public partial class OrderWizardViewModel : ObservableObject
         CustomerSearch = CustomerName = CustomerPhone = CustomerAddress = "";
         CustomerStreetNumber = CustomerArea = CustomerPostalCode = "";
         CustomerFloor = CustomerNotes = CustomerMemo = "";
+        // Καθαρή φόρμα στην επόμενη παραγγελία: χωρίς αυτό, τα κόκκινα κουτιά της προηγούμενης θα
+        // υποδέχονταν τον ταμία πριν προλάβει να γράψει οτιδήποτε.
+        Step2Validated = false;
         ClearCustomerAddressOptions();
         AppPlatform = null;
         AppOrderRef = "";

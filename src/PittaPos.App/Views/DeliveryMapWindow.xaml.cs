@@ -36,11 +36,18 @@ public partial class DeliveryMapWindow : Window
     /// ώστε ένα άσχετο OrderBoardService.Changed να μην ξανακάνει αίτημα διαδρομής χωρίς λόγο.</summary>
     private string? _lastSyncedSignature;
 
-    private sealed record ClickedStop(double Lat, double Lon);
+    /// <summary>Μήνυμα από τη σελίδα του χάρτη: <c>Kind</c> = "stop" (πατήθηκε πινέζα → διαδρομή) ή
+    /// "pick" (πατήθηκε σημείο στον χάρτη ενώ διορθώνουμε τη θέση μιας διεύθυνσης).</summary>
+    private sealed record ClickedStop(double Lat, double Lon, string? Kind);
+
+    /// <summary>Η διεύθυνση της οποίας το σημείο διορθώνεται αυτή τη στιγμή — null όταν δεν διορθώνουμε.</summary>
+    private string? _fixingAddress;
 
     public DeliveryMapWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
 
         // Νέα παραγγελία διανομής (ή μία που πέρασε σε κανάλι/έφυγε από την αναμονή) σηκώνει το
         // OrderBoardService.Changed — συγχρονίζουμε αυτόματα τις πινέζες χωρίς να χρειάζεται ο ταμίας να
@@ -292,6 +299,15 @@ public partial class DeliveryMapWindow : Window
     {
         if (_closed)
             return;
+
+        // Κανένα σημείο για το μαγαζί σημαίνει χάρτης χωρίς το μαγαζί σου και καμία διαδρομή — και μέχρι
+        // τώρα αυτό συνέβαινε σιωπηλά. Το λέμε καθαρά, μαζί με τον γρήγορο τρόπο να λυθεί.
+        if (_shopCoords is null)
+        {
+            ShowShopAddressMissing();
+            return;
+        }
+
         if (failed.Count == 0)
         {
             FailedAddressesBadge.Visibility = Visibility.Collapsed;
@@ -305,15 +321,25 @@ public partial class DeliveryMapWindow : Window
         FailedAddressesBadge.Visibility = Visibility.Visible;
     }
 
+    /// <summary>Το ένα πράγμα που ρυθμίζεται μία φορά και χωρίς αυτό δεν δουλεύει τίποτα στον χάρτη:
+    /// ούτε πινέζα μαγαζιού, ούτε διαδρομή προς καμία παράδοση (η διαδρομή ξεκινά από το μαγαζί).</summary>
+    private void ShowShopAddressMissing()
+    {
+        if (_closed)
+            return;
+        FailedAddressesTitle.Text = "⚠ Δεν έχει οριστεί η διεύθυνση του μαγαζιού";
+        FailedAddressesList.Text = "Ρυθμίσεις → Δίκτυο → «Διεύθυνση καταστήματος». Γράφεται μία φορά. " +
+            "Χωρίς αυτήν δεν μπαίνει η πινέζα του μαγαζιού και δεν υπολογίζεται καμία διαδρομή, " +
+            "γιατί κάθε διαδρομή ξεκινά από εκεί.";
+        FailedAddressesBadge.Visibility = Visibility.Visible;
+    }
+
     /// <summary>Ο ταμίας πάτησε μια πινέζα παράδοσης στον χάρτη (βλ. marker.on('click',...) στο
     /// <see cref="BuildShellHtmlLeaflet"/>) — υπολογίζει τη διαδρομή κατάστημα→αυτή τη διεύθυνση και τη
     /// σχεδιάζει πάνω στον ήδη ανοιχτό χάρτη μέσω <c>window.showStopRoute</c>. Χωρίς διεύθυνση
     /// καταστήματος δεν υπάρχει αφετηρία, οπότε απλά αγνοείται το κλικ.</summary>
     private async void OnStopClicked(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        if (_shopCoords is not { } shop)
-            return;
-
         ClickedStop? clicked;
         try
         {
@@ -326,6 +352,22 @@ public partial class DeliveryMapWindow : Window
         if (clicked is null)
             return;
 
+        // Διορθώνουμε θέση διεύθυνσης: το κλικ ΔΕΝ είναι αίτημα διαδρομής, είναι η σωστή πόρτα.
+        if (clicked.Kind == "pick")
+        {
+            await SavePickedPointAsync(clicked);
+            return;
+        }
+
+        // Η διαδρομή ξεκινά ΠΑΝΤΑ από το μαγαζί. Χωρίς σημείο καταστήματος δεν υπάρχει αφετηρία, οπότε
+        // το πάτημα της πινέζας δεν είχε τι να σχεδιάσει — και δεν γινόταν απολύτως τίποτα, χωρίς καμία
+        // εξήγηση. Τώρα το λέει.
+        if (_shopCoords is not { } shop)
+        {
+            ShowShopAddressMissing();
+            return;
+        }
+
         try
         {
             await DrawRouteToStopAsync(shop, clicked);
@@ -335,6 +377,86 @@ public partial class DeliveryMapWindow : Window
             // async void handler — σφάλμα εδώ (δίκτυο, κλειστό WebView2) θα έριχνε όλο το ταμείο.
             AppLog.Write("delivery-map", $"Αποτυχία σχεδίασης διαδρομής: {ex}");
         }
+    }
+
+    // ---- διόρθωση σημείου διεύθυνσης πάνω στον χάρτη ----
+    //
+    // Η αναζήτηση διεύθυνσης (OSM/Google) βγάζει συχνά λάθος σημείο σε ελληνικές διευθύνσεις, και μέχρι
+    // τώρα το ίδιο λάθος επαναλαμβανόταν σε κάθε παραγγελία στην ίδια διεύθυνση χωρίς να μπορεί να
+    // διορθωθεί. Εδώ ο ταμίας δείχνει τη σωστή θέση μία φορά· από εκεί και πέρα η πινέζα έρχεται από τα
+    // δικά μας σημεία (βλ. AddressPointsService) και δεν ρωτιέται ποτέ ξανά geocoder γι' αυτήν.
+
+    /// <summary>Οι διευθύνσεις που παραδίδονται τώρα — υποψήφιες για διόρθωση. Πρώτο στη λίστα το ίδιο το
+    /// κατάστημα: η δική του πινέζα λείπει ή πέφτει λάθος με την ίδια ευκολία, και χωρίς αυτήν δεν υπάρχει
+    /// ούτε αφετηρία διαδρομής.</summary>
+    private static List<(string Label, string Address)> FixablePoints()
+    {
+        // Η διεύθυνση του μαγαζιού γράφεται μία φορά στις Ρυθμίσεις. Μπαίνει κι αυτή στη λίστα, γιατί η
+        // πινέζα της μπορεί να πέσει λάθος όπως κάθε άλλη — αλλά μόνο αφού έχει οριστεί.
+        var shopAddress = SettingsStore.Instance.Settings.ShopAddress.Trim();
+        var points = new List<(string Label, string Address)>();
+        if (shopAddress.Length > 0)
+            points.Add(("🏠 ΤΟ ΜΑΓΑΖΙ ΜΑΣ", shopAddress));
+
+        points.AddRange(OrderBoardService.Instance.Orders
+            .Where(o => o.IsPending && !string.IsNullOrWhiteSpace(o.Address)
+                && (o.Type == OrderType.Delivery || (o.Type == OrderType.Apps && o.Channel == "BOX")))
+            .Select(o => ("#" + o.OrderNumber + " · " + o.Name, CleanAddressForGeocoding(o.Address))));
+
+        return points;
+    }
+
+    private void FixPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_shellReady)
+            return;
+
+        FixPinList.ItemsSource = FixablePoints().Select(d => d.Label + " — " + d.Address).ToList();
+        FixPinList.SelectedIndex = -1;
+        FixPinPanel.Visibility = Visibility.Visible;
+    }
+
+    private void CancelFixPin_Click(object sender, RoutedEventArgs e) => StopPicking();
+
+    private async void FixPinList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (FixPinList.SelectedIndex < 0)
+            return;
+        var points = FixablePoints();
+        if (FixPinList.SelectedIndex >= points.Count)
+            return;
+
+        var chosen = points[FixPinList.SelectedIndex];
+        _fixingAddress = chosen.Address;
+        FixPinPanel.Visibility = Visibility.Collapsed;
+        PickPointText.Text = "Πάτα στον χάρτη τη σωστή θέση για " + chosen.Label;
+        PickPointBadge.Visibility = Visibility.Visible;
+        try { await Map.ExecuteScriptAsync("setPickMode(true)"); } catch { }
+    }
+
+    private async Task SavePickedPointAsync(ClickedStop picked)
+    {
+        var address = _fixingAddress;
+        StopPicking();
+        if (address is null)
+            return;
+
+        AddressPointsService.Instance.Set(address, picked.Lat, picked.Lon, manual: true);
+        AppLog.Write("delivery-map",
+            $"Το σημείο της διεύθυνσης «{address}» ορίστηκε χειροκίνητα σε {picked.Lat:0.00000},{picked.Lon:0.00000}.");
+        // Ξαναχτίζει τις πινέζες με το νέο σημείο· fitView=true γιατί είναι συνειδητή ενέργεια του ταμία.
+        _lastSyncedSignature = null;
+        await SyncPinsAsync(fitView: true);
+    }
+
+    private async void StopPicking()
+    {
+        _fixingAddress = null;
+        FixPinPanel.Visibility = Visibility.Collapsed;
+        PickPointBadge.Visibility = Visibility.Collapsed;
+        if (_closed)
+            return;
+        try { await Map.ExecuteScriptAsync("setPickMode(false)"); } catch { }
     }
 
     private async Task DrawRouteToStopAsync((double Lat, double Lon) shop, ClickedStop clicked)
@@ -407,7 +529,7 @@ public partial class DeliveryMapWindow : Window
         // διαδρομή κατάστημα→αυτή τη στάση και την επιστρέφει μέσω showStopRoute παρακάτω. Δεν σχεδιάζουμε
         // πια τη συνολική διαδρομή όλων των στάσεων (κόκκινη γραμμή) — μόνο η διαδρομή προς τη
         // συγκεκριμένη πινέζα που πατήθηκε (βλ. showStopRoute), όπως ζήτησε ο χρήστης.
-        + "    m.on('click', function() { window.chrome.webview.postMessage({lat: s.lat, lon: s.lon}); });"
+        + "    m.on('click', function() { if (!window.__pickMode) window.chrome.webview.postMessage({kind:'stop', lat: s.lat, lon: s.lon}); });"
         + "    pts.push([s.lat, s.lon]);"
         + "  });"
         // fitView=false στον αυτόματο συγχρονισμό στο παρασκήνιο — δεν μετακινούμε τον χάρτη ενώ τον
@@ -434,6 +556,17 @@ public partial class DeliveryMapWindow : Window
         + "};"
         // Τονισμένη γραμμή (μπλε) για τη διαδρομή προς τη συγκεκριμένη πινέζα που πάτησε ο ταμίας —
         // αντικαθιστά την προηγούμενη τονισμένη γραμμή αν υπήρχε.
+        // Κατάσταση «δείξε τη σωστή θέση»: όσο είναι ανοιχτή, ένα κλικ οπουδήποτε στον χάρτη στέλνει τις
+        // συντεταγμένες στο C# (SavePickedPointAsync) αντί να ζητά διαδρομή. Ο δείκτης γίνεται σταυρός,
+        // ώστε να είναι φανερό ότι ο χάρτης περιμένει κλικ και δεν είναι απλά «κολλημένος».
+        + "window.__pickMode = false;"
+        + "window.setPickMode = function(on) {"
+        + "  window.__pickMode = !!on;"
+        + "  document.getElementById('map').style.cursor = on ? 'crosshair' : '';"
+        + "};"
+        + "map.on('click', function(e) {"
+        + "  if (window.__pickMode) window.chrome.webview.postMessage({kind:'pick', lat: e.latlng.lat, lon: e.latlng.lng});"
+        + "});"
         + "var activeStopRoute = null;"
         + "window.showStopRoute = function(geometryJson, isStraightLine) {"
         + "  var geometry = JSON.parse(geometryJson);"

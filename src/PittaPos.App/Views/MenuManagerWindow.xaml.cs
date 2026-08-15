@@ -14,6 +14,8 @@ public partial class MenuManagerWindow : Window
     public MenuManagerWindow()
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         DataContext = new MenuManagerViewModel();
     }
 

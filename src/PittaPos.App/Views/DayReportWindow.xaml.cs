@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 
+using PittaPos.App.Services;
+
 namespace PittaPos.App.Views;
 
 /// <summary>Offscreen-only παράθυρο για σιωπηλή εκτύπωση της αναφοράς ημέρας σε θερμικό εκτυπωτή
@@ -11,6 +13,8 @@ public partial class DayReportWindow : Window
     public DayReportWindow(string report)
     {
         InitializeComponent();
+        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
+        TitleBarTheme.Attach(this);
         ReportText.Text = report;
     }
 
