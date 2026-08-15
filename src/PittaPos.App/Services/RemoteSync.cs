@@ -108,9 +108,16 @@ public static class RemoteSync
         await FindAndSaveHostAsync();
     }
 
-    /// <summary>Ζει το κύριο ταμείο στη διεύθυνση που ξέρουμε; Ελαφρύ, χωρίς παρενέργειες — δεν περνάει
-    /// από το ReportOutcome, ώστε ο περιοδικός έλεγχος (βλ. RemoteSyncStatus) να μη σκανδαλίζει μόνος του
-    /// σάρωση σε κάθε χτύπο.</summary>
+    /// <summary>
+    /// Ζει το κύριο ταμείο στη διεύθυνση που ξέρουμε; Ελαφρύ, χωρίς παρενέργειες — δεν περνάει από το
+    /// ReportOutcome, ώστε ο περιοδικός έλεγχος (βλ. HostWatchdog) να μη σκανδαλίζει μόνος του σάρωση.
+    ///
+    /// «Ζει» σημαίνει ΑΠΑΝΤΑΕΙ, ό,τι κι αν απαντήσει — ακόμα και 404. ΔΕΝ απαιτείται το /api/whoami:
+    /// εκείνο υπάρχει μόνο από αυτή την έκδοση και μετά, και το κύριο ταμείο μπορεί κάλλιστα να τρέχει
+    /// ακόμα την προηγούμενη (π.χ. μπήκε το setup μόνο στο δεύτερο μηχάνημα). Αν το ζητούσαμε, ο έλεγχος
+    /// θα αποτύγχανε ΠΑΝΤΑ ενώ η σύνδεση δουλεύει μια χαρά, και το ταμείο θα σάρωνε ολόκληρο το δίκτυο
+    /// κάθε μισό λεπτό, ατέρμονα, χωρίς κανένα όφελος.
+    /// </summary>
     public static async Task<bool> PingHostAsync()
     {
         var host = SettingsStore.Instance.Settings.HostAddress.Trim();
@@ -118,12 +125,14 @@ public static class RemoteSync
             return false;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
-            var who = await http.GetFromJsonAsync<WhoAmIDto>($"http://{host}:{WaiterApiService.Port}/api/whoami");
-            return who is not null && who.Mode == "host";
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                $"http://{host}:{WaiterApiService.Port}/api/whoami");
+            using var response = await Http.SendAsync(request);
+            return true;
         }
         catch (Exception)
         {
+            // Μόνο πραγματική αποτυχία επικοινωνίας (κλειστό μηχάνημα, λάθος IP, πεσμένο δίκτυο).
             return false;
         }
     }
@@ -234,8 +243,15 @@ public static class RemoteSync
             return false;
         }
 
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-        var who = await http.GetFromJsonAsync<WhoAmIDto>($"http://{ip}:{WaiterApiService.Port}/api/whoami", token);
+        // Κοινός HttpClient, όχι καινούριος ανά διεύθυνση: η σάρωση αγγίζει δεκάδες μηχανήματα και ένας
+        // client ανά αίτημα αφήνει πίσω του sockets σε αναμονή κλεισίματος για λεπτά.
+        //
+        // Εδώ το /api/whoami είναι ΑΠΑΡΑΙΤΗΤΟ (σε αντίθεση με το PingHostAsync): ψάχνουμε ποιο από τα
+        // μηχανήματα του δικτύου είναι το κύριο ταμείο ΑΥΤΟΥ του καταστήματος — χωρίς την ταυτότητα θα
+        // κολλούσαμε στο πρώτο που τυχαίνει να ακούει στη θύρα. Κύριο ταμείο σε παλιότερη έκδοση δεν
+        // εντοπίζεται αυτόματα· εκεί η IP γράφεται στο χέρι, όπως πάντα.
+        var who = await Http.GetFromJsonAsync<WhoAmIDto>(
+            $"http://{ip}:{WaiterApiService.Port}/api/whoami", token);
         return who is not null && who.Mode == "host" && who.Store == AppIdentity.StoreName;
     }
 

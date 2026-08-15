@@ -327,10 +327,24 @@ public partial class DeliveryMapWindow : Window
     {
         if (_closed)
             return;
-        FailedAddressesTitle.Text = "⚠ Δεν έχει οριστεί η διεύθυνση του μαγαζιού";
-        FailedAddressesList.Text = "Ρυθμίσεις → Δίκτυο → «Διεύθυνση καταστήματος». Γράφεται μία φορά. " +
-            "Χωρίς αυτήν δεν μπαίνει η πινέζα του μαγαζιού και δεν υπολογίζεται καμία διαδρομή, " +
-            "γιατί κάθε διαδρομή ξεκινά από εκεί.";
+
+        // Δύο ΕΝΤΕΛΩΣ διαφορετικές αιτίες, με διαφορετική λύση η καθεμία. Ένα ενιαίο «δεν έχει οριστεί»
+        // θα έστελνε τον ταμία να ψάχνει ρύθμιση που έχει ήδη συμπληρώσει.
+        var shopAddress = SettingsStore.Instance.Settings.ShopAddress.Trim();
+        if (shopAddress.Length == 0)
+        {
+            FailedAddressesTitle.Text = "⚠ Δεν έχει οριστεί η διεύθυνση του μαγαζιού";
+            FailedAddressesList.Text = "Ρυθμίσεις → Δίκτυο → «Διεύθυνση καταστήματος». Γράφεται μία φορά. " +
+                "Χωρίς αυτήν δεν μπαίνει η πινέζα του μαγαζιού και δεν υπολογίζεται καμία διαδρομή, " +
+                "γιατί κάθε διαδρομή ξεκινά από εκεί.";
+        }
+        else
+        {
+            FailedAddressesTitle.Text = "⚠ Δεν εντοπίστηκε η διεύθυνση του μαγαζιού στον χάρτη";
+            FailedAddressesList.Text = shopAddress +
+                "  —  πάτα «📍 ΔΙΟΡΘΩΣΗ ΣΗΜΕΙΟΥ» → «ΤΟ ΜΑΓΑΖΙ ΜΑΣ» και δείξ' το πάνω στον χάρτη· " +
+                "μένει εκεί για πάντα. (Ή έλεγξε τη διεύθυνση στις Ρυθμίσεις → Δίκτυο.)";
+        }
         FailedAddressesBadge.Visibility = Visibility.Visible;
     }
 
@@ -408,10 +422,25 @@ public partial class DeliveryMapWindow : Window
 
     private void FixPin_Click(object sender, RoutedEventArgs e)
     {
+        // Σιωπηλό «δεν κάνω τίποτα» είναι ό,τι χειρότερο: ο ταμίας πατάει και συμπεραίνει ότι χάλασε.
         if (!_shellReady)
+        {
+            MessageBox.Show(this, "Ο χάρτης φορτώνει ακόμα — δοκίμασε ξανά σε λίγο.",
+                "Διόρθωση σημείου", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
+        }
 
-        FixPinList.ItemsSource = FixablePoints().Select(d => d.Label + " — " + d.Address).ToList();
+        var points = FixablePoints();
+        if (points.Count == 0)
+        {
+            MessageBox.Show(this,
+                "Δεν υπάρχει τίποτα να διορθωθεί: ούτε διεύθυνση μαγαζιού (Ρυθμίσεις → Δίκτυο) " +
+                "ούτε παραγγελία διανομής σε αναμονή.",
+                "Διόρθωση σημείου", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        FixPinList.ItemsSource = points.Select(d => d.Label + " — " + d.Address).ToList();
         FixPinList.SelectedIndex = -1;
         FixPinPanel.Visibility = Visibility.Visible;
     }
