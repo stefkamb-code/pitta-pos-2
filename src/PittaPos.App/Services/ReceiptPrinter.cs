@@ -195,13 +195,10 @@ public static class ReceiptPrinter
         AppLog.Write("printer", $"Δεν τυπώθηκε η απόδειξη #{order.OrderNumber} " +
             $"({order.TypeLabel}, {order.TotalLabel}): {reason}");
 
-    /// <summary>Πιο πρόσφατη καταχωρημένη παραγγελία — χρησιμοποιείται από το wizard του ταμείου.</summary>
-    public static void PrintLatestOrder()
-    {
-        var order = SalesStatsService.Instance.Orders.OrderByDescending(o => o.PlacedAt).FirstOrDefault();
-        if (order is not null)
-            PrintOrder(order);
-    }
+    // ΑΦΑΙΡΕΘΗΚΕ το PrintLatestOrder(): τύπωνε «ό,τι είναι πιο πρόσφατο στη λίστα της ημέρας» αντί για
+    // τη συγκεκριμένη παραγγελία που μόλις έγινε. Στο δεύτερο ταμείο η λίστα είναι αντίγραφο του κυρίου
+    // με καθυστέρηση, οπότε τυπωνόταν Η ΠΡΟΗΓΟΥΜΕΝΗ παραγγελία — λάθος απόδειξη στον πελάτη. Όποιος
+    // τυπώνει, δίνει πλέον ρητά ΤΟ CompletedOrder του (βλ. OrderWizardViewModel.AutoPrintRequested).
 
     /// <summary>Σιωπηλή εκτύπωση της πλήρους αναφοράς ημέρας (Ζ-report, βλ. DayReportService.Build) στον
     /// εκτυπωτή που έχει οριστεί στις Ρυθμίσεις. Καλείται από το DayReportService.CloseDay/PrintCurrentReport.</summary>

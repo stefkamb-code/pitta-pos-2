@@ -205,11 +205,22 @@ public class MenuStore
         var dto = await RemoteSync.GetAsync<MenuSyncDto>("/api/sync/menu");
         if (dto is null)
             return;
+
+        var before = JsonSerializer.Serialize(BuildSyncDto(), JsonOpts);
         ApplySyncDto(dto);
         if (Extras.Count == 0)
             Extras = SeedExtrasCopy();
         if (Ingredients.Count == 0)
             Ingredients = SeedIngredientsCopy();
+
+        // Το Changed σηκώνεται ΜΟΝΟ αν άλλαξε πραγματικά ο κατάλογος.
+        //
+        // Πριν σηκωνόταν σε κάθε poll, δηλαδή κάθε 10 δευτερόλεπτα: η οθόνη προϊόντων ξανάχτιζε
+        // κατηγορίες και πλακίδια, και ό,τι είχε ανοιχτό ο ταμίας έκλεινε μόνο του. Στην πράξη, στο
+        // δεύτερο ταμείο το προϊόν «έβγαινε» μέσα από τα χέρια σου ενώ διάλεγες έξτρα. Ο κατάλογος
+        // αλλάζει ελάχιστες φορές τον χρόνο — δεν υπάρχει λόγος να ξαναχτίζεται η οθόνη χωρίς αιτία.
+        if (JsonSerializer.Serialize(BuildSyncDto(), JsonOpts) == before)
+            return;
         Changed?.Invoke();
     }
 

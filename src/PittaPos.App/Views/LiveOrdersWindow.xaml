@@ -337,5 +337,34 @@
                 </DockPanel>
             </Border>
         </Grid>
+
+        <!-- ================= αλλαγή βάρδιας — ίδιο banner με την Αρχική ================= -->
+        <Grid Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="220"
+              Visibility="{Binding ShowShiftPrompt, Converter={StaticResource BoolToVis}}">
+            <Border Background="#99000000"/>
+            <Border Width="400" Background="{DynamicResource Bg}"
+                    BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="22"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Margin="30,28,30,30">
+                    <Border Width="56" Height="56" CornerRadius="28" Background="{DynamicResource Accent}"
+                            HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <TextBlock Text="⏱" FontSize="24" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="{Binding ShiftPromptText}" FontSize="20" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock Text="Από εδώ και πέρα κάθε παραγγελία θα γράφεται στη νέα βάρδια."
+                               FontSize="13" Foreground="{DynamicResource Neutral600}"
+                               HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                               Margin="0,0,0,24"/>
+                    <Button Content="ΝΑΙ, ΑΛΛΑΓΗ" Padding="18,16" FontSize="15" FontWeight="ExtraBold"
+                            Style="{StaticResource PrimaryButton}" Command="{Binding ConfirmShiftCommand}"/>
+                    <Button Content="ΑΚΥΡΟ" Margin="0,12,0,0" Padding="10,9" FontSize="13"
+                            FontWeight="Bold" HorizontalAlignment="Center"
+                            Style="{StaticResource FlatButton}" Command="{Binding CancelShiftCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

@@ -1172,6 +1172,39 @@
         </Border>
 
 
+        <!-- ================= αλλαγή βάρδιας — banner στη μέση ================= -->
+        <!-- Η βάρδια σφραγίζει κάθε επόμενη παραγγελία και χωρίζει τα στατιστικά της ημέρας: ένα κατά
+             λάθος πάτημα φαίνεται μόνο στο κλείσιμο, όταν πια δεν διορθώνεται. Ίδιο σχήμα με το banner
+             πληρωμής — μία ερώτηση στη μέση, δύο κουμπιά, τίποτα άλλο. -->
+        <Grid Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="220"
+              Visibility="{Binding ShowShiftPrompt, Converter={StaticResource BoolToVis}}">
+            <Border Background="#99000000"/>
+            <Border Width="420" Background="{DynamicResource Bg}"
+                    BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="22"
+                    Effect="{StaticResource SoftShadowSmall}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Margin="32,30,32,32">
+                    <Border Width="60" Height="60" CornerRadius="30" Background="{DynamicResource Accent}"
+                            HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <TextBlock Text="⏱" FontSize="26" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="{Binding ShiftPromptText}" FontSize="21" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock Text="Από εδώ και πέρα κάθε παραγγελία θα γράφεται στη νέα βάρδια."
+                               FontSize="13.5" Foreground="{DynamicResource Neutral600}"
+                               HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                               Margin="0,0,0,26"/>
+                    <Button Content="ΝΑΙ, ΑΛΛΑΓΗ" Padding="18,18" FontSize="16" FontWeight="ExtraBold"
+                            Style="{StaticResource PrimaryButton}" Command="{Binding ConfirmShiftCommand}"/>
+                    <Button Content="ΑΚΥΡΟ" Margin="0,14,0,0" Padding="10,10" FontSize="13"
+                            FontWeight="Bold" HorizontalAlignment="Center"
+                            Style="{StaticResource FlatButton}" Command="{Binding CancelShiftCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- ================= τρόπος πληρωμής — banner στη μέση, πάνω από όλα ================= -->
         <!-- Σηκώνεται όταν ο ταμίας πατήσει το τελικό ΣΥΝΕΧΕΙΑ/ΟΛΟΚΛΗΡΩΣΗ για ΔΙΑΝΟΜΗ/BOX/ΠΑΡΑΛΑΒΗ χωρίς να
              έχει διαλέξει ακόμα Μετρητά/Κάρτα (βλ. OrderWizardViewModel.ContinueStep3/NeedsPaymentMethod/

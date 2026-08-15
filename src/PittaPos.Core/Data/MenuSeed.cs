@@ -44,12 +44,41 @@ public static partial class MenuSeed
     /// αφού έχει ψωμί), κρατώντας μόνο ό,τι διαφοροποιεί το προϊόν.</summary>
     public static string ComposeCustomizedName(string productName, string bread)
     {
-        const string prefix = "Πίττα ";
-        var rest = productName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? productName[prefix.Length..]
-            : productName;
-        return BreadAbbreviation(bread) + " " + rest;
+        return BreadAbbreviation(bread) + " " + WithoutPrefix(productName, "Πίττα ");
     }
+
+    /// <summary>
+    /// Κόβει το πρόθεμα αν υπάρχει, αγνοώντας πεζά/κεφαλαία <b>ΚΑΙ ΤΟΝΟΥΣ</b>.
+    ///
+    /// Το σκέτο <c>OrdinalIgnoreCase</c> δεν αρκεί στα ελληνικά: το «Μίνι» έχει τόνο, ενώ τα ελληνικά
+    /// κεφαλαία γράφονται χωρίς («ΜΙΝΙ»). Οπότε ένα όνομα εκτύπωσης γραμμένο κεφαλαία δεν αναγνωριζόταν
+    /// ως «Μίνι …» και η λέξη έμενε ΔΥΟ φορές πάνω στο χαρτί: «ΜΙΝΙ ΔΙΠΛΗ ΠΙΤΑ ΜΙΝΙ ΚΟΤΟΠΟΥΛΟ».
+    /// Το ίδιο και με το «Πίττα».
+    /// </summary>
+    private static string WithoutPrefix(string text, string prefix)
+    {
+        if (text.Length < prefix.Length)
+            return text;
+        for (var i = 0; i < prefix.Length; i++)
+        {
+            if (FoldGreek(text[i]) != FoldGreek(prefix[i]))
+                return text;
+        }
+        return text[prefix.Length..];
+    }
+
+    /// <summary>Κεφαλαίο χωρίς τόνο — μόνο για σύγκριση, δεν αλλάζει τίποτα από όσα βλέπει ο πελάτης.</summary>
+    private static char FoldGreek(char c) => char.ToUpperInvariant(c) switch
+    {
+        'Ά' => 'Α',
+        'Έ' => 'Ε',
+        'Ή' => 'Η',
+        'Ί' or 'Ϊ' => 'Ι',
+        'Ό' => 'Ο',
+        'Ύ' or 'Ϋ' => 'Υ',
+        'Ώ' => 'Ω',
+        var upper => upper,
+    };
 
     /// <summary>Ποιες κατηγορίες προσφέρουν την επιλογή «διπλή πίτα» στον customizer — ΤΥΛΙΧΤΑ (νέο όνομα
     /// «ΠΙΤΤΕΣ») και ΚΛΑΣΙΚΑ ΜΙΝΙ, τα δύο πιτόψωμα του μαγαζιού. Δέχονται και τα παλιά ονόματα
@@ -93,22 +122,16 @@ public static partial class MenuSeed
     public static string ComposeDoublePitaName(string productName, string categoryLabel, string bread)
     {
         if (categoryLabel is "ΤΥΛΙΧΤΑ" or "ΠΙΤΤΕΣ" or "ΠΙΤΤΕΣ ΠΑΠΠΟΥ")
-        {
-            const string prefix = "Πίττα ";
-            var rest = productName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                ? productName[prefix.Length..]
-                : productName;
-            return BreadAbbreviation(bread) + " " + DoublePitaLabel + " " + rest;
-        }
+            return BreadAbbreviation(bread) + " " + DoublePitaLabel + " " + WithoutPrefix(productName, "Πίττα ");
 
         // Δέχεται και το παλιό «Μικρό» πρόθεμα (πριν τη μετονομασία σε «Μίνι») για τον ίδιο λόγο.
-        string[] miniPrefixes = ["Μίνι ", "Μικρό "];
         var miniRest = productName;
-        foreach (var prefix in miniPrefixes)
+        foreach (var prefix in new[] { "Μίνι ", "Μικρό " })
         {
-            if (productName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            var stripped = WithoutPrefix(productName, prefix);
+            if (stripped.Length != productName.Length)
             {
-                miniRest = productName[prefix.Length..];
+                miniRest = stripped;
                 break;
             }
         }

@@ -174,11 +174,47 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>Τρέχουσα βάρδια — κοινός χειροκίνητος διακόπτης (Αρχική/Ζωντανές Παραγγελίες), ποτέ αυτόματος.</summary>
     public bool IsEveningShift => SettingsStore.Instance.Settings.IsEveningShift;
 
-    [RelayCommand]
-    private void SelectMorningShift() => SettingsStore.Instance.SetShift(false);
+    // Η αλλαγή βάρδιας ΡΩΤΑΕΙ πρώτα. Δεν είναι διακοσμητικός διακόπτης: σφραγίζει κάθε επόμενη
+    // παραγγελία, χωρίζει τα στατιστικά της ημέρας και φιλτράρει τις Ζωντανές Παραγγελίες — ένα κατά
+    // λάθος πάτημα στη μέση της βάρδιας στέλνει τις παραγγελίες στη λάθος μεριά της ημέρας, και
+    // φαίνεται μόνο στο κλείσιμο, όταν πια δεν διορθώνεται.
+
+    /// <summary>Σε ποια βάρδια ρωτάμε να αλλάξουμε (null = δεν ρωτάμε τώρα) — ανάβει το banner.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowShiftPrompt))]
+    [NotifyPropertyChangedFor(nameof(ShiftPromptText))]
+    private bool? _pendingShift;
+
+    public bool ShowShiftPrompt => PendingShift is not null;
+
+    public string ShiftPromptText => PendingShift is true
+        ? "Αλλαγή σε ΒΡΑΔΙΝΗ βάρδια;"
+        : "Αλλαγή σε ΠΡΩΙΝΗ βάρδια;";
 
     [RelayCommand]
-    private void SelectEveningShift() => SettingsStore.Instance.SetShift(true);
+    private void SelectMorningShift() => AskShift(false);
+
+    [RelayCommand]
+    private void SelectEveningShift() => AskShift(true);
+
+    /// <summary>Πάτημα στη βάρδια που ΗΔΗ τρέχει δεν ρωτάει τίποτα — δεν αλλάζει τίποτα.</summary>
+    private void AskShift(bool evening)
+    {
+        if (IsEveningShift == evening)
+            return;
+        PendingShift = evening;
+    }
+
+    [RelayCommand]
+    private void ConfirmShift()
+    {
+        if (PendingShift is { } evening)
+            SettingsStore.Instance.SetShift(evening);
+        PendingShift = null;
+    }
+
+    [RelayCommand]
+    private void CancelShift() => PendingShift = null;
 
     /// <summary>
     /// Ξαναφτιάχνει τη λίστα τραπεζιών από τις ρυθμίσεις — ελεύθερο/ανοιχτό, τρέχον σύνολο,
@@ -1531,8 +1567,16 @@ public partial class OrderWizardViewModel : ObservableObject
         Products.Reset(NextDisplayNumber());
     }
 
-    /// <summary>Σηκώνεται όταν ολοκληρώνεται παραγγελία — τυπώνει αυτόματα την απόδειξη.</summary>
-    public event Action? AutoPrintRequested;
+    /// <summary>
+    /// Σηκώνεται όταν ολοκληρώνεται παραγγελία — τυπώνει αυτόματα την απόδειξη. Κουβαλάει ΤΗΝ ΙΔΙΑ την
+    /// παραγγελία που μόλις καταχωρήθηκε.
+    ///
+    /// Πριν δεν κουβαλούσε τίποτα και ο εκτυπωτής έψαχνε μόνος του «την πιο πρόσφατη παραγγελία της
+    /// ημέρας». Στο κύριο ταμείο τύχαινε να είναι η σωστή· στο ΔΕΥΤΕΡΟ όχι: εκεί η λίστα παραγγελιών
+    /// είναι αντίγραφο του κύριου που ανανεώνεται κάθε 3 δευτερόλεπτα, οπότε η μόλις καταχωρημένη δεν
+    /// είχε προλάβει να επιστρέψει και τυπωνόταν Η ΠΡΟΗΓΟΥΜΕΝΗ ΠΑΡΑΓΓΕΛΙΑ — λάθος απόδειξη στον πελάτη.
+    /// </summary>
+    public event Action<CompletedOrder>? AutoPrintRequested;
 
     private void ContinueStep3()
     {
@@ -1597,8 +1641,9 @@ public partial class OrderWizardViewModel : ObservableObject
             return;
         }
 
-        RecordStats();
-        AutoPrintRequested?.Invoke();
+        // Τυπώνεται ΑΥΤΗ η παραγγελία, όχι «ό,τι βρεθεί τελευταίο στη λίστα» (βλ. AutoPrintRequested).
+        var order = RecordStats();
+        AutoPrintRequested?.Invoke(order);
         NewOrder();
     }
 

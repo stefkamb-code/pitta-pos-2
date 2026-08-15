@@ -345,5 +345,5 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Αυτόματη εκτύπωση στον προεπιλεγμένο εκτυπωτή μόλις ολοκληρωθεί παραγγελία, χωρίς dialog.</summary>
-    private void AutoPrintReceipt() => ReceiptPrinter.PrintLatestOrder();
+    private void AutoPrintReceipt(CompletedOrder order) => ReceiptPrinter.PrintOrder(order);
 }

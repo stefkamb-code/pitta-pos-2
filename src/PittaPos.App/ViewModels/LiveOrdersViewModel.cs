@@ -65,11 +65,44 @@ public partial class LiveOrdersViewModel : ObservableObject
         Rebuild();
     }
 
-    [RelayCommand]
-    private void SelectMorningShift() => SettingsStore.Instance.SetShift(false);
+    // Ίδια προστασία με την Αρχική (βλ. OrderWizardViewModel): η βάρδια ρωτάει πριν αλλάξει, γιατί
+    // σφραγίζει κάθε επόμενη παραγγελία και χωρίζει τα στατιστικά της ημέρας.
+
+    /// <summary>Σε ποια βάρδια ρωτάμε να αλλάξουμε (null = δεν ρωτάμε τώρα).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowShiftPrompt))]
+    [NotifyPropertyChangedFor(nameof(ShiftPromptText))]
+    private bool? _pendingShift;
+
+    public bool ShowShiftPrompt => PendingShift is not null;
+
+    public string ShiftPromptText => PendingShift is true
+        ? "Αλλαγή σε ΒΡΑΔΙΝΗ βάρδια;"
+        : "Αλλαγή σε ΠΡΩΙΝΗ βάρδια;";
 
     [RelayCommand]
-    private void SelectEveningShift() => SettingsStore.Instance.SetShift(true);
+    private void SelectMorningShift() => AskShift(false);
+
+    [RelayCommand]
+    private void SelectEveningShift() => AskShift(true);
+
+    private void AskShift(bool evening)
+    {
+        if (IsEveningShift == evening)
+            return;
+        PendingShift = evening;
+    }
+
+    [RelayCommand]
+    private void ConfirmShift()
+    {
+        if (PendingShift is { } evening)
+            SettingsStore.Instance.SetShift(evening);
+        PendingShift = null;
+    }
+
+    [RelayCommand]
+    private void CancelShift() => PendingShift = null;
 
     /// <summary>Καλείται όταν κλείνει το παράθυρο.</summary>
     public void Shutdown()
