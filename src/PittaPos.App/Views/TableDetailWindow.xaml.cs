@@ -31,6 +31,23 @@ public partial class TableDetailWindow : Window
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
 
+    /// <summary>
+    /// Ξανατυπώνει το δελτίο του τραπεζιού με ΟΛΑ όσα έχουν παραγγελθεί, ενωμένα σε ένα χαρτί — ακριβώς
+    /// όπως βγαίνει όταν κλείνει η σειρά των ατόμων. Για όταν το χαρτί χάθηκε ή δεν βγήκε ποτέ (σβηστός
+    /// εκτυπωτής τη στιγμή που ήρθε η παραγγελία από το κινητό).
+    /// </summary>
+    private void Reprint_Click(object sender, RoutedEventArgs e)
+    {
+        var ticket = _vm.BuildReprintTicket();
+        if (ticket is null)
+        {
+            MessageBox.Show(this, "Δεν υπάρχει παραγγελία σε αυτό το τραπέζι για να τυπωθεί.",
+                "Επανεκτύπωση", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        ReceiptPrinter.PrintOrder(ticket);
+    }
+
     /// <summary>Ακύρωση (πραγματική διαγραφή) επιλεγμένων προϊόντων — μόνο με ονομαστικό κωδικό.</summary>
     private void CancelSelected_Click(object sender, RoutedEventArgs e)
     {

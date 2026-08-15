@@ -54,6 +54,43 @@ public static class WaiterApiService
             // για να βρίσκει μόνο του το κύριο όταν αλλάξει η IP του (βλ. RemoteSync.DiscoverHostAsync) —
             // ο έλεγχος καταστήματος εμποδίζει να «κολλήσει» κατά λάθος στο ταμείο του άλλου μαγαζιού,
             // και ο έλεγχος λειτουργίας να θεωρήσει κύριο ένα άλλο δεύτερο ταμείο.
+            // Διάγνωση εκτυπωτή, χωρίς να χρειάζεται να είναι κανείς μπροστά στο μηχάνημα: από το μαγαζί
+            // ανοίγεις http://127.0.0.1:5191/api/printers στον browser και φαίνεται ΤΙ ΒΛΕΠΕΙ το ταμείο —
+            // ποιοι εκτυπωτές υπάρχουν, ποιος είναι επιλεγμένος, και το σφάλμα αν δεν διαβάζονται καθόλου.
+            app.MapGet("/api/printers", () =>
+            {
+                var selected = SettingsStore.Instance.Settings.PrinterName;
+                try
+                {
+                    using var server = new System.Printing.LocalPrintServer();
+                    var queues = server.GetPrintQueues().Select(q => new
+                    {
+                        name = q.FullName,
+                        offline = q.IsOffline,
+                        error = q.IsInError,
+                        unavailable = q.IsNotAvailable,
+                    }).ToList();
+                    return Results.Json(new
+                    {
+                        selected,
+                        selectedFound = queues.Any(q => q.name == selected),
+                        mode = SettingsStore.Instance.Settings.NetworkMode,
+                        printers = queues,
+                        error = (string?)null,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Json(new
+                    {
+                        selected,
+                        selectedFound = false,
+                        mode = SettingsStore.Instance.Settings.NetworkMode,
+                        printers = Array.Empty<object>(),
+                        error = ex.GetType().Name + ": " + ex.Message,
+                    });
+                }
+            });
             app.MapGet("/api/whoami", () => Results.Json(new RemoteSync.WhoAmIDto(
                 SettingsStore.Instance.Settings.NetworkMode == "client" ? "client" : "host",
                 AppIdentity.StoreName)));

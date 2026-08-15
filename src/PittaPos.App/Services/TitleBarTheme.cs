@@ -92,10 +92,15 @@ public static class TitleBarTheme
             if (DwmSetWindowAttribute(handle, UseImmersiveDarkMode, ref value, sizeof(int)) != 0)
                 DwmSetWindowAttribute(handle, UseImmersiveDarkModeOld, ref value, sizeof(int));
 
-            // Χωρίς αυτό, ένα ΗΔΗ ορατό παράθυρο κρατούσε το παλιό χρώμα μέχρι να μετακινηθεί με το χέρι:
-            // τα Windows ξαναζωγραφίζουν το πλαίσιο μόνο όταν τους πουν ότι άλλαξε.
-            SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0,
-                SwpNoMove | SwpNoSize | SwpNoZOrder | SwpFrameChanged);
+            // Το «ξαναζωγράφισε το πλαίσιο» ΜΟΝΟ σε παράθυρο που είναι ήδη στην οθόνη — δηλαδή όταν
+            // αλλάζει θέμα ενώ δουλεύει ο ταμίας. Σε παράθυρο που δεν έχει εμφανιστεί ακόμα δεν
+            // χρειάζεται (θα γεννηθεί με το σωστό χρώμα) και είναι ΕΠΙΚΙΝΔΥΝΟ: αναγκάζει τα Windows να
+            // ξαναϋπολογίσουν το μέγεθος πριν γίνει το πρώτο layout, και σε παράθυρο που μετράει το ύψος
+            // του από το περιεχόμενό του (SizeToContent — έτσι είναι η απόδειξη) το χαλάει. Αποτέλεσμα:
+            // η απόδειξη έφευγε στον εκτυπωτή με λάθος ύψος και δεν έβγαινε χαρτί.
+            if (window.IsVisible)
+                SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0,
+                    SwpNoMove | SwpNoSize | SwpNoZOrder | SwpFrameChanged);
         }
         catch (Exception)
         {

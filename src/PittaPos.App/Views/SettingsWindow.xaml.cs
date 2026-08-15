@@ -32,14 +32,37 @@ public partial class SettingsWindow : Window
             {
                 using var server = new LocalPrintServer();
                 options.AddRange(server.GetPrintQueues().Select(q => new PrinterOption(q.FullName, q.FullName)));
+                // Άδεια λίστα δεν είναι το ίδιο με σφάλμα, αλλά για τον ταμία είναι το ίδιο πράγμα
+                // («δεν βλέπει εκτυπωτή») — γράφεται ώστε να ξεχωρίζουν εκ των υστέρων.
+                if (options.Count == 1)
+                    AppLog.Write("printer", "Η λίστα εκτυπωτών των Windows ήρθε ΑΔΕΙΑ (κανένας εγκατεστημένος;).");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Δεν υπάρχει πρόσβαση σε print server — μένει μόνο η επιλογή απενεργοποίησης
+                // Πριν ήταν σιωπηλό: η λίστα έμενε άδεια, ο ταμίας έβλεπε «δεν διαβάζει εκτυπωτή» και δεν
+                // υπήρχε πουθενά ίχνος για το γιατί — ούτε καν ότι έγινε προσπάθεια.
+                AppLog.Write("printer", $"Δεν διαβάστηκαν οι εκτυπωτές των Windows: {ex.GetType().Name}: {ex.Message}");
             }
-            PrinterCombo.ItemsSource = options;
+            // Ο αποθηκευμένος εκτυπωτής ΔΕΝ χάνεται επειδή δεν φαίνεται αυτή τη στιγμή στα Windows.
+            //
+            // Συμβαίνει κανονικότατα με κοινόχρηστο εκτυπωτή: ο δεύτερος υπολογιστής τυπώνει σε εκτυπωτή
+            // δεμένο στον πρώτο, και όσο ο πρώτος είναι κλειστό ή δεν έχει σηκωθεί το δίκτυο, ο εκτυπωτής
+            // λείπει από τη λίστα. Πριν, το ταμείο επέλεγε τότε σιωπηλά «(Χωρίς αυτόματη εκτύπωση)» — και
+            // η ρύθμιση χανόταν για πάντα, χωρίς να το καταλάβει κανείς μέχρι να μη βγει απόδειξη.
+            // Τώρα μένει στη λίστα, σημειωμένος, και συνεχίζει να είναι ο επιλεγμένος.
             var current = _store.Settings.PrinterName;
-            PrinterCombo.SelectedItem = options.FirstOrDefault(o => o.Value == current) ?? options[0];
+            var match = options.FirstOrDefault(o => o.Value == current);
+            if (match is null && current.Length > 0)
+            {
+                match = new PrinterOption(current + "  (δεν είναι διαθέσιμος τώρα)", current);
+                options.Insert(1, match);
+                AppLog.Write("printer",
+                    $"Ο αποθηκευμένος εκτυπωτής «{current}» δεν βρέθηκε στη λίστα των Windows — " +
+                    "η ρύθμιση ΔΙΑΤΗΡΗΘΗΚΕ (π.χ. κοινόχρηστος εκτυπωτής με τον άλλο υπολογιστή κλειστό).");
+            }
+
+            PrinterCombo.ItemsSource = options;
+            PrinterCombo.SelectedItem = match ?? options[0];
         }
         finally
         {

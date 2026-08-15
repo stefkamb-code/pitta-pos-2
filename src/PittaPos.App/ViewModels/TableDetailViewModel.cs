@@ -364,6 +364,38 @@ public partial class TableDetailViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Ενώνει ΟΛΑ όσα έχουν παραγγελθεί σε αυτό το τραπέζι σε ένα δελτίο, για επανεκτύπωση — ίδια λογική
+    /// με το χαρτί που βγαίνει όταν κλείνει η σειρά των ατόμων (βλ. WaiterApiService.MergeForPrinting):
+    /// η κουζίνα θέλει ΕΝΑ χαρτί με όλο το τραπέζι, όχι ένα ανά γύρο.
+    ///
+    /// Επιστρέφει null όταν το τραπέζι είναι άδειο ή κλειστό.
+    /// </summary>
+    public CompletedOrder? BuildReprintTicket()
+    {
+        if (!TableStatusService.Instance.OpenSince.TryGetValue(_table, out var since))
+            return null;
+
+        var orders = _stats.Orders
+            .Where(o => o.Type == OrderType.Table && o.Who == "Τραπέζι " + _table && o.PlacedAt >= since)
+            .OrderBy(o => o.PlacedAt)
+            .ToList();
+        if (orders.Count == 0)
+            return null;
+
+        var last = orders[^1];
+        return new CompletedOrder
+        {
+            OrderNumber = last.OrderNumber,
+            Type = last.Type,
+            Who = last.Who,
+            Total = orders.Sum(o => o.Total),
+            Lines = orders.SelectMany(o => o.Lines).ToList(),
+            Note = string.Join(" · ", orders.Select(o => o.Note).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()),
+            IsEveningShift = last.IsEveningShift,
+        };
+    }
+
     private void Refresh()
     {
         // Ό,τι αλλαγή στις παραγγελίες (έστω και αλλού) ξαναχτίζει τις γραμμές από την αρχή —

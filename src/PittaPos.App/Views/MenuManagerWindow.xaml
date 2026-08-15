@@ -188,7 +188,10 @@
                     <StackPanel Visibility="{Binding IsEditingProduct, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Κατηγορία του προϊόντος" FontSize="11"
                                    Foreground="{DynamicResource Neutral500}" Margin="0,0,0,4"/>
-                        <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding ProductCategory}"
+                        <!-- Ίδιος λόγος με τη λίστα εκτυπωτών: χωρίς το δικό μας style, το dropdown
+                             βγαίνει λευκό και στο μαύρο θέμα οι κατηγορίες γίνονται αδιάβαστες. -->
+                        <ComboBox Style="{StaticResource PosComboBox}"
+                                  ItemsSource="{Binding Categories}" SelectedItem="{Binding ProductCategory}"
                                   DisplayMemberPath="Name" Height="42" FontSize="14"
                                   VerticalContentAlignment="Center"/>
                     </StackPanel>

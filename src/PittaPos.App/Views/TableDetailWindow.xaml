@@ -26,6 +26,13 @@
                         Margin="0,0,12,0" Click="Back_Click"/>
                 <TextBlock DockPanel.Dock="Left" Text="{Binding TitleLabel}" FontWeight="ExtraBold" FontSize="16"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <!-- Ξανατύπωσε το δελτίο του τραπεζιού: το χαρτί χάνεται, σκίζεται, ή δεν βγήκε ποτέ
+                     (π.χ. ο εκτυπωτής ήταν σβηστός όταν ήρθε η παραγγελία από το κινητό). Χωρίς αυτό, ο
+                     μόνος τρόπος ήταν να ψάξει ο ταμίας την παραγγελία στο Ιστορικό. -->
+                <Button DockPanel.Dock="Right" Content="🖨 ΕΠΑΝΕΚΤΥΠΩΣΗ" FontSize="12" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,7" VerticalAlignment="Center"
+                        ToolTip="Ξανατυπώνει το δελτίο με ό,τι έχει παραγγελθεί σε αυτό το τραπέζι"
+                        Click="Reprint_Click"/>
                 <Border/>
             </DockPanel>
         </Border>

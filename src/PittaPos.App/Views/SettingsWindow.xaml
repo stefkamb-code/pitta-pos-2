@@ -56,9 +56,12 @@
                 <!-- printer -->
                 <TextBlock Text="ΕΚΤΥΠΩΤΗΣ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
-                <ComboBox x:Name="PrinterCombo" Height="46" FontSize="14" Width="320" HorizontalAlignment="Left"
-                          Foreground="{DynamicResource Ink}" Background="{DynamicResource Bg}"
-                          BorderBrush="{DynamicResource Divider}" Padding="10,8"
+                <!-- Style="PosComboBox" ΑΠΑΡΑΙΤΗΤΟ: χωρίς αυτό το dropdown ήταν το προεπιλεγμένο των
+                     Windows, με ΛΕΥΚΟ φόντο. Στο μαύρο θέμα το κείμενο γίνεται ανοιχτόχρωμο, οπότε τα
+                     ονόματα των εκτυπωτών έβγαιναν λευκά πάνω σε λευκό — η λίστα φαινόταν άδεια και το
+                     ταμείο έμοιαζε να «μη βλέπει εκτυπωτή». Το δικό μας style φέρνει και σκούρο popup. -->
+                <ComboBox x:Name="PrinterCombo" Style="{StaticResource PosComboBox}"
+                          Height="46" FontSize="14" Width="320" HorizontalAlignment="Left"
                           DisplayMemberPath="Display"
                           SelectionChanged="PrinterCombo_SelectionChanged"/>
                 <TextBlock Text="Ο εκτυπωτής που θα τυπώνει αυτόματα τις αποδείξεις, χωρίς να ζητά επιβεβαίωση κάθε φορά."

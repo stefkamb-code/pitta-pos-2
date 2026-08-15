@@ -13,8 +13,8 @@ public partial class DayReportWindow : Window
     public DayReportWindow(string report)
     {
         InitializeComponent();
-        // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
-        TitleBarTheme.Attach(this);
+        // ΟΧΙ TitleBarTheme εδώ, ίδιος λόγος με το ReceiptWindow: το παράθυρο τυπώνεται εκτός οθόνης και
+        // το ύψος του βγαίνει από το περιεχόμενο (SizeToContent) — δεν πρέπει να το πειράξει τίποτα.
         ReportText.Text = report;
     }
 
