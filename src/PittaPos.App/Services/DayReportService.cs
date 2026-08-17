@@ -40,8 +40,9 @@ public static class DayReportService
     /// BuildPrintSummary· η πλήρης σύνοψη μένει στο email/backup).</summary>
     private static void AppendPrintSummary(StringBuilder sb, List<CompletedOrder> orders)
     {
+        var revenue = orders.Sum(o => o.Total);
         sb.AppendLine("ΣΥΝΟΨΗ");
-        sb.AppendLine($"  Τζίρος      : {Order.FormatPrice(orders.Sum(o => o.Total))}");
+        sb.AppendLine($"  Τζίρος      : {Order.FormatPrice(revenue)}");
 
         // ΔΙΑΝΟΜΗ/BOX κρατούν τον τρόπο πληρωμής πάνω στην παραγγελία· τα ΤΡΑΠΕΖΙΑ πληρώνονται τμηματικά
         // (ο καθένας τα δικά του, με διαφορετικό τρόπο ο καθένας), οπότε καταγράφονται ξεχωριστά ανά
@@ -54,10 +55,31 @@ public static class DayReportService
             + tables.TotalFor(Core.Models.PaymentMethod.Cash);
         var card = tracked.Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Card).Sum(o => o.Total)
             + tables.TotalFor(Core.Models.PaymentMethod.Card);
-        if (cash > 0 || card > 0)
+        // Οι πλατφόρμες πληρώνονται ΜΕΣΑ στην εφαρμογή (Wolt/e-food) — δεν περνάει ευρώ από το ταμείο,
+        // οπότε δεν είναι ούτε μετρητά ούτε κάρτα. Το BOX εξαιρείται: το παραδίδει δικός μας διανομέας
+        // και έχει κανονικό τρόπο πληρωμής, άρα μετρήθηκε ήδη παραπάνω.
+        var platforms = orders
+            .Where(o => o.Type == OrderType.Apps && o.Channel != "BOX")
+            .Sum(o => o.Total);
+
+        // Ό,τι απομένει: τζίρος που ΔΕΝ αντιστοιχεί σε καμία είσπραξη. Στην πράξη είναι τραπέζια που
+        // έκλεισαν χωρίς να εξοφληθούν από την οθόνη τραπεζιού (το κλείσιμο ημέρας τα ελευθερώνει
+        // χωρίς να τα χρεώσει σε τρόπο πληρωμής).
+        //
+        // ΓΙΑΤΙ ΤΥΠΩΝΕΤΑΙ: πριν, το χαρτί έδειχνε «Τζίρος 100» και από κάτω «Μετρητά 60 / Κάρτα 20»
+        // χωρίς λέξη για τα υπόλοιπα 20 — ο ταμίας έβλεπε ότι δεν βγαίνει και δεν είχε πουθενά να
+        // ψάξει. Τώρα τα τέσσερα νούμερα αθροίζουν ΑΚΡΙΒΩΣ στον τζίρο, οπότε ή βγαίνει με τη μία ή
+        // φαίνεται αμέσως πόσο και πού λείπει.
+        var unsettled = revenue - cash - card - platforms;
+
+        if (revenue > 0)
         {
             sb.AppendLine($"    Μετρητά   : {Order.FormatPrice(cash)}");
             sb.AppendLine($"    Κάρτα     : {Order.FormatPrice(card)}");
+            if (platforms != 0)
+                sb.AppendLine($"    Εφαρμογές : {Order.FormatPrice(platforms)}");
+            if (unsettled != 0)
+                sb.AppendLine($"    Ανεξόφλητα: {Order.FormatPrice(unsettled)}");
         }
 
         sb.AppendLine($"  Παραγγελίες : {orders.Count}");
