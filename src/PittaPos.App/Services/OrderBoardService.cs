@@ -371,13 +371,19 @@ public partial class OrderBoardService : ObservableObject
     public string BuildDriverReport()
     {
         var greek = CultureInfo.GetCultureInfo("el-GR");
+        // ΜΟΝΟ η τρέχουσα βάρδια. Με αυτό το χαρτί ξεκαθαρίζονται λεφτά με τον διανομέα: χωρίς το
+        // φίλτρο, ο βραδινός έπαιρνε μέσα και τις πρωινές παραδόσεις και του ζητούνταν μετρητά που δεν
+        // είχε εισπράξει ποτέ. Ίδιος κανόνας με τα ταμπελάκια των καναλιών (βλ. LiveOrdersViewModel).
+        var evening = SettingsStore.Instance.Settings.IsEveningShift;
         var orders = Orders
-            .Where(o => o.SentVia is not null && DriverChannels.Contains(o.SentVia))
+            .Where(o => o.SentVia is not null && DriverChannels.Contains(o.SentVia) && o.IsEveningShift == evening)
             .OrderBy(o => o.SentAt ?? o.PlacedAt)
             .ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ — ΔΙΑΝΟΜΕΑΣ");
+        // Η βάρδια γράφεται στο χαρτί: δύο αναφορές της ίδιας μέρας είναι αλλιώς αξεχώριστες.
+        sb.AppendLine(evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ");
         sb.AppendLine(DateTime.Now.ToString("dddd d MMMM yyyy · HH:mm", greek));
         sb.AppendLine(new string('=', 40));
         sb.AppendLine();

@@ -668,8 +668,17 @@ public static class WaiterApiService
         if (!SettingsStore.Instance.VerifyPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" });
 
+        // Η παραγγελία πρέπει να ανήκει στο ΤΡΕΧΟΝ άνοιγμα του τραπεζιού — ίδιος κανόνας με κάθε άλλη
+        // αναζήτηση παραγγελιών τραπεζιού. Ήταν το μόνο σημείο που έψαχνε μόνο με αριθμό παραγγελίας:
+        // μια ξεχασμένη ανοιχτή οθόνη στο κινητό μπορούσε, αφού το τραπέζι έκλεινε και ξανάνοιγε με
+        // άλλη παρέα, να εξοφλήσει παραγγελία της ΠΡΟΗΓΟΥΜΕΝΗΣ — και το ποσό της να μετρήσει δεύτερη
+        // φορά στα μετρητά/κάρτα της ημέρας, χρεωμένο στο νέο τραπέζι.
+        if (!TableStatusService.Instance.OpenSince.TryGetValue(table, out var since))
+            return (400, new { error = "Το τραπέζι δεν είναι ανοιχτό" });
+
         var order = SalesStatsService.Instance.Orders
-            .FirstOrDefault(o => o.Type == OrderType.Table && o.Who == "Τραπέζι " + table && o.OrderNumber == req.OrderNumber);
+            .FirstOrDefault(o => o.Type == OrderType.Table && o.Who == "Τραπέζι " + table
+                && o.OrderNumber == req.OrderNumber && o.PlacedAt >= since);
         if (order is null || req.LineIndex < 0 || req.LineIndex >= order.Lines.Count)
             return (400, new { error = "Άκυρη γραμμή" });
 

@@ -116,10 +116,17 @@ public static class SalesChartService
     private static List<CompletedOrder> LoadOrders(DateTime from, DateTime to)
     {
         var today = SalesStatsService.BusinessDay(DateTime.Now);
-        var includesToday = from.Date <= today && today <= to.Date;
         var archived = HistoryArchiveService.LoadOrders(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
-        var live = includesToday ? SalesStatsService.Instance.Orders : Enumerable.Empty<CompletedOrder>();
+        // Ίδιο φίλτρο ημέρας-επιχείρησης και στις ζωντανές, όπως και στο Ιστορικό: μια παραγγελία
+        // προηγούμενης μέρας που κάθεται ακόμα εδώ ανήκει στη ΔΙΚΗ ΤΗΣ μέρα του διαγράμματος, όχι στη
+        // σημερινή (βλ. HistoryViewModel.Refresh).
+        var live = SalesStatsService.Instance.Orders
+            .Where(o =>
+            {
+                var day = SalesStatsService.BusinessDay(o.PlacedAt);
+                return day >= from.Date && day <= to.Date;
+            });
         return archived.Concat(live).ToList();
     }
 }

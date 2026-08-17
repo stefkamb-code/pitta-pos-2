@@ -250,9 +250,12 @@ public partial class LiveOrdersViewModel : ObservableObject
             };
         }).ToList();
 
+        // ΙΔΙΟ φίλτρο βάρδιας με το ταμπελάκι του καναλιού από πάνω (ChannelStats). Χωρίς αυτό, το
+        // ταμπελάκι μετρούσε μόνο τη βραδινή βάρδια αλλά η λίστα που άνοιγε από κάτω έδειχνε ΚΑΙ τις
+        // πρωινές — δύο διαφορετικά νούμερα για το ίδιο κανάλι, στην ίδια οθόνη.
         ChannelOrders = SelectedChannel is null
             ? []
-            : _board.Orders.Where(o => o.SentVia == SelectedChannel)
+            : _board.Orders.Where(o => o.SentVia == SelectedChannel && o.IsEveningShift == IsEveningShift)
                 .OrderByDescending(o => o.SentAt ?? DateTime.MinValue)
                 .Select(o => new ChannelOrderViewModel
                 {

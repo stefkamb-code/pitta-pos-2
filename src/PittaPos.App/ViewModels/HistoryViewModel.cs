@@ -599,11 +599,18 @@ public partial class HistoryViewModel : ObservableObject
         var from = FromDate ?? DateTime.MinValue;
         var to = ToDate ?? DateTime.MaxValue;
         var today = SalesStatsService.BusinessDay(DateTime.Now);
-        var includesToday = from.Date <= today && today <= to.Date;
+
+        // Οι ΖΩΝΤΑΝΕΣ φιλτράρονται με τον ΙΔΙΟ κανόνα ημέρας-επιχείρησης που φιλτράρονται και οι
+        // αρχειοθετημένες. Πριν έμπαιναν όλες όποτε το εύρος περιλάμβανε τη σημερινή: συνήθως σωστό,
+        // γιατί ζωντανές είναι μόνο οι σημερινές — αλλά όχι πάντα. Μια παραγγελία προηγούμενης μέρας
+        // μπορεί να κάθεται ακόμα εδώ (έφτασε καθυστερημένα από την ουρά του δεύτερου ταμείου, ή ο
+        // υπολογιστής κοιμήθηκε και προσπέρασε την ώρα κλεισίματος) και εμφανιζόταν σαν ΣΗΜΕΡΙΝΗ.
+        static bool InRange(DateTime day, DateTime from, DateTime to) => day >= from.Date && day <= to.Date;
 
         var archivedOrders = HistoryArchiveService.LoadOrders(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
-        var liveOrders = includesToday ? _stats.Orders : Enumerable.Empty<CompletedOrder>();
+        var liveOrders = _stats.Orders
+            .Where(o => InRange(SalesStatsService.BusinessDay(o.PlacedAt), from, to));
         var allOrders = archivedOrders.Concat(liveOrders);
         Orders = (searching ? Matching(allOrders, search) : ApplyChannelFilter(allOrders))
             .OrderByDescending(o => o.PlacedAt).ToList();
@@ -615,7 +622,8 @@ public partial class HistoryViewModel : ObservableObject
 
         var archivedCancellations = HistoryArchiveService.LoadCancellations(from, to)
             .Where(c => SalesStatsService.BusinessDay(c.CancelledAt) != today);
-        var liveCancellations = includesToday ? _cancellations.Entries : Enumerable.Empty<CancelledLine>();
+        var liveCancellations = _cancellations.Entries
+            .Where(c => InRange(SalesStatsService.BusinessDay(c.CancelledAt), from, to));
         var allCancellations = archivedCancellations.Concat(liveCancellations);
         // Η αναζήτηση πιάνει και τα ΑΚΥΡΩΜΕΝΑ: «πού πήγε η #142» έχει απάντηση και όταν ακυρώθηκε.
         if (searching)

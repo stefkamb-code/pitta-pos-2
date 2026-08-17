@@ -620,6 +620,19 @@ public partial class MenuManagerViewModel : ObservableObject
         if (name.Length == 0)
             return;
 
+        // Δύο κατηγορίες με το ΙΔΙΟ όνομα δεν επιτρέπονται — και δεν είναι θέμα τάξης: οι ιδιότητες
+        // κατηγορίας (επιλογή ψωμιού, διπλή πίτα και η χρέωσή της) αναζητούνται με το ΟΝΟΜΑ, οπότε η
+        // δεύτερη θα δούλευε σιωπηλά με τις ρυθμίσεις της πρώτης — και στο ταμείο και στο κινητό.
+        // Το λάθος γίνεται εύκολα: το πεδίο προτείνει τα ονόματα που ήδη υπάρχουν.
+        var clash = _store.Categories.FirstOrDefault(c =>
+            c != SelectedCategory && string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (clash is not null)
+        {
+            MessageBox.Show("Υπάρχει ήδη κατηγορία «" + clash.Name + "».\n\nΔώσε διαφορετικό όνομα.",
+                "Κατηγορία", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         if (IsNewCategory)
         {
             var upper = name.ToUpper(Greek);

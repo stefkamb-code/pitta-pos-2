@@ -1006,6 +1006,11 @@ public partial class OrderWizardViewModel : ObservableObject
         // «+ Νέα παραγγελία» αφού ο ταμίας έχει ήδη ξεδιαλέξει το ΤΡΑΠΕΖΙ πίσω στην κάτοψη. Τότε ο
         // τύπος ήταν null και η παραγγελία καταγραφόταν ως ΔΙΑΝΟΜΗ χωρίς όνομα (βλ. RecordStats).
         OrderType = Core.Models.OrderType.Table;
+        // Και ΡΗΤΑ οι τιμές του μαγαζιού: αυτός ο δρόμος παρακάμπτει το Βήμα 1 (SelectOrderType), που
+        // είναι το μόνο σημείο που ορίζει τιμοκατάλογο. Μετά από μια παραγγελία ΕΦΑΡΜΟΓΩΝ ο διακόπτης
+        // έμενε αναμμένος και το τραπέζι χρεωνόταν σιωπηλά με τιμές e-food/Wolt/BOX — 88 από τα 141
+        // προϊόντα του καταλόγου έχουν διαφορετική τιμή εκεί.
+        Products.UseDeliveryPrices = false;
         Products.ContinueLabel = "ΣΥΝΕΧΕΙΑ · ΕΚΤΥΠΩΣΗ";
         TableNumber = number;
         foreach (var t in TableNumbers)
@@ -1869,6 +1874,10 @@ public partial class OrderWizardViewModel : ObservableObject
         SentPersonsAbove.Clear();
         SentPersonsBelow.Clear();
         Products.AllowEmptyContinue = false;
+        // Πίσω στις τιμές του μαγαζιού. Ο τιμοκατάλογος εφαρμογών ανάβει ΜΟΝΟ όταν επιλεγεί ΕΦΑΡΜΟΓΕΣ
+        // στο Βήμα 1· αν έμενε αναμμένος από την προηγούμενη παραγγελία, η επόμενη ξεκινούσε με λάθος
+        // τιμές χωρίς τίποτα να το δείχνει στην οθόνη.
+        Products.UseDeliveryPrices = false;
         foreach (var o in OrderTypeOptions) o.IsSelected = false;
         foreach (var t in TableNumbers) t.IsSelected = false;
         foreach (var m in AppMethods) m.IsSelected = false;
