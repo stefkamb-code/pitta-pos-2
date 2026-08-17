@@ -1091,7 +1091,22 @@ public partial class OrderWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(MissingAppOrderRef));
     }
 
-    partial void OnAppOrderRefChanged(string value) => NotifyStep2Validation();
+    /// <summary>
+    /// Ο κωδικός της πλατφόρμας δέχεται ΜΟΝΟ ψηφία — ό,τι άλλο πληκτρολογηθεί απλώς δεν γράφεται.
+    /// <para>Ίδιος κανόνας με το πεδίο αναζήτησης του Ιστορικού (βλ. HistoryViewModel.OnSearchNumberChanged),
+    /// και για τον ίδιο λόγο: εκείνο ψάχνει μόνο με ψηφία, οπότε ένα γράμμα που ξέφευγε εδώ έφτιαχνε
+    /// παραγγελία που μετά ΔΕΝ βρισκόταν ποτέ με αναζήτηση.</para>
+    /// </summary>
+    partial void OnAppOrderRefChanged(string value)
+    {
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits != value)
+        {
+            AppOrderRef = digits; // ξαναμπαίνει εδώ, καθαρό
+            return;
+        }
+        NotifyStep2Validation();
+    }
     partial void OnAppPlatformChanged(string? value) => NotifyStep2Validation();
 
     partial void OnStep2ValidatedChanged(bool value) => NotifyStep2Validation();
