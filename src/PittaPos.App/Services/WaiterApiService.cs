@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -198,7 +199,9 @@ public static class WaiterApiService
         app.MapPost("/api/sync/table-status/open", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<TableSyncRequest>();
-            if (req is not null) OnUi(() => { TableStatusService.Instance.MarkOpen(req.Table); return 0; });
+            // Κρατιέται η ώρα που όρισε το δεύτερο ταμείο — με αυτήν έχει ήδη σφραγίσει την παραγγελία
+            // του. Παλιότερη έκδοση δεύτερου ταμείου δεν τη στέλνει: τότε ισχύει η δική μας ώρα, όπως πριν.
+            if (req is not null) OnUi(() => { TableStatusService.Instance.MarkOpenAt(req.Table, req.OpenedAt ?? DateTime.Now); return 0; });
             return Results.Ok();
         });
         app.MapPost("/api/sync/table-status/close", async (HttpContext ctx) =>
@@ -288,6 +291,12 @@ public static class WaiterApiService
                 OnUi(() => { TablePersonsService.Instance.Assign(req.Table, req.OrderNumber, req.LineIndex, req.Unit, req.Person); return 0; });
             return Results.Ok();
         });
+        app.MapPost("/api/sync/table-persons/clear-table", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<TableSyncRequest>();
+            if (req is not null) OnUi(() => { TablePersonsService.Instance.ClearTable(req.Table); return 0; });
+            return Results.Ok();
+        });
         app.MapPost("/api/sync/table-persons/clear-order", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<TableOrderSyncRequest>();
@@ -324,6 +333,14 @@ public static class WaiterApiService
             return Results.Ok();
         });
 
+        // Αναφορά ημέρας/διανομέα από το δεύτερο ταμείο — ο εκτυπωτής είναι εδώ.
+        app.MapPost("/api/sync/print/text", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<PrintTextRequest>();
+            if (req is not null) OnUi(() => { ReceiptPrinter.PrintText(req.Text, req.Title); return 0; });
+            return Results.Ok();
+        });
+
         app.MapPost("/api/sync/orders/clear", () =>
         {
             OnUi(() => { SalesStatsService.Instance.Clear(); return 0; });
@@ -332,13 +349,41 @@ public static class WaiterApiService
         app.MapPost("/api/sync/orders/remove-line", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<OrderNumberLineRequest>();
-            if (req is not null) OnUi(() => { SalesStatsService.Instance.RemoveLine(req.OrderNumber, req.LineIndex); return 0; });
+            if (req is not null) OnUi(() => { SalesStatsService.Instance.RemoveLine(req.OrderNumber, req.LineIndex, req.CancelledBy); return 0; });
             return Results.Ok();
         });
         app.MapPost("/api/sync/orders/remove", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<OrderNumberRequest>();
             if (req is not null) OnUi(() => { SalesStatsService.Instance.RemoveOrder(req.OrderNumber, req.CancelledBy); return 0; });
+            return Results.Ok();
+        });
+        // Οι ακυρωμένες ζουν μόνο εδώ (το δεύτερο ταμείο δεν γράφει ποτέ δικές του — βλ.
+        // CancellationLogService.RefreshFromHostAsync), οπότε τις διαβάζει από εδώ.
+        app.MapGet("/api/sync/cancellations", () => Results.Json(OnUi(() => CancellationLogService.Instance.Entries.ToList())));
+
+        // Αρχείο παλιότερων ημερών — το κλείσιμο ημέρας γίνεται μόνο εδώ, οπότε μόνο εδώ υπάρχει αρχείο.
+        // ΧΩΡΙΣ OnUi επίτηδες: είναι σκέτο διάβασμα αρχείων χωρίς καμία κατάσταση οθόνης, και μια
+        // πολυάσχολη μέρα δεν πρέπει να κρατάει το UI thread του ταμείου όσο διαβάζεται.
+        app.MapGet("/api/sync/archive/days", () => Results.Json(HistoryArchiveService.ArchivedDays()));
+        app.MapGet("/api/sync/archive/day", (string day) =>
+            DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var businessDay)
+                ? Results.Json(HistoryArchiveService.ContentFor(businessDay))
+                : Results.BadRequest(new { error = "Άκυρη ημερομηνία" }));
+        // Οι εισπράξεις τραπεζιών ζουν μόνο εδώ (βλ. TablePaymentsService.Add) — το δεύτερο ταμείο τις
+        // διαβάζει για τη διόρθωση μετρητά↔κάρτα και για τον διαχωρισμό της αναφοράς ημέρας.
+        app.MapGet("/api/sync/table-payments", () => Results.Json(OnUi(() => TablePaymentsService.Instance.Payments.ToList())));
+        app.MapPost("/api/sync/table-payments/remove", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<OrderNumberRequest>();
+            if (req is not null) OnUi(() => { TablePaymentsService.Instance.RemoveFor(req.OrderNumber); return 0; });
+            return Results.Ok();
+        });
+        app.MapPost("/api/sync/table-payments/switch", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<OrderNumberPaymentMethodRequest>();
+            if (req?.PaymentMethod is { } method)
+                OnUi(() => { TablePaymentsService.Instance.SwitchMethod(req.OrderNumber, method); return 0; });
             return Results.Ok();
         });
         app.MapPost("/api/sync/orders/payment-method", async (HttpContext ctx) =>
@@ -880,6 +925,24 @@ public static class WaiterApiService
         var ticket = all.Count == 1 ? ForSinglePersonTicket(table, order) : MergeForPrinting(all);
         // Η εκτύπωση δεν κρατάει την απάντηση: ο σερβιτόρος περίμενε στο κινητό όσο δούλευε ο εκτυπωτής.
         System.Windows.Application.Current?.Dispatcher.BeginInvoke(() => ReceiptPrinter.PrintOrder(ticket));
+    }
+
+    /// <summary>
+    /// Πετάει ό,τι περίμενε να τυπωθεί για ένα τραπέζι που μόλις έκλεισε — η παρέα έφυγε, το φαγητό της
+    /// δεν έχει νόημα να βγει τώρα στην κουζίνα.
+    /// <para>ΧΩΡΙΣ αυτό η ουρά δεν άδειαζε ΠΟΤΕ παρά μόνο με εκτύπωση: ένας γύρος που εγκαταλείφθηκε στη
+    /// μέση (ο σερβιτόρος βγήκε από την οθόνη και δεν ήρθε ποτέ «τελευταίο άτομο» ούτε το print-pending)
+    /// έμενε στη μνήμη με κλειδί το τραπέζι, και <b>κολλούσε στο δελτίο της ΕΠΟΜΕΝΗΣ παρέας</b> που θα
+    /// καθόταν εκεί — ο ψήστης έφτιαχνε φαγητό που κανείς δεν παρήγγειλε. Καταγράφεται, γιατί σημαίνει
+    /// ότι κάποιος χρεώθηκε φαγητό που δεν έφτασε ποτέ στην κουζίνα.</para>
+    /// </summary>
+    public static void DiscardPendingPrints(int table)
+    {
+        if (!PendingPrints.Remove(table, out var dropped) || dropped.Count == 0)
+            return;
+        AppLog.Write("print-queue",
+            $"Τραπέζι {table}: έκλεισε με {dropped.Count} παραγγελίες που δεν τυπώθηκαν ποτέ " +
+            $"(#{string.Join(", #", dropped.Select(o => o.OrderNumber))}) — δεν περνούν στην επόμενη παρέα.");
     }
 
     /// <summary>Τυπώνει ό,τι έχει μείνει στην ουρά για το τραπέζι — δικλείδα για την περίπτωση που ο

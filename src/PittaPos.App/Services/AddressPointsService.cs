@@ -40,22 +40,12 @@ public class AddressPointsService
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "address-points.json");
-        if (!RemoteSync.IsClient)
-        {
-            Load();
-            return;
-        }
-
-        // Το polling ΠΡΕΠΕΙ να στηθεί πάνω στο UI thread: το StartPolling φτιάχνει DispatcherTimer, που
-        // δένεται στο νήμα που τον δημιουργεί. Σε αντίθεση με τα υπόλοιπα stores, αυτό εδώ γεννιέται
-        // «τεμπέλικα» — η πρώτη του χρήση μπορεί κάλλιστα να είναι μέσα σε γεωκωδικοποίηση ή σε αίτημα
-        // του κινητού, δηλαδή σε νήμα παρασκηνίου· εκεί ο timer δεν θα χτυπούσε ΠΟΤΕ και το δεύτερο
-        // ταμείο δεν θα έπαιρνε ποτέ σημεία από το κύριο.
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        // Το «στήσιμο πάνω στο UI thread» το αναλαμβάνει πλέον το ίδιο το StartPolling — αυτό εδώ ήταν
+        // το store που το χρειάστηκε πρώτο (γεννιέται τεμπέλικα, συχνά σε νήμα παρασκηνίου).
+        if (RemoteSync.IsClient)
             RemoteSync.StartPolling(TimeSpan.FromSeconds(30), RefreshFromHostAsync);
         else
-            dispatcher.BeginInvoke(() => RemoteSync.StartPolling(TimeSpan.FromSeconds(30), RefreshFromHostAsync));
+            Load();
     }
 
     /// <summary>

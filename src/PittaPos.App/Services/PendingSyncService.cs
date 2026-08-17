@@ -82,7 +82,12 @@ public partial class PendingSyncService : ObservableObject
         OnUi(() =>
         {
             if (_items.Count >= MaxItems)
+            {
+                // Εδώ χάνεται ΠΡΑΓΜΑΤΙΚΗ παραγγελία — δεν επιτρέπεται να συμβεί χωρίς ίχνος, αλλιώς
+                // αργότερα δεν υπάρχει τρόπος να εξηγηθεί τι έλειψε από τον τζίρο.
+                AppLog.Write("pending-sync", $"ΓΕΜΑΤΗ ΟΥΡΑ ({MaxItems}) — ΔΕΝ καταχωρήθηκε: {label}");
                 return;
+            }
             _items.Add(new PendingSyncItem(path, JsonSerializer.Serialize(body), label, DateTime.Now));
             Save();
             UpdateCounters();

@@ -158,9 +158,17 @@ public class TablePersonsService
             ClearTable(table);
     }
 
-    /// <summary>Καλείται όταν κλείνει το τραπέζι — καθαρό ξεκίνημα για τον επόμενο πελάτη.</summary>
+    /// <summary>Καλείται όταν κλείνει το τραπέζι — καθαρό ξεκίνημα για τον επόμενο πελάτη.
+    /// <para>Χρειάζεται συγχρονισμό όπως τα αδέλφια του: φτάνει εδώ και από το ShrinkToWhoOrdered, που
+    /// τρέχει και στο δεύτερο ταμείο (βλ. OrderWizardViewModel) — χωρίς αυτό ο χωρισμός σε άτομα
+    /// καθαριζόταν μόνο τοπικά και ξαναγύριζε με το επόμενο poll από το κύριο ταμείο.</para></summary>
     public void ClearTable(int table)
     {
+        if (RemoteSync.IsClient)
+        {
+            _ = SyncThenRefreshAsync("/api/sync/table-persons/clear-table", new { Table = table });
+            return;
+        }
         var removed = _counts.Remove(table);
         removed |= _assigned.Remove(table);
         if (!removed)

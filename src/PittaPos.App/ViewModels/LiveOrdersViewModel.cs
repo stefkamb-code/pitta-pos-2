@@ -169,15 +169,15 @@ public partial class LiveOrdersViewModel : ObservableObject
     [RelayCommand]
     private void PrintDriverReport() => ReceiptPrinter.PrintDriverReport(_board.BuildDriverReport());
 
-    /// <summary>Πραγματική ακύρωση (διαγραφή) μιας ζωντανής παραγγελίας — π.χ. ακύρωσε ο πελάτης. Αφαιρείται
-    /// και από τον τζίρο (SalesStatsService, ίδια λογική με το CancelRound στο τραπέζι) και από τον πίνακα.
+    /// <summary>Πραγματική ακύρωση (διαγραφή) μιας ζωντανής παραγγελίας — π.χ. ακύρωσε ο πελάτης. Πηγαίνει
+    /// στις ακυρωμένες και φεύγει από τον πίνακα, τον τζίρο και το Ιστορικό (βλ. OrderCancellationService,
+    /// ίδια συμπεριφορά με τραπέζι και Ιστορικό).
     /// Μόνο με ονομαστικό κωδικό (βλ. code-behind, StaffPinDialog) — δεν είναι bindable κατευθείαν σε
     /// Command στο XAML, το κουμπί καλεί πρώτα το PIN dialog (βλ. LiveOrdersWindow.xaml.cs).</summary>
     [RelayCommand]
     private void CancelOrder(CancelBoardOrderRequest request)
     {
-        SalesStatsService.Instance.RemoveOrder(request.Order.OrderNumber, request.CancelledBy);
-        _board.Cancel(request.Order);
+        OrderCancellationService.CancelOrder(request.Order.OrderNumber, request.CancelledBy);
         if (SelectedOrder == request.Order)
             SelectedOrder = null;
     }

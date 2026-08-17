@@ -68,6 +68,8 @@ public partial class StatsViewModel : ObservableObject
     {
         _stats.Changed += Refresh;
         ThemeManager.Changed += RefreshChart;
+        // Δεύτερο ταμείο: το διάγραμμα παλιότερων ημερών βγαίνει από το ίδιο αρχείο με το Ιστορικό.
+        HistoryArchiveService.Changed += Refresh;
         Refresh();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -80,6 +82,7 @@ public partial class StatsViewModel : ObservableObject
     {
         _stats.Changed -= Refresh;
         ThemeManager.Changed -= RefreshChart;
+        HistoryArchiveService.Changed -= Refresh;
         _clock.Stop();
     }
 

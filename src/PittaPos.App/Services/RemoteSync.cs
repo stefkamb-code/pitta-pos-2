@@ -374,9 +374,20 @@ public static class RemoteSync
     /// <summary>
     /// Ξεκινά περιοδικό refresh από το host — αμέσως μία φορά, μετά κάθε <paramref name="interval"/>.
     /// Ο κάθε store καλεί αυτό μία φορά στον constructor του όταν IsClient.
+    /// <para>Ο timer στήνεται ΠΑΝΤΑ πάνω στο UI thread: ο DispatcherTimer δένεται στο νήμα που τον
+    /// δημιουργεί, και τα stores γεννιούνται «τεμπέλικα» — η πρώτη χρήση ενός store μπορεί κάλλιστα να
+    /// είναι μέσα σε αίτημα του κινητού ή σε γεωκωδικοποίηση, δηλαδή σε νήμα παρασκηνίου, όπου ο timer
+    /// δεν θα χτυπούσε ΠΟΤΕ και το δεύτερο ταμείο δεν θα ενημερωνόταν ποτέ.</para>
     /// </summary>
     public static void StartPolling(TimeSpan interval, Func<Task> refresh)
     {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => StartPolling(interval, refresh));
+            return;
+        }
+
         _ = refresh();
         var timer = new DispatcherTimer { Interval = interval };
         timer.Tick += async (_, _) => await refresh();

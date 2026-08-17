@@ -430,7 +430,10 @@ public class SalesStatsService
     {
         if (RemoteSync.IsClient)
         {
-            _ = SyncThenRefreshAsync("/api/sync/orders/remove-line", new { OrderNumber = orderNumber, LineIndex = lineIndex });
+            // Ο ονομαστικός κωδικός ταξιδεύει μαζί — αλλιώς κάθε ακύρωση από το δεύτερο ταμείο
+            // καταγραφόταν στις ακυρωμένες με «—» αντί για το ποιος την έκανε.
+            _ = SyncThenRefreshAsync("/api/sync/orders/remove-line",
+                new { OrderNumber = orderNumber, LineIndex = lineIndex, CancelledBy = cancelledBy });
             return;
         }
         if (!_orders.TryGetValue(orderNumber, out var order))
@@ -529,6 +532,14 @@ public class SalesStatsService
         // αν το διορθωμένο κανάλι δεν είναι ένα απ' τα δύο, καθαρίζεται· αλλιώς θα έμενε "κολλημένο" από
         // το προηγούμενο (λάθος) κανάλι, π.χ. Πληρωμή: Μετρητά σε μια e-food παραγγελία.
         var keepsPayment = type == OrderType.Delivery || (type == OrderType.Apps && channel == "BOX");
+
+        // Έπαψε να είναι ΤΡΑΠΕΖΙ: μαζί του πρέπει να φύγει και η είσπραξή του από τα τραπέζια, αλλιώς
+        // το ποσό ΔΙΠΛΟΜΕΤΡΙΕΤΑΙ στα μετρητά/κάρτα της ημέρας. Η αναφορά αθροίζει δύο πηγές — τον
+        // τρόπο πληρωμής πάνω στην παραγγελία (αγνοείται ρητά για τα τραπέζια) και τις εισπράξεις των
+        // τραπεζιών (βλ. DayReportService.AppendPrintSummary). Όσο ήταν τραπέζι μετρούσε μόνο η
+        // δεύτερη· μόλις γίνει ΔΙΑΝΟΜΗ/BOX αρχίζει να μετράει και η πρώτη, με το ίδιο ποσό.
+        if (order.Type == OrderType.Table && type != OrderType.Table)
+            OrderCancellationService.ClearTableTraces(OrderCancellationService.TableNumberOf(order), orderNumber);
 
         _orders[orderNumber] = new CompletedOrder
         {

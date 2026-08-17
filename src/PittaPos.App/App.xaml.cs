@@ -67,6 +67,10 @@ public partial class App : Application
         // του, τη βρίσκει ξανά μόνος του μέσα σε δευτερόλεπτα (βλ. HostWatchdog).
         HostWatchdog.Start();
 
+        // Δεύτερο ταμείο: αντίγραφο του αρχείου παλιότερων ημερών, ώστε Ιστορικό και Στατιστικά να
+        // δείχνουν τα ίδια με το κύριο και πίσω στον χρόνο (βλ. HistoryArchiveService).
+        HistoryArchiveService.StartClientMirror();
+
         // Αναγνώριση κλήσεων μέσω AMI του Grandstream UCM — ανενεργό αν δεν έχει ρυθμιστεί
         AmiClientService.Start();
     }

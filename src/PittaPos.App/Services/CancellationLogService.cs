@@ -38,7 +38,24 @@ public class CancellationLogService
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "cancellations.json");
-        Load();
+        if (RemoteSync.IsClient)
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(3), RefreshFromHostAsync);
+        else
+            Load();
+    }
+
+    /// <summary>Δεύτερο ταμείο (client) — οι ακυρώσεις γράφονται όλες στο κύριο ταμείο (το Log δεν
+    /// φτάνει ποτέ εδώ, βλ. SalesStatsService.RemoveOrder/RemoveLine που γυρίζουν νωρίς στον client),
+    /// οπότε χωρίς αυτό η καρτέλα ΑΚΥΡΩΜΕΝΕΣ του δεύτερου ταμείου έμενε για πάντα άδεια — ακόμα και
+    /// για την ακύρωση που μόλις είχε κάνει ο ίδιος ο ταμίας του.</summary>
+    private async Task RefreshFromHostAsync()
+    {
+        var entries = await RemoteSync.GetAsync<List<CancelledLine>>("/api/sync/cancellations");
+        if (entries is null)
+            return;
+        _entries.Clear();
+        _entries.AddRange(entries);
+        Changed?.Invoke();
     }
 
     private void Load()
@@ -73,6 +90,21 @@ public class CancellationLogService
         _entries.Insert(0, line);
         Save();
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Αφαιρεί τις ακυρώσεις ΜΙΑΣ μέρας — μετά την αρχειοθέτησή της από το ArchiveStaleDaysOnly, που
+    /// αρχειοθετεί μια παλιά μέρα χωρίς να κλείσει η τρέχουσα βάρδια. Χωρίς αυτό οι ακυρώσεις εκείνης
+    /// της μέρας έμεναν ΚΑΙ στο αρχείο ΚΑΙ ζωντανές, και το Ιστορικό (που ενώνει τις δύο πηγές) τις
+    /// έδειχνε δύο φορές — με διπλάσιο ποσό και διπλάσια προϊόντα στην κάρτα.
+    /// </summary>
+    public void RemoveForDay(DateTime businessDay)
+    {
+        if (_entries.RemoveAll(c => SalesStatsService.BusinessDay(c.CancelledAt) == businessDay) > 0)
+        {
+            Save();
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>Καθαρίζει το ημερήσιο log (κλείσιμο μέρας).</summary>

@@ -75,17 +75,42 @@ public class TableStatusService
         }
     }
 
-    /// <summary>Σημειώνει το τραπέζι ανοιχτό (αν δεν ήταν ήδη) — καλείται αυτόματα με κάθε παραγγελία τραπεζιού.</summary>
+    /// <summary>Σημειώνει το τραπέζι ανοιχτό (αν δεν ήταν ήδη) — καλείται αυτόματα με κάθε παραγγελία τραπεζιού.
+    /// <para><b>Δεύτερο ταμείο:</b> η ώρα ανοίγματος ορίζεται ΕΔΩ και κρατιέται ΑΜΕΣΩΣ τοπικά, πριν σταλεί
+    /// στο κύριο. Ο καλών διαβάζει το <see cref="OpenSince"/> στην αμέσως επόμενη γραμμή για να σφραγίσει
+    /// την παραγγελία (<c>CompletedOrder.TableOpenedAt</c>, βλ. OrderWizardViewModel και WaiterApiService):
+    /// με σκέτη αποστολή στο κύριο ταμείο, η τοπική εικόνα ενημερωνόταν δευτερόλεπτα αργότερα και η
+    /// <b>πρώτη παραγγελία κάθε τραπεζιού έβγαινε χωρίς άνοιγμα</b> — το Ιστορικό την έδειχνε σαν
+    /// ξεχωριστό λογαριασμό, κομμένο από την υπόλοιπη παρέα.</para></summary>
     public void MarkOpen(int table)
     {
-        if (RemoteSync.IsClient)
-        {
-            _ = SyncThenRefreshAsync("/api/sync/table-status/open", new { Table = table });
-            return;
-        }
         if (_openSince.ContainsKey(table))
             return;
-        _openSince[table] = DateTime.Now;
+
+        var openedAt = DateTime.Now;
+        if (RemoteSync.IsClient)
+        {
+            // Χωρίς Save: στο δεύτερο ταμείο η εικόνα έρχεται πάντα από το κύριο (βλ. RefreshFromHostAsync),
+            // δεν κρατιέται τοπικό αρχείο κατάστασης.
+            _openSince[table] = openedAt;
+            Changed?.Invoke();
+            _ = SyncThenRefreshAsync("/api/sync/table-status/open", new { Table = table, OpenedAt = openedAt });
+            return;
+        }
+        _openSince[table] = openedAt;
+        Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Άνοιγμα τραπεζιού που ήρθε από το δεύτερο ταμείο, με την ώρα ΠΟΥ ΕΚΕΙΝΟ όρισε — έτσι η
+    /// σφραγίδα πάνω στην πρώτη του παραγγελία ταιριάζει με το άνοιγμα που κρατά το κύριο ταμείο, και το
+    /// Ιστορικό μαζεύει όλη την παρέα σε έναν λογαριασμό. Αν το τραπέζι είναι ήδη ανοιχτό, δεν αλλάζει
+    /// τίποτα (πρώτο άνοιγμα κερδίζει, όπως και στο MarkOpen).</summary>
+    public void MarkOpenAt(int table, DateTime openedAt)
+    {
+        if (_openSince.ContainsKey(table))
+            return;
+        _openSince[table] = openedAt;
         Save();
         Changed?.Invoke();
     }
@@ -93,6 +118,10 @@ public class TableStatusService
     /// <summary>Ελευθερώνει το τραπέζι — η επόμενη παραγγελία θα ξεκινήσει νέο, καθαρό σύνολο.</summary>
     public void MarkClosed(int table)
     {
+        // ΠΡΙΝ τον έλεγχο για δεύτερο ταμείο: η ουρά εκτύπωσης του κινητού είναι ΤΟΠΙΚΗ σε κάθε ταμείο
+        // (γεμίζει σε όποιο μιλάει το κινητό), οπότε καθαρίζει καθένα τη δική του — αλλιώς ένας γύρος
+        // που εγκαταλείφθηκε θα κολλούσε στο δελτίο της επόμενης παρέας του τραπεζιού.
+        WaiterApiService.DiscardPendingPrints(table);
         if (RemoteSync.IsClient)
         {
             _ = SyncThenRefreshAsync("/api/sync/table-status/close", new { Table = table });
@@ -125,6 +154,7 @@ public class TableStatusService
         {
             TableSettlementService.Instance.ClearTable(table);
             TablePersonsService.Instance.ClearTable(table);
+            WaiterApiService.DiscardPendingPrints(table);
         }
         _openSince.Clear();
         Save();

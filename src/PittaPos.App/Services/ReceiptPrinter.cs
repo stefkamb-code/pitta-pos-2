@@ -191,6 +191,16 @@ public static class ReceiptPrinter
             $"Απόδειξη #{order.OrderNumber} προς εκτύπωση");
     }
 
+    /// <summary>Στέλνει μια αναφορά στο κύριο ταμείο για εκτύπωση. Σε αντίθεση με την απόδειξη, ΔΕΝ
+    /// μπαίνει στην ουρά αναμονής αν δεν φτάσει: μια αναφορά έχει νόημα ΤΩΡΑ — τυπωμένη μισή ώρα
+    /// αργότερα δείχνει άλλα νούμερα και μπερδεύει (βλ. PendingSyncService: μόνο προσθήκες μπαίνουν
+    /// εκεί, ποτέ ενέργειες της στιγμής).</summary>
+    private static async Task SendTextToHostAsync(string text, string title)
+    {
+        if (!await RemoteSync.PostAsync("/api/sync/print/text", new { Text = text, Title = title }))
+            AppLog.Write("printer", $"Δεν στάλθηκε στο κύριο ταμείο για εκτύπωση: {title}");
+    }
+
     private static void Fail(CompletedOrder order, string reason) =>
         AppLog.Write("printer", $"Δεν τυπώθηκε η απόδειξη #{order.OrderNumber} " +
             $"({order.TypeLabel}, {order.TotalLabel}): {reason}");
@@ -217,8 +227,21 @@ public static class ReceiptPrinter
     /// με μονόχωρο κείμενο αντί για κάρτα απόδειξης. Αν δεν έχει οριστεί ακόμα εκτυπωτής, δείχνει το
     /// κείμενο σε ένα κανονικό (ορατό) παράθυρο αντί να μην κάνει τίποτα — έτσι δεν «χάνεται» χωρίς κανένα
     /// αποτέλεσμα πριν ρυθμιστεί ο εκτυπωτής.</summary>
+    /// <summary>Εκτύπωση κειμένου που ήρθε από το δεύτερο ταμείο (βλ. /api/sync/print/text).</summary>
+    public static void PrintText(string text, string title) => PrintPlainText(text, title);
+
     private static void PrintPlainText(string text, string title)
     {
+        // Δεύτερο ταμείο: ίδιος λόγος με το PrintOrder — ο εκτυπωτής είναι δεμένος στο κύριο ταμείο.
+        // Χωρίς αυτό, «🖨 ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ» και «ΕΚΤΥΠΩΣΗ ΤΩΡΑ» άνοιγαν εδώ ένα παράθυρο
+        // προεπισκόπησης («δεν έχει οριστεί εκτυπωτής») αντί να βγάλουν χαρτί — ο διανομέας έφευγε
+        // χωρίς τη λίστα του και ο ταμίας νόμιζε ότι κάτι χάλασε.
+        if (RemoteSync.IsClient)
+        {
+            _ = SendTextToHostAsync(text, title);
+            return;
+        }
+
         var printerName = SettingsStore.Instance.Settings.PrinterName;
         if (printerName.Length == 0)
         {

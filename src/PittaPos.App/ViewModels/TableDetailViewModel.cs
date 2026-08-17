@@ -296,25 +296,18 @@ public partial class TableDetailViewModel : ObservableObject
     {
         // Ίδιο instant για όλες — ώστε το Ιστορικό να τις ομαδοποιεί σαν μία ενέργεια ακύρωσης.
         var cancelledAt = DateTime.Now;
-        // Φθίνουσα σειρά ανά γύρο ώστε η διαγραφή μιας γραμμής να μην αλλάξει τον δείκτη των επόμενων προς διαγραφή.
-        // ToList για τον ίδιο λόγο με το ConfirmSettleSelected: το RemoveLine ξαναχτίζει τα Rounds.
-        // (Το OrderByDescending τυχαίνει να κάνει ήδη buffer, αλλά δεν θέλουμε να βασιζόμαστε σε αυτό.)
+        // ToList για τον ίδιο λόγο με το ConfirmSettleSelected: η διαγραφή ξαναχτίζει τα Rounds, οπότε
+        // ο βρόχος δεν πρέπει να διατρέχει λίστα που αλλάζει από κάτω του.
         // Distinct ανά (παραγγελία, γραμμή): οι σειρές είναι πλέον ΤΕΜΑΧΙΑ, αλλά η ακύρωση αφαιρεί
         // ολόκληρη τη γραμμή. Χωρίς αυτό, επιλέγοντας 3 τεμάχια της ίδιας γραμμής θα καλούνταν τρεις
         // φορές η διαγραφή και θα έσβηνε ΤΡΕΙΣ ΔΙΑΦΟΡΕΤΙΚΕΣ γραμμές του γύρου.
+        // Η σειρά και το «έφυγαν όλα;» τα αναλαμβάνει το OrderCancellationService.CancelLines.
         var toRemove = Rounds.SelectMany(r => r.Lines)
             .Where(l => l.IsSelected)
             .Select(l => (l.OrderNumber, l.LineIndex))
             .Distinct()
-            .OrderByDescending(x => x.LineIndex)
             .ToList();
-        foreach (var (orderNumber, lineIndex) in toRemove)
-        {
-            _settlement.ShiftAfterRemoval(_table, orderNumber, lineIndex);
-            // Και οι χρεώσεις ανά άτομο μετακινούνται μαζί — αλλιώς «του Β» θα κολλούσε σε άλλο προϊόν.
-            TablePersonsService.Instance.ShiftAfterRemoval(_table, orderNumber, lineIndex);
-            _stats.RemoveLine(orderNumber, lineIndex, cancelledBy, cancelledAt);
-        }
+        OrderCancellationService.CancelLines(toRemove, cancelledBy, cancelledAt);
         AutoCloseIfNothingOwed();
     }
 
@@ -322,9 +315,7 @@ public partial class TableDetailViewModel : ObservableObject
     [RelayCommand]
     private void CancelRound(CancelRoundRequest request)
     {
-        _settlement.ClearOrder(_table, request.OrderNumber);
-        TablePersonsService.Instance.ClearOrder(_table, request.OrderNumber);
-        _stats.RemoveOrder(request.OrderNumber, request.CancelledBy);
+        OrderCancellationService.CancelOrder(request.OrderNumber, request.CancelledBy);
         AutoCloseIfNothingOwed();
     }
 

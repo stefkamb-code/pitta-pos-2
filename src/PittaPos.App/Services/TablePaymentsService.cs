@@ -39,7 +39,29 @@ public class TablePaymentsService
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "table-payments.json");
-        Load();
+        if (RemoteSync.IsClient)
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(5), RefreshFromHostAsync);
+        else
+            Load();
+    }
+
+    /// <summary>
+    /// Δεύτερο ταμείο — οι εισπράξεις ΓΡΑΦΟΝΤΑΙ μόνο στο κύριο (βλ. Add), αλλά πρέπει να ΔΙΑΒΑΖΟΝΤΑΙ
+    /// και εδώ. Χωρίς αυτό η λίστα ήταν πάντα άδεια, με δύο ορατές συνέπειες στο δεύτερο ταμείο:
+    /// <list type="bullet">
+    /// <item>το Ιστορικό αρνιόταν ΚΑΘΕ διόρθωση μετρητά↔κάρτα σε τραπέζι με «αυτό το άτομο δεν έχει
+    /// πληρώσει ακόμα» — ακόμα και για άτομο που είχε σίγουρα πληρώσει (βλ. HistoryViewModel.ApplyPaymentMethod)·</item>
+    /// <item>η αναφορά ημέρας έβγαινε χωρίς τα λεφτά των τραπεζιών στον διαχωρισμό μετρητά/κάρτα
+    /// (βλ. DayReportService.AppendPrintSummary, που αθροίζει το TotalFor).</item>
+    /// </list>
+    /// </summary>
+    private async Task RefreshFromHostAsync()
+    {
+        var payments = await RemoteSync.GetAsync<List<TablePayment>>("/api/sync/table-payments");
+        if (payments is null)
+            return;
+        _payments.Clear();
+        _payments.AddRange(payments);
     }
 
     /// <summary>Καταγράφει είσπραξη. Καλείται μόνο στο κύριο ταμείο — οι εξοφλήσεις του δεύτερου
@@ -64,10 +86,17 @@ public class TablePaymentsService
     }
 
     /// <summary>Σβήνει τις εισπράξεις μιας παραγγελίας — καλείται όταν διαγράφεται η ίδια η παραγγελία
-    /// (π.χ. ένα άτομο του τραπεζιού ακυρώνεται από το Ιστορικό). Χωρίς αυτό, το ποσό του θα συνέχιζε
-    /// να μετράει στα μετρητά/κάρτα της ημέρας ενώ ο τζίρος του θα είχε αφαιρεθεί.</summary>
+    /// (βλ. OrderCancellationService). Χωρίς αυτό, το ποσό της θα συνέχιζε να μετράει στα μετρητά/κάρτα
+    /// της ημέρας ενώ ο τζίρος της θα είχε αφαιρεθεί.
+    /// <para>Οι εισπράξεις ζουν ΜΟΝΟ στο κύριο ταμείο (βλ. Add) — από το δεύτερο η ακύρωση πρέπει να
+    /// ταξιδέψει ως εκεί, αλλιώς θα έσβηνε ένα τοπικό αρχείο που δεν μετράει πουθενά.</para></summary>
     public void RemoveFor(int orderNumber)
     {
+        if (RemoteSync.IsClient)
+        {
+            _ = RemoteSync.PostAsync("/api/sync/table-payments/remove", new { OrderNumber = orderNumber });
+            return;
+        }
         if (_payments.RemoveAll(p => p.OrderNumber == orderNumber) > 0)
             Save();
     }
@@ -85,6 +114,15 @@ public class TablePaymentsService
     {
         if (orderNumber <= 0)
             return 0;
+
+        if (RemoteSync.IsClient)
+        {
+            // Η διόρθωση πρέπει να γίνει εκεί που ζουν οι εισπράξεις — τοπικά θα άλλαζε ένα αντίγραφο
+            // που το επόμενο poll θα το ξανάγραφε από την αρχή.
+            _ = RemoteSync.PostAsync("/api/sync/table-payments/switch",
+                new { OrderNumber = orderNumber, PaymentMethod = method });
+            return AmountFor(orderNumber);
+        }
 
         var moved = 0m;
         for (var i = 0; i < _payments.Count; i++)

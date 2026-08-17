@@ -158,6 +158,9 @@ public partial class HistoryViewModel : ObservableObject
     {
         _stats.Changed += Refresh;
         _cancellations.Changed += Refresh;
+        // Δεύτερο ταμείο: όταν κατέβει το αρχείο παλιότερων ημερών, να φανεί χωρίς να ξανανοίξει το
+        // παράθυρο (βλ. HistoryArchiveService.StartClientMirror).
+        HistoryArchiveService.Changed += Refresh;
         Refresh();
     }
 
@@ -166,6 +169,7 @@ public partial class HistoryViewModel : ObservableObject
     {
         _stats.Changed -= Refresh;
         _cancellations.Changed -= Refresh;
+        HistoryArchiveService.Changed -= Refresh;
     }
 
     [ObservableProperty]
@@ -291,11 +295,17 @@ public partial class HistoryViewModel : ObservableObject
 
     // ΟΡΘΙΟΣ και ΤΡΑΠΕΖΙ αλλάζουν ΜΟΝΟ μεταξύ τους: είναι το ίδιο μαγαζί με τον πελάτη μπροστά σου, και
     // το ένα περνιέται κατά λάθος αντί για το άλλο. Κανάλι διανομής δεν έχει νόημα εκεί — δεν υπάρχει
-    // διεύθυνση ούτε κωδικός πλατφόρμας. Το ανάποδο μένει ανοιχτό (μια διανομή μπορεί να γίνει όρθιος),
-    // γιατί εκεί το λάθος όντως συμβαίνει και πρέπει να διορθώνεται.
+    // διεύθυνση ούτε κωδικός πλατφόρμας. Το ανάποδο μένει ανοιχτό ΜΟΝΟ προς ΟΡΘΙΟ (μια διανομή μπορεί
+    // να γίνει όρθιος), γιατί εκεί το λάθος όντως συμβαίνει και πρέπει να διορθώνεται — προς ΤΡΑΠΕΖΙ όχι,
+    // βλ. CanChangeToTable.
     private bool SelectedIsPickup => SelectedOrder?.Type == OrderType.Pickup;
 
-    public bool CanChangeToTable => SelectedOrder is not null && !SelectedIsTable;
+    /// <summary>Σε ΤΡΑΠΕΖΙ γυρίζει ΜΟΝΟ ο ΟΡΘΙΟΣ. Μια διανομή (ή παραγγελία εφαρμογής) δεν έχει νόημα να
+    /// γίνει τραπέζι — και δεν είναι μόνο θέμα λογικής: η διορθωμένη παραγγελία κρατά το όνομα του πελάτη,
+    /// όχι αριθμό τραπεζιού, οπότε δεν κολλάει σε κανένα πραγματικό τραπέζι για να εξοφληθεί. Τα λεφτά της
+    /// έβγαιναν από τον διαχωρισμό μετρητά/κάρτα (τα τραπέζια μετρώνται μόνο από τις εισπράξεις τους) και
+    /// δεν ξαναέμπαιναν ποτέ, ενώ ο τζίρος τα κρατούσε.</summary>
+    public bool CanChangeToTable => SelectedIsPickup;
     public bool CanChangeToPickup => SelectedOrder is not null && !SelectedIsPickup;
     public bool CanChangeToDelivery => SelectedOrder is not null && !SelectedIsTable && !SelectedIsPickup;
 
@@ -368,8 +378,9 @@ public partial class HistoryViewModel : ObservableObject
     private void SelectOrder(CompletedOrder order) => SelectedOrder = order;
 
     /// <summary>
-    /// Πραγματική διαγραφή της επιλεγμένης παραγγελίας — αφαιρείται από τον τζίρο, καταγράφεται στα
-    /// ακυρωμένα. Σε τραπέζι με άτομα σβήνει **ΜΟΝΟ ΤΟ ΕΠΙΛΕΓΜΕΝΟ ΑΤΟΜΟ** (μία παραγγελία = ένα άτομο):
+    /// Πραγματική διαγραφή της επιλεγμένης παραγγελίας — φεύγει από τον τζίρο και πηγαίνει στις
+    /// ακυρωμένες (βλ. OrderCancellationService, ίδια συμπεριφορά με τραπέζι και Ζωντανές Παραγγελίες).
+    /// Σε τραπέζι με άτομα σβήνει **ΜΟΝΟ ΤΟ ΕΠΙΛΕΓΜΕΝΟ ΑΤΟΜΟ** (μία παραγγελία = ένα άτομο):
     /// αν ένας από την παρέα δεν πλήρωσε ή έγινε λάθος στη δική του, δεν ακυρώνεται όλο το τραπέζι.
     /// </summary>
     [RelayCommand]
@@ -378,22 +389,9 @@ public partial class HistoryViewModel : ObservableObject
         if (SelectedOrder is null)
             return;
 
-        var order = SelectedOrder;
-        _stats.RemoveOrder(order.OrderNumber, cancelledBy);
-        if (order.Type == OrderType.Table)
-        {
-            // Μαζί του φεύγει και η είσπραξή του, αλλιώς το ποσό θα έμενε στα μετρητά/κάρτα της ημέρας
-            // ενώ ο τζίρος του αφαιρέθηκε — και ο χωρισμός του τραπεζιού, για να μη μείνουν ορφανά.
-            TablePaymentsService.Instance.RemoveFor(order.OrderNumber);
-            if (TableNumberOf(order) is { } table)
-                TablePersonsService.Instance.ClearOrder(table, order.OrderNumber);
-        }
+        OrderCancellationService.CancelOrder(SelectedOrder.OrderNumber, cancelledBy);
         SelectedOrder = null;
     }
-
-    /// <summary>«Τραπέζι 5» → 5. Το τραπέζι δεν αποθηκεύεται σαν αριθμός πάνω στην παραγγελία.</summary>
-    private static int? TableNumberOf(CompletedOrder order) =>
-        int.TryParse(order.Who.Replace("Τραπέζι", "").Trim(), out var n) ? n : null;
 
     /// <summary>Τι ακριβώς θα σβηστεί — μπαίνει στην ερώτηση επιβεβαίωσης ώστε να μην ακυρωθεί λάθος
     /// άτομο ή, χειρότερα, να νομίζει ο ταμίας ότι σβήνει όλο το τραπέζι.</summary>

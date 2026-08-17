@@ -230,6 +230,10 @@ public static class DayReportService
                 .Where(c => SalesStatsService.BusinessDay(c.CancelledAt) == group.Key)
                 .ToList();
             HistoryArchiveService.ArchiveDay(group.Key, group.ToList(), cancellations);
+            // Οι παραγγελίες της παλιάς μέρας μόλις αφαιρέθηκαν από τα ζωντανά (RemoveOtherBusinessDays)·
+            // το ίδιο πρέπει να γίνει και με τις ακυρώσεις της, αλλιώς μένουν και στις δύο πηγές που
+            // ενώνει το Ιστορικό και εμφανίζονται διπλές.
+            CancellationLogService.Instance.RemoveForDay(group.Key);
             AppLog.Write("close-day",
                 $"Καθυστερημένες παραγγελίες ημέρας {group.Key:yyyy-MM-dd} ({group.Count()}) αρχειοθετήθηκαν " +
                 "χωρίς να κλείσει η τρέχουσα βάρδια.");

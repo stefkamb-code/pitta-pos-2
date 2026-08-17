@@ -141,7 +141,12 @@ public sealed record MenuSyncDto(
     Dictionary<string, decimal> DoublePitaPrices,
     List<string>? Ingredients = null);
 
-public sealed record TableSyncRequest(int Table);
+/// <summary>Το <paramref name="OpenedAt"/> στέλνεται μόνο στο άνοιγμα τραπεζιού από το δεύτερο ταμείο:
+/// εκείνο έχει ήδη σφραγίσει την πρώτη παραγγελία με αυτή την ώρα, οπότε πρέπει να κρατηθεί η ΙΔΙΑ και
+/// εδώ (βλ. TableStatusService.MarkOpen). Κενό = το κύριο ταμείο βάζει τη δική του ώρα, όπως πάντα.</summary>
+public sealed record TableSyncRequest(int Table, DateTime? OpenedAt = null);
+/// <summary>Αναφορά (ημέρας ή διανομέα) που στέλνει το δεύτερο ταμείο για εκτύπωση στο κύριο.</summary>
+public sealed record PrintTextRequest(string Text, string Title);
 public sealed record TableLayoutSyncRequest(int Table, double X, double Y);
 public sealed record TableCountSyncRequest(int Count);
 /// <param name="Unit">Ποιο τεμάχιο της γραμμής εξοφλείται· -1 (ή αν λείπει, από παλιότερη έκδοση)
@@ -156,7 +161,7 @@ public sealed record TablePersonsCountRequest(int Table, int Count);
 public sealed record TablePersonAssignRequest(int Table, int OrderNumber, int LineIndex, int Unit, int Person);
 public sealed record TableShiftSyncRequest(int Table, int OrderNumber, int RemovedIndex);
 public sealed record OrderNumberRequest(int OrderNumber, string CancelledBy = "");
-public sealed record OrderNumberLineRequest(int OrderNumber, int LineIndex);
+public sealed record OrderNumberLineRequest(int OrderNumber, int LineIndex, string CancelledBy = "");
 public sealed record OrderNumberPaymentMethodRequest(int OrderNumber, PittaPos.Core.Models.PaymentMethod? PaymentMethod);
 public sealed record OrderNumberChannelRequest(int OrderNumber, PittaPos.Core.Models.OrderType Type, string? Channel);
 public sealed record BoardChannelRequest(int OrderNumber, string Channel);
