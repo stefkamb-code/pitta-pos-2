@@ -35,15 +35,21 @@ public partial class BoardOrder : ObservableObject
     /// <summary>Όνομα πελάτη ή «Τραπέζι Ν».</summary>
     public required string Name { get; init; }
     public string Address { get; init; } = "";
-    public required OrderType Type { get; init; }
+    /// <summary>Αλλάζει όταν διορθωθεί το κανάλι από το Ιστορικό (βλ. SalesStatsService.UpdateChannel):
+    /// ο πίνακας πρέπει να δείχνει ό,τι δείχνει και το Ιστορικό, αλλιώς η ίδια παραγγελία είναι ΔΙΑΝΟΜΗ
+    /// στη μία οθόνη και e-food στην άλλη.</summary>
+    public required OrderType Type { get; set; }
     /// <summary>Πλατφόρμα για παραγγελίες εφαρμογών (e-food/Wolt/BOX).</summary>
-    public string? Channel { get; init; }
+    public string? Channel { get; set; }
     /// <summary>Ο αριθμός παραγγελίας που δίνει η ίδια η πλατφόρμα (Wolt/e-food/BOX) — μόνο για ΕΦΑΡΜΟΓΕΣ.
     /// Γίνεται ο κύριος αριθμός που φαίνεται στις Ζωντανές Παραγγελίες, βλ. DisplayNumber.</summary>
     public string? AppOrderRef { get; init; }
     /// <summary>Μετρητά ή κάρτα — μόνο για ΔΙΑΝΟΜΗ/BOX (τα παραδίδει δικός μας διανομέας, βλ.
     /// OrderWizardViewModel.ShowCustomerForm)· null για e-food/Wolt/ΠΑΡΑΛΑΒΗ/ΤΡΑΠΕΖΙ, δεν έχει νόημα εκεί.</summary>
-    public PaymentMethod? PaymentMethod { get; init; }
+    /// <summary>Αλλάζει όταν η παραγγελία περάσει (ή αλλάξει) σε κανάλι διανομέα: τα κανάλια
+    /// «Διανομέας/BOX Μετρητά» και «Κάρτα Διανομέα/BOX Κάρτα» ΕΙΝΑΙ ο τρόπος πληρωμής, δεν είναι απλώς
+    /// ετικέτες (βλ. OrderBoardService.PaymentOf).</summary>
+    public PaymentMethod? PaymentMethod { get; set; }
     /// <summary>Αλλάζει όταν ακυρωθεί γραμμή από ήδη καταχωρημένη παραγγελία (βλ.
     /// SalesStatsService.RemoveLine) — γι' αυτό δεν είναι init: ο πίνακας δείχνει τι θα ΕΙΣΠΡΑΞΕΙ ο
     /// διανομέας, και ένα ποσό που έμεινε στο παλιό είναι λάθος λεφτά στο χέρι του.</summary>
@@ -127,6 +133,22 @@ public partial class BoardOrder : ObservableObject
         }
     }
 
+    /// <summary>Τι γράφει η λίστα ενός καναλιού διανομέα: η ΔΙΕΥΘΥΝΣΗ, όχι το ονοματεπώνυμο. Εκεί μέσα
+    /// ο διανομέας κοιτάζει πού πάει — το όνομα δεν του λέει τίποτα για τη διαδρομή. Πέφτει πίσω στο
+    /// όνομα όπου δεν υπάρχει δική μας διεύθυνση (e-food/Wolt, τραπέζια).</summary>
+    public string AddressOrName => Address.Length > 0 ? Address : Name;
+
+    /// <summary>Νέος τρόπος πληρωμής — με ειδοποίηση, ώστε να αλλάξει και το εικονίδιο 💶/💳.</summary>
+    public void UpdatePaymentMethod(PaymentMethod? method)
+    {
+        if (PaymentMethod == method)
+            return;
+        PaymentMethod = method;
+        OnPropertyChanged(nameof(PaymentMethod));
+        OnPropertyChanged(nameof(PaymentIcon));
+        OnPropertyChanged(nameof(IsPaidByCard));
+    }
+
     /// <summary>Νέο ποσό μετά από ακύρωση γραμμής — με ειδοποίηση, ώστε να αλλάξει και η οθόνη.</summary>
     public void UpdateTotal(decimal total)
     {
@@ -208,7 +230,12 @@ public partial class OrderBoardService : ObservableObject
                 // γραμμή, η βάρδια όταν περάσει η παραγγελία σε κανάλι (βλ. Dispatch/Reassign). Χωρίς
                 // αυτά, το δεύτερο ταμείο έδειχνε το παλιό ποσό μέχρι να φύγει η παραγγελία.
                 existing.UpdateTotal(incoming.Total);
+                existing.UpdatePaymentMethod(incoming.PaymentMethod);
                 existing.IsEveningShift = incoming.IsEveningShift;
+                // Και ο τύπος/πλατφόρμα: αλλάζουν με τη διόρθωση καναλιού απο το Ιστορικο
+                // (βλ. SyncChannelChange), αλλιως το δευτερο ταμειο εδειχνε ακομα ΔΙΑΝΟΜΗ.
+                existing.Type = incoming.Type;
+                existing.Channel = incoming.Channel;
             }
         }
 
@@ -319,6 +346,7 @@ public partial class OrderBoardService : ObservableObject
         order.IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift;
         order.SentVia = channel;
         order.SentAt = DateTime.Now;
+        ApplyChannelPayment(order, channel);
         Notify();
     }
 
@@ -331,6 +359,104 @@ public partial class OrderBoardService : ObservableObject
         }
         order.IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift;
         order.SentVia = channel;
+        ApplyChannelPayment(order, channel);
+        Notify();
+    }
+
+    /// <summary>
+    /// Ποιον τρόπο πληρωμής σημαίνει ένα κανάλι. Τα τέσσερα κανάλια του διανομέα ΕΙΝΑΙ ο τρόπος
+    /// πληρωμής — «BOX Κάρτα» δεν είναι ετικέτα, είναι «πληρώθηκε με κάρτα». null για e-food/Wolt, που
+    /// πληρώνονται μέσα στην πλατφόρμα και δεν περνάνε από το ταμείο.
+    /// </summary>
+    public static PaymentMethod? PaymentOf(string? channel) => channel switch
+    {
+        "Διανομέας" or "BOX Μετρητά" => Core.Models.PaymentMethod.Cash,
+        "Κάρτα Διανομέα" or "BOX Κάρτα" => Core.Models.PaymentMethod.Card,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Το κανάλι άλλαξε — άλλαξε μαζί και ο τρόπος πληρωμής, ΚΑΙ ΣΤΗΝ ΙΔΙΑ ΤΗΝ ΠΑΡΑΓΓΕΛΙΑ.
+    ///
+    /// <para>Χωρίς αυτό, αλλάζοντας «BOX Κάρτα» σε «BOX Μετρητά» άλλαζε μόνο σε ποιο κουτί κάθεται η
+    /// παραγγελία στις Ζωντανές: η αναφορά ημέρας και το Ιστορικό συνέχιζαν να τη μετράνε ΚΑΡΤΑ, γιατί
+    /// διαβάζουν το CompletedOrder.PaymentMethod. Ο ταμίας έβλεπε το ένα και η αναφορά έλεγε το άλλο.</para>
+    /// </summary>
+    private static void ApplyChannelPayment(BoardOrder order, string channel)
+    {
+        var method = PaymentOf(channel);
+        if (method is null || order.PaymentMethod == method)
+            return;
+        order.UpdatePaymentMethod(method);
+        SalesStatsService.Instance.UpdatePaymentMethod(order.OrderNumber, method);
+    }
+
+    /// <summary>
+    /// Η ανάποδη κατεύθυνση: διορθώθηκε ο τρόπος πληρωμής από το Ιστορικό, οπότε η παραγγελία πρέπει να
+    /// μετακομίσει και στο σωστό κουτί των Ζωντανών (αν είναι ακόμα εκεί και σε κανάλι διανομέα).
+    /// ΔΕΝ ξανακαλεί τα στατιστικά — εκείνα μόλις ενημερώθηκαν, θα ήταν κύκλος.
+    /// </summary>
+    public void SyncChannelToPayment(int orderNumber, PaymentMethod? method)
+    {
+        if (method is null)
+            return;
+        var order = Orders.FirstOrDefault(o => o.OrderNumber == orderNumber);
+        if (order is null || order.SentVia is null || PaymentOf(order.SentVia) is null)
+            return;
+
+        var wanted = order.SentVia switch
+        {
+            "Διανομέας" or "Κάρτα Διανομέα" => method == Core.Models.PaymentMethod.Card ? "Κάρτα Διανομέα" : "Διανομέας",
+            _ => method == Core.Models.PaymentMethod.Card ? "BOX Κάρτα" : "BOX Μετρητά",
+        };
+        order.UpdatePaymentMethod(method);
+        if (order.SentVia == wanted)
+        {
+            Notify();
+            return;
+        }
+        order.SentVia = wanted;
+        Notify();
+    }
+
+    /// <summary>
+    /// Διορθώθηκε το κανάλι από το Ιστορικό — ακολουθεί και ο πίνακας των Ζωντανών.
+    ///
+    /// <para>Χωρίς αυτό, μια ΔΙΑΝΟΜΗ που διορθωνόταν σε e-food έμενε στο κουτί «Διανομέας»: μετρούσε
+    /// στα μετρητά που περιμένει ο διανομέας, ενώ την είχε ήδη πληρώσει ο πελάτης στην πλατφόρμα.</para>
+    ///
+    /// <para>ΟΡΘΙΟΣ και ΤΡΑΠΕΖΙ δεν έχουν θέση στον πίνακα διανομής — εκεί η παραγγελία απλώς φεύγει
+    /// από αυτόν (ο τζίρος και το Ιστορικό δεν πειράζονται καθόλου).</para>
+    /// </summary>
+    public void SyncChannelChange(int orderNumber, OrderType type, string? channel, PaymentMethod? method)
+    {
+        var order = Orders.FirstOrDefault(o => o.OrderNumber == orderNumber);
+        if (order is null)
+            return;
+
+        if (type is OrderType.Pickup or OrderType.Table)
+        {
+            Orders.Remove(order);
+            Notify();
+            return;
+        }
+
+        order.Type = type;
+        order.Channel = type == OrderType.Apps ? channel : null;
+        order.UpdatePaymentMethod(method);
+
+        // Όσο ήταν σε αναμονή, μένει σε αναμονή: ο ταμίας θα το περάσει μόνος του στο σωστό κανάλι.
+        if (order.SentVia is not null)
+        {
+            var isCard = method == Core.Models.PaymentMethod.Card;
+            order.SentVia = (type, channel) switch
+            {
+                (OrderType.Apps, "e-food") => "e-food",
+                (OrderType.Apps, "Wolt") => "Wolt",
+                (OrderType.Apps, _) => isCard ? "BOX Κάρτα" : "BOX Μετρητά",
+                _ => isCard ? "Κάρτα Διανομέα" : "Διανομέας",
+            };
+        }
         Notify();
     }
 

@@ -498,6 +498,10 @@ public class SalesStatsService
         if (!_orders.TryGetValue(orderNumber, out var order))
             return;
 
+        // Και στις Ζωντανές, αν είναι ακόμα εκεί: αλλιώς η παραγγελία έμενε στο «BOX Κάρτα» ενώ πλέον
+        // είναι μετρητά, και τα σύνολα των καναλιών έδειχναν άλλα από την αναφορά.
+        OrderBoardService.Instance.SyncChannelToPayment(orderNumber, method);
+
         _orders[orderNumber] = new CompletedOrder
         {
             OrderNumber = order.OrderNumber,
@@ -542,7 +546,11 @@ public class SalesStatsService
         // Τρόπος πληρωμής έχει νόημα μόνο για ΔΙΑΝΟΜΗ/BOX (βλ. OrderWizardViewModel.ShowCustomerForm) —
         // αν το διορθωμένο κανάλι δεν είναι ένα απ' τα δύο, καθαρίζεται· αλλιώς θα έμενε "κολλημένο" από
         // το προηγούμενο (λάθος) κανάλι, π.χ. Πληρωμή: Μετρητά σε μια e-food παραγγελία.
-        var keepsPayment = type == OrderType.Delivery || (type == OrderType.Apps && channel == "BOX");
+        // ΟΡΘΙΟΣ ρωτιέται κι αυτός για μετρητά/κάρτα στο τέλος (βλ. OrderWizardViewModel.NeedsPaymentMethod)
+        // — αν σβηνόταν εδώ, το ποσό μιας διορθωμένης παραγγελίας έφευγε από τα μετρητά/κάρτα της
+        // ημέρας και εμφανιζόταν στα «Ανεξόφλητα», σαν να μην το πλήρωσε ποτέ κανείς.
+        var keepsPayment = type is OrderType.Delivery or OrderType.Pickup
+            || (type == OrderType.Apps && channel == "BOX");
 
         // Έπαψε να είναι ΤΡΑΠΕΖΙ: μαζί του πρέπει να φύγει και η είσπραξή του από τα τραπέζια, αλλιώς
         // το ποσό ΔΙΠΛΟΜΕΤΡΙΕΤΑΙ στα μετρητά/κάρτα της ημέρας. Η αναφορά αθροίζει δύο πηγές — τον
@@ -551,6 +559,10 @@ public class SalesStatsService
         // δεύτερη· μόλις γίνει ΔΙΑΝΟΜΗ/BOX αρχίζει να μετράει και η πρώτη, με το ίδιο ποσό.
         if (order.Type == OrderType.Table && type != OrderType.Table)
             OrderCancellationService.ClearTableTraces(OrderCancellationService.TableNumberOf(order), orderNumber);
+
+        // Και οι Ζωντανές ακολουθούν, αν η παραγγελία είναι ακόμα εκεί.
+        OrderBoardService.Instance.SyncChannelChange(orderNumber, type, channel,
+            keepsPayment ? order.PaymentMethod : null);
 
         _orders[orderNumber] = new CompletedOrder
         {

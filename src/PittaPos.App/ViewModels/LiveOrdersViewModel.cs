@@ -1,4 +1,4 @@
-using System.Windows.Media;
+﻿using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -198,11 +198,16 @@ public partial class LiveOrdersViewModel : ObservableObject
     /// εδώ κλειδώνει πάνω στο order.Channel (η πλατφόρμα προέλευσης — "BOX" όπως επιλέχθηκε στο βήμα 2
     /// του wizard), ενώ οι τιμές που επιστρέφει είναι τα ονόματα καναλιού αποστολής (ChannelInfo.All) —
     /// γι' αυτό η ετικέτα μετρητών είναι "BOX Μετρητά" ενώ το κλειδί του switch μένει "BOX".</summary>
-    private static IReadOnlyList<ChannelInfo> AllowedChannels(BoardOrder order)
+    /// <param name="bothVariants">Για την ΑΛΛΑΓΗ ΣΕ μιας παραγγελίας που είναι ήδη σε κανάλι: δείχνει
+    /// και τις δύο παραλλαγές, ώστε να μπορεί ο ταμίας να τη μετακινήσει από μετρητά σε κάρτα και
+    /// ανάποδα. (Στο πρώτο πέρασμα από την αναμονή μένει ΕΝΑ κουμπί — εκεί δεν υπάρχει τίποτα να
+    /// αποφασιστεί.) Η μετακίνηση αλλάζει και τον τρόπο πληρωμής της ίδιας της παραγγελίας, βλ.
+    /// OrderBoardService.ApplyChannelPayment.</param>
+    private static IReadOnlyList<ChannelInfo> AllowedChannels(BoardOrder order, bool bothVariants = false)
     {
         var isApps = order.Type == Core.Models.OrderType.Apps;
         var isCard = order.PaymentMethod == Core.Models.PaymentMethod.Card;
-        var unknownPayment = order.PaymentMethod is null;
+        var unknownPayment = order.PaymentMethod is null || bothVariants;
         var names = (isApps ? order.Channel : null) switch
         {
             "BOX" => unknownPayment ? ["BOX Μετρητά", "BOX Κάρτα"] : [isCard ? "BOX Κάρτα" : "BOX Μετρητά"],
@@ -260,7 +265,7 @@ public partial class LiveOrdersViewModel : ObservableObject
                 .Select(o => new ChannelOrderViewModel
                 {
                     Order = o,
-                    ReassignOptions = AllowedChannels(o).Where(c => c.Name != o.SentVia)
+                    ReassignOptions = AllowedChannels(o, bothVariants: true).Where(c => c.Name != o.SentVia)
                         .Select(c => new ChannelButtonViewModel
                         {
                             Name = c.Name, Brush = c.Brush,

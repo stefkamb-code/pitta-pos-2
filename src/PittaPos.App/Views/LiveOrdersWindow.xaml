@@ -211,7 +211,10 @@
                                                         <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
-                                                        <TextBlock Text="{Binding Order.Name}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <!-- ΔΙΕΥΘΥΝΣΗ, όχι ονοματεπώνυμο: μέσα στο κανάλι του διανομέα
+                                                             η ερώτηση είναι «πού πάει», όχι «ποιος είναι». -->
+                                                        <TextBlock Text="{Binding Order.AddressOrName}" FontSize="13" FontWeight="ExtraBold"
+                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap" MaxWidth="260"/>
                                                     </StackPanel>
                                                 </DockPanel>
                                                 <StackPanel Margin="0,8,0,0">
