@@ -130,6 +130,10 @@ public class CustomerStore
     /// <para>Γίνεται ΜΙΑ φορά ανά αρχείο: η σφραγίδα (μέγεθος + ώρα) γράφεται δίπλα στα δεδομένα, οπότε
     /// τα επόμενα setup με τον ΙΔΙΟ πελατολόγιο δεν ξαναπερνούν τίποτα. Αν σταλεί ανανεωμένος, η
     /// σφραγίδα αλλάζει και μπαίνουν οι νέοι — πάλι χωρίς να πειραχτεί κανείς υπάρχων.</para>
+    ///
+    /// <para><b>Γίνεται στο ΠΑΡΑΣΚΗΝΙΟ.</b> Με δεκάδες χιλιάδες πελάτες, το διάβασμα ενός αρχείου
+    /// σαράντα MB κρατούσε το πρώτο άνοιγμα κολλημένο σε μαύρο παράθυρο — και μοιάζει με κρέμασμα.
+    /// Πλέον το ταμείο ανοίγει αμέσως και οι πελάτες εμφανίζονται μόλις τελειώσει, μόνοι τους.</para>
     /// </summary>
     private void ImportSeedIfPresent()
     {
@@ -143,9 +147,63 @@ public class CustomerStore
             var stamp = info.Length + ":" + info.LastWriteTimeUtc.Ticks;
             var marker = Path.Combine(Path.GetDirectoryName(_path)!, "customers-import.txt");
             if (File.Exists(marker) && File.ReadAllText(marker).Trim() == stamp)
-                return;
+                return;   // μπήκε ήδη — ούτε διάβασμα, ούτε νήμα, τίποτα
 
-            var incoming = JsonSerializer.Deserialize<List<Customer>>(File.ReadAllText(seed)) ?? [];
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                MergeSeed(ReadSeed(seed), stamp, marker);   // χωρίς UI (π.χ. δοκιμές): επιτόπου
+                return;
+            }
+
+            // ΠΑΡΑΣΚΗΝΙΟ. Το διάβασμα και η αποκωδικοποίηση δεκάδων MB είναι το ακριβό κομμάτι και
+            // γίνεται εκτός οθόνης: το ταμείο ανοίγει και δουλεύει κανονικά όσο τρέχει. Το σμίξιμο
+            // επιστρέφει στο νήμα της οθόνης, γιατί εκεί ζει η λίστα των πελατών.
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var prepared = ReadSeed(seed);
+                    dispatcher.BeginInvoke(() => MergeSeed(prepared, stamp, marker));
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Write("customers", $"Η ανάγνωση πελατολογίου απέτυχε: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            // Αποτυχία εισαγωγής δεν πρέπει να εμποδίσει το ταμείο να ανοίξει — αλλά πρέπει να φαίνεται.
+            AppLog.Write("customers", $"Η εισαγωγή πελατολογίου απέτυχε: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Το ακριβό μισό, εκτός νήματος οθόνης: διάβασμα, αποκωδικοποίηση και υπολογισμός του
+    /// κλειδιού τηλεφώνου για τον καθένα. Όσοι δεν έχουν τηλέφωνο μετριούνται και μένουν έξω — δεν
+    /// μπορούν ούτε να ταιριάξουν με υπάρχοντα ούτε να βρεθούν αργότερα στην αναζήτηση.</summary>
+    private static (List<(string Key, Customer Customer)> Ready, int Total, int NoPhone) ReadSeed(string seed)
+    {
+        var incoming = JsonSerializer.Deserialize<List<Customer>>(File.ReadAllText(seed)) ?? [];
+        var ready = new List<(string, Customer)>(incoming.Count);
+        var noPhone = 0;
+        foreach (var c in incoming)
+        {
+            var key = PhoneKey(c.Phone);
+            if (key.Length == 0)
+                noPhone++;
+            else
+                ready.Add((key, c));
+        }
+        return (ready, incoming.Count, noPhone);
+    }
+
+    /// <summary>Το φθηνό μισό, στο νήμα της οθόνης: κρατάει όσους ΛΕΙΠΟΥΝ. Η αποθήκευση στον δίσκο
+    /// φεύγει από το Save (αναβάλλεται και γράφεται στο παρασκήνιο) — ούτε εδώ περιμένει η οθόνη.</summary>
+    private void MergeSeed((List<(string Key, Customer Customer)> Ready, int Total, int NoPhone) seed, string stamp, string marker)
+    {
+        try
+        {
             var known = new HashSet<string>(StringComparer.Ordinal);
             foreach (var c in _customers)
             {
@@ -157,40 +215,31 @@ public class CustomerStore
             var had = _customers.Count;
             var added = 0;
             var already = 0;
-            var noPhone = 0;
-            foreach (var c in incoming)
+            foreach (var (key, customer) in seed.Ready)
             {
-                var key = PhoneKey(c.Phone);
-                // Χωρίς τηλέφωνο δεν μπορεί ούτε να ταιριάξει ούτε να βρεθεί — δεν το κρατάμε.
-                if (key.Length == 0)
-                {
-                    noPhone++;
-                    continue;
-                }
                 if (!known.Add(key))
                 {
                     already++;   // υπάρχει ήδη — ο ΥΠΑΡΧΩΝ κερδίζει, έχει ιστορικό
                     continue;
                 }
-                _customers.Add(c);
+                _customers.Add(customer);
                 added++;
             }
 
             if (added > 0)
             {
-                Touch();
-                FlushPendingSave();
+                Save();              // Touch + γράψιμο στο παρασκήνιο
+                Changed?.Invoke();   // ανοιχτά παράθυρα (π.χ. Πελάτες) δείχνουν τους νέους αμέσως
             }
             File.WriteAllText(marker, stamp);
             // Χωριστά νούμερα: το «πετάχτηκαν» έκρυβε δύο πολύ διαφορετικά πράγματα, και μόνο το ένα
             // είναι φυσιολογικό. Πολλοί ΧΩΡΙΣ ΤΗΛΕΦΩΝΟ σημαίνει ότι το αρχείο ήρθε λειψό.
             AppLog.Write("customers",
-                $"Πελατολόγιο εγκατάστασης: είχε {had}, ήρθαν {incoming.Count}, προστέθηκαν {added}, " +
-                $"υπήρχαν ήδη {already}, χωρίς τηλέφωνο (δεν μπήκαν) {noPhone}. Σύνολο τώρα {_customers.Count}.");
+                $"Πελατολόγιο εγκατάστασης: είχε {had}, ήρθαν {seed.Total}, προστέθηκαν {added}, " +
+                $"υπήρχαν ήδη {already}, χωρίς τηλέφωνο (δεν μπήκαν) {seed.NoPhone}. Σύνολο τώρα {_customers.Count}.");
         }
         catch (Exception ex)
         {
-            // Αποτυχία εισαγωγής δεν πρέπει να εμποδίσει το ταμείο να ανοίξει — αλλά πρέπει να φαίνεται.
             AppLog.Write("customers", $"Η εισαγωγή πελατολογίου απέτυχε: {ex.GetType().Name}: {ex.Message}");
         }
     }
