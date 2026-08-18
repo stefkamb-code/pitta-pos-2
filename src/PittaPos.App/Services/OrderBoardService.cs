@@ -44,7 +44,10 @@ public partial class BoardOrder : ObservableObject
     /// <summary>Μετρητά ή κάρτα — μόνο για ΔΙΑΝΟΜΗ/BOX (τα παραδίδει δικός μας διανομέας, βλ.
     /// OrderWizardViewModel.ShowCustomerForm)· null για e-food/Wolt/ΠΑΡΑΛΑΒΗ/ΤΡΑΠΕΖΙ, δεν έχει νόημα εκεί.</summary>
     public PaymentMethod? PaymentMethod { get; init; }
-    public required decimal Total { get; init; }
+    /// <summary>Αλλάζει όταν ακυρωθεί γραμμή από ήδη καταχωρημένη παραγγελία (βλ.
+    /// SalesStatsService.RemoveLine) — γι' αυτό δεν είναι init: ο πίνακας δείχνει τι θα ΕΙΣΠΡΑΞΕΙ ο
+    /// διανομέας, και ένα ποσό που έμεινε στο παλιό είναι λάθος λεφτά στο χέρι του.</summary>
+    public required decimal Total { get; set; }
     public DateTime PlacedAt { get; init; } = DateTime.Now;
     /// <summary>Ποια βάρδια ήταν ενεργή (χειροκίνητος διακόπτης) τη στιγμή της παραγγελίας — όχι με βάση την ώρα.
     /// Ξαναγράφεται στο Dispatch/Reassign (βλ. OrderBoardService), ώστε μια παραγγελία που βρισκόταν σε
@@ -78,7 +81,7 @@ public partial class BoardOrder : ObservableObject
     /// παρά ο εσωτερικός μας μετρητής)· διαφορετικά ο εσωτερικός OrderNumber, όπως πάντα.</summary>
     /// Ίδιος κανόνας με το CompletedOrder.DisplayNumber — η σειρά της βάρδιας διψήφια («01»), για να
     /// μη διαφωνούν οθόνη και χαρτί.
-    public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
+    public string DisplayNumber => !string.IsNullOrWhiteSpace(AppOrderRef)
         ? AppOrderRef!
         : OrderNumber < SalesStatsService.ExternalBandStart
             ? OrderNumber.ToString("00")
@@ -122,6 +125,16 @@ public partial class BoardOrder : ObservableObject
                 : Color.FromRgb(0x2e, 0x7d, 0x32);
             return new SolidColorBrush(color);
         }
+    }
+
+    /// <summary>Νέο ποσό μετά από ακύρωση γραμμής — με ειδοποίηση, ώστε να αλλάξει και η οθόνη.</summary>
+    public void UpdateTotal(decimal total)
+    {
+        if (Total == total)
+            return;
+        Total = total;
+        OnPropertyChanged(nameof(Total));
+        OnPropertyChanged(nameof(TotalLabel));
     }
 
     /// <summary>Ανανεώνει το ρολόι καθυστέρησης (καλείται κάθε δευτερόλεπτο).</summary>
@@ -191,10 +204,28 @@ public partial class OrderBoardService : ObservableObject
             {
                 existing.SentVia = incoming.SentVia;
                 existing.SentAt = incoming.SentAt;
+                // Και τα δύο αλλάζουν στο κύριο ταμείο ΜΕΤΑ την καταχώρηση: το ποσό όταν ακυρωθεί
+                // γραμμή, η βάρδια όταν περάσει η παραγγελία σε κανάλι (βλ. Dispatch/Reassign). Χωρίς
+                // αυτά, το δεύτερο ταμείο έδειχνε το παλιό ποσό μέχρι να φύγει η παραγγελία.
+                existing.UpdateTotal(incoming.Total);
+                existing.IsEveningShift = incoming.IsEveningShift;
             }
         }
 
         PendingCount = Orders.Count(o => o.IsPending);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Νέο ποσό σε παραγγελία που είναι ΑΚΟΜΑ στον πίνακα — καλείται όταν ακυρωθεί γραμμή της
+    /// (βλ. SalesStatsService.RemoveLine). Στο δεύτερο ταμείο δεν χρειάζεται τίποτα: η ακύρωση περνά
+    /// ούτως ή άλλως από το κύριο, και ο πίνακας κατεβαίνει από εκεί.</summary>
+    public void SetTotal(int orderNumber, decimal total)
+    {
+        var order = Orders.FirstOrDefault(o => o.OrderNumber == orderNumber);
+        if (order is null || order.Total == total)
+            return;
+        order.UpdateTotal(total);
+        Save();
         Changed?.Invoke();
     }
 

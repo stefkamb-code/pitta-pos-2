@@ -1146,9 +1146,10 @@ public partial class OrderWizardViewModel : ObservableObject
             var q = CustomerSearch.Trim();
             if (q.Length < 2)
                 return [];
-            return CustomerStore.Instance.Search(q)
-                // Μην ξαναδείχνεις τον ήδη επιλεγμένο πελάτη
-                .Where(c => c.Name != CustomerName || c.Phone != CustomerPhone || c.Address != CustomerAddress)
+            // Ο ήδη επιλεγμένος πελάτης πετιέται ΜΕΣΑ στην αναζήτηση, όχι μετά — αλλιώς έπιανε μία από
+            // τις έξι θέσεις και ο ταμίας έβλεπε πέντε προτάσεις χωρίς λόγο.
+            return CustomerStore.Instance
+                .Search(q, c => c.Name == CustomerName && c.Phone == CustomerPhone && c.Address == CustomerAddress)
                 .Select(c => new CustomerMatchViewModel { Customer = c })
                 .ToList();
         }

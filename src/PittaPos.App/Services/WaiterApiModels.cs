@@ -1,4 +1,4 @@
-using PittaPos.Core.Models;
+﻿using PittaPos.Core.Models;
 
 namespace PittaPos.App.Services;
 
@@ -163,7 +163,8 @@ public sealed record TableShiftSyncRequest(int Table, int OrderNumber, int Remov
 public sealed record OrderNumberRequest(int OrderNumber, string CancelledBy = "");
 public sealed record OrderNumberLineRequest(int OrderNumber, int LineIndex, string CancelledBy = "");
 public sealed record OrderNumberPaymentMethodRequest(int OrderNumber, PittaPos.Core.Models.PaymentMethod? PaymentMethod);
-public sealed record OrderNumberChannelRequest(int OrderNumber, PittaPos.Core.Models.OrderType Type, string? Channel);
+public sealed record OrderNumberChannelRequest(int OrderNumber, PittaPos.Core.Models.OrderType Type, string? Channel,
+    string? AppOrderRef = null);
 public sealed record BoardChannelRequest(int OrderNumber, string Channel);
 public sealed record CustomerUpsertRequest(string Name, string Phone, string Address, string StreetNumber = "",
     string Area = "", string PostalCode = "", string Floor = "", string Notes = "");

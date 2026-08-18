@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -395,7 +395,7 @@ public static class WaiterApiService
         app.MapPost("/api/sync/orders/channel", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<OrderNumberChannelRequest>();
-            if (req is not null) OnUi(() => { SalesStatsService.Instance.UpdateChannel(req.OrderNumber, req.Type, req.Channel); return 0; });
+            if (req is not null) OnUi(() => { SalesStatsService.Instance.UpdateChannel(req.OrderNumber, req.Type, req.Channel, req.AppOrderRef); return 0; });
             return Results.Ok();
         });
 

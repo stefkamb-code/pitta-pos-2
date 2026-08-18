@@ -748,7 +748,10 @@ public class CustomerStore
     /// <para>Ένα πέρασμα, με έξοδο μόλις γεμίσουν οι 6 «αρχίζει από»: στη συνηθισμένη περίπτωση (γράφει
     /// τηλέφωνο από την αρχή) σταματά αμέσως, χωρίς να δει ολόκληρο τον πελατολόγιο.</para>
     /// </summary>
-    public IReadOnlyList<Customer> Search(string query)
+    /// <param name="skip">Ποιον να μη δείξει — π.χ. τον ήδη επιλεγμένο πελάτη της παραγγελίας. Πρέπει
+    /// να φιλτράρεται ΕΔΩ: όταν ο καλών τον πετούσε αφού είχαμε ήδη κρατήσει έξι, η λίστα έδειχνε
+    /// πέντε.</param>
+    public IReadOnlyList<Customer> Search(string query, Func<Customer, bool>? skip = null)
     {
         var q = query.Trim();
         if (q.Length == 0)
@@ -761,7 +764,7 @@ public class CustomerStore
         for (var i = 0; i < _customers.Count; i++)
         {
             var c = _customers[i];
-            if (!Matches(c, q, qDigits, digits[i]))
+            if (!Matches(c, q, qDigits, digits[i]) || (skip is not null && skip(c)))
                 continue;
             if (StartsWithQuery(c, q, qDigits, digits[i]))
             {

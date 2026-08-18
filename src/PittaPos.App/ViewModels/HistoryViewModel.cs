@@ -467,7 +467,14 @@ public partial class HistoryViewModel : ObservableObject
     /// <summary>Διόρθωση καναλιού — π.χ. μια παραγγελία πέρασε κατά λάθος ως e-food ενώ ήταν κάτι άλλο.
     /// Ίδιος περιορισμός με το τρόπο πληρωμής (βλ. SalesStatsService.UpdateChannel) — μόνο σημερινές.</summary>
     [RelayCommand]
-    private void SetChannel(string channelKey)
+    private void SetChannel(string channelKey) => ApplyChannel(channelKey, null);
+
+    /// <summary>Διόρθωση ΠΡΟΣ πλατφόρμα, με τον κωδικό της παραγγελίας μαζί — τον ρωτά το παράθυρο
+    /// (βλ. HistoryWindow.SetAppChannel_Click / AppRefDialog), γιατί χωρίς αυτόν η παραγγελία δεν
+    /// βρίσκεται ποτέ με τον αριθμό που ξέρει η πλατφόρμα.</summary>
+    public void SetAppChannel(string platform, string appOrderRef) => ApplyChannel(platform, appOrderRef);
+
+    private void ApplyChannel(string channelKey, string? appOrderRef)
     {
         if (SelectedOrder is null)
             return;
@@ -478,7 +485,8 @@ public partial class HistoryViewModel : ObservableObject
             "ΟΡΘΙΟΣ" => (Core.Models.OrderType.Pickup, null),
             _ => (Core.Models.OrderType.Apps, channelKey),
         };
-        _stats.UpdateChannel(SelectedOrder.OrderNumber, type, channel);
+        _stats.UpdateChannel(SelectedOrder.OrderNumber, type, channel,
+            string.IsNullOrWhiteSpace(appOrderRef) ? null : appOrderRef.Trim());
         ShowChannelOptions = false;
     }
 

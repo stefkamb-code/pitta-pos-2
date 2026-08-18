@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using PittaPos.App.Services;
 using PittaPos.App.ViewModels;
@@ -64,6 +64,17 @@ public partial class HistoryWindow : Window
         var name = StaffPinDialog.RequireName(this);
         if (name is not null)
             _vm.DeleteOrderCommand.Execute(name);
+    }
+
+    /// <summary>Διόρθωση καναλιού σε πλατφόρμα: ρωτά πρώτα τον κωδικό της παραγγελίας. Κενός κωδικός
+    /// δεν μπλοκάρει τη διόρθωση — η παραγγελία απλώς κρατά τον αριθμό που είχε.</summary>
+    private void SetAppChannel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedOrder is null)
+            return;
+        var platform = (string)((System.Windows.Controls.Button)sender).Tag;
+        var reference = AppRefDialog.Ask(this, platform, _vm.SelectedOrder.AppOrderRef ?? "");
+        _vm.SetAppChannel(platform, reference);
     }
 
     /// <summary>Κλείνει το popup μόλις διαλεχτεί μέρα, ώστε να μη μένει ανοιχτό.</summary>

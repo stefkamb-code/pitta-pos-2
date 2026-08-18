@@ -110,10 +110,14 @@ public sealed class CompletedOrder
     /// τη μία από κωδικό πλατφόρμας. Ο εσωτερικός <see cref="OrderNumber"/> των υπολοίπων (ζώνη 1000+,
     /// βλ. SalesStatsService.ExternalBandStart) δεν εμφανίζεται πουθενά.
     /// </summary>
-    public string DisplayNumber => Type == OrderType.Apps && !string.IsNullOrWhiteSpace(AppOrderRef)
-        ? AppOrderRef!
-        : TableNumberLabel.Length > 0
-            ? TableNumberLabel
+    /// <remarks>Ο κωδικός της πλατφόρμας μετράει ΟΠΟΙΟΣ κι αν είναι ο τύπος τώρα: μια παραγγελία που
+    /// διορθώθηκε από e-food σε ΔΙΑΝΟΜΗ εξακολουθεί να είναι «η 322» για το μαγαζί και για την
+    /// πλατφόρμα. Πριν, μόλις άλλαζε κανάλι εμφανιζόταν ο εσωτερικός μετρητής (π.χ. «1044») — αριθμός
+    /// που δεν σημαίνει τίποτα για κανέναν και δεν βρίσκεται με αναζήτηση.</remarks>
+    public string DisplayNumber => TableNumberLabel.Length > 0
+        ? TableNumberLabel
+        : !string.IsNullOrWhiteSpace(AppOrderRef)
+            ? AppOrderRef!
             : OrderNumber < SalesStatsService.ExternalBandStart
                 ? OrderNumber.ToString("00")
                 : OrderNumber.ToString();
@@ -453,6 +457,9 @@ public class SalesStatsService
         }
         else
         {
+            // Αν είναι ακόμα στις Ζωντανές, το ποσό της εκεί πρέπει να πέσει κι αυτό: αυτό βλέπει ο
+            // ταμίας ως «πόσα θα μαζέψει ο διανομέας» (βλ. LiveOrdersViewModel.CashOnDeliveryLabel).
+            OrderBoardService.Instance.SetTotal(orderNumber, lines.Sum(l => l.Revenue));
             _orders[orderNumber] = new CompletedOrder
             {
                 OrderNumber = order.OrderNumber,
@@ -518,11 +525,15 @@ public class SalesStatsService
     /// <summary>Διορθώνει το κανάλι/τύπο μιας ήδη ολοκληρωμένης παραγγελίας — π.χ. πέρασε κατά λάθος ως
     /// e-food ενώ ήταν κάτι άλλο (βλ. Ιστορικό). Μόνο για σημερινές παραγγελίες (ακόμα στη μνήμη), ίδιος
     /// περιορισμός με UpdatePaymentMethod/RemoveLine/RemoveOrder — αρχειοθετημένες μέρες δεν αγγίζονται.</summary>
-    public void UpdateChannel(int orderNumber, OrderType type, string? channel)
+    /// <param name="appOrderRef">Ο κωδικός της πλατφόρμας, όταν η διόρθωση είναι ΠΡΟΣ εφαρμογή: χωρίς
+    /// αυτόν η παραγγελία θα έδειχνε τη σειρά βάρδιας («05») σαν να ήταν κωδικός e-food, και δεν θα
+    /// βρισκόταν ποτέ με τον αριθμό της πλατφόρμας. null = μην αλλάξεις ό,τι ήδη έχει.</param>
+    public void UpdateChannel(int orderNumber, OrderType type, string? channel, string? appOrderRef = null)
     {
         if (RemoteSync.IsClient)
         {
-            _ = SyncThenRefreshAsync("/api/sync/orders/channel", new { OrderNumber = orderNumber, Type = type, Channel = channel });
+            _ = SyncThenRefreshAsync("/api/sync/orders/channel",
+                new { OrderNumber = orderNumber, Type = type, Channel = channel, AppOrderRef = appOrderRef });
             return;
         }
         if (!_orders.TryGetValue(orderNumber, out var order))
@@ -546,7 +557,9 @@ public class SalesStatsService
             OrderNumber = order.OrderNumber,
             Type = type,
             Channel = channel,
-            AppOrderRef = order.AppOrderRef,
+            // Έγινε ΤΡΑΠΕΖΙ: εκεί ο αριθμός είναι το τραπέζι, ο κωδικός πλατφόρμας δεν έχει θέση.
+            // Αλλιώς κρατιέται ό,τι υπάρχει, ή μπαίνει ο νέος που δόθηκε στη διόρθωση.
+            AppOrderRef = type == OrderType.Table ? null : (appOrderRef ?? order.AppOrderRef),
             PaymentMethod = keepsPayment ? order.PaymentMethod : null,
             Who = order.Who,
             Phone = order.Phone,

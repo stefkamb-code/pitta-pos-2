@@ -623,15 +623,17 @@
                                     <Button Content="ΟΡΘΙΟΣ" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
                                             Visibility="{Binding CanChangeToPickup, Converter={StaticResource BoolToVis}}"
                                             Command="{Binding SetChannelCommand}" CommandParameter="ΟΡΘΙΟΣ"/>
-                                    <Button Content="e-food" Style="{StaticResource ChoiceChip}"
+                                    <!-- Οι πλατφόρμες περνάνε από το παράθυρο, όχι κατευθείαν από την εντολή:
+                                         πρώτα ρωτιέται ο κωδικός τους (βλ. HistoryWindow.SetAppChannel_Click). -->
+                                    <Button Content="e-food" Style="{StaticResource ChoiceChip}" Tag="e-food"
                                             Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
-                                            Command="{Binding SetChannelCommand}" CommandParameter="e-food"/>
-                                    <Button Content="Wolt" Style="{StaticResource ChoiceChip}"
+                                            Click="SetAppChannel_Click"/>
+                                    <Button Content="Wolt" Style="{StaticResource ChoiceChip}" Tag="Wolt"
                                             Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
-                                            Command="{Binding SetChannelCommand}" CommandParameter="Wolt"/>
-                                    <Button Content="BOX" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6"
+                                            Click="SetAppChannel_Click"/>
+                                    <Button Content="BOX" Style="{StaticResource ChoiceChip}" Margin="0,0,0,6" Tag="BOX"
                                             Visibility="{Binding CanChangeToDelivery, Converter={StaticResource BoolToVis}}"
-                                            Command="{Binding SetChannelCommand}" CommandParameter="BOX"/>
+                                            Click="SetAppChannel_Click"/>
                                 </UniformGrid>
                             </StackPanel>
                         </Border>
