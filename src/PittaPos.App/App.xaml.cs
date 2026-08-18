@@ -75,6 +75,22 @@ public partial class App : Application
         AmiClientService.Start();
     }
 
+    /// <summary>Ό,τι αποθήκευση πελατών εκκρεμεί, γράφεται ΤΩΡΑ. Η αποθήκευση αναβάλλεται λίγα
+    /// δευτερόλεπτα ώστε να μην παγώνει η οθόνη σε κάθε παραγγελία (βλ. CustomerStore.Save) — χωρίς
+    /// αυτό, μια αλλαγή των τελευταίων δευτερολέπτων θα χανόταν στο κλείσιμο.</summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try
+        {
+            CustomerStore.Instance.FlushPendingSave();
+        }
+        catch (Exception ex)
+        {
+            LogCrash("έξοδος", ex);
+        }
+        base.OnExit(e);
+    }
+
     /// <summary>Σφάλμα πάνω στο UI thread — το πιο συχνό. Καταγραφή + συνέχεια αντί για crash.</summary>
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {

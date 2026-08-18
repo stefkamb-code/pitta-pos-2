@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using System.Windows.Threading;
 using PittaPos.Core.Models;
 
 namespace PittaPos.App.Services;
@@ -29,10 +30,52 @@ public class CustomerStore
         _path = Path.Combine(dir, "customers.json");
         if (RemoteSync.IsClient)
         {
-            RemoteSync.StartPolling(TimeSpan.FromSeconds(5), RefreshFromHostAsync);
+            // ΑΡΑΙΑ επίτηδες. Ο πελατολόγιος είναι ΟΛΟΚΛΗΡΟΣ σε κάθε λήψη — με δεκάδες χιλιάδες
+            // πελάτες αυτό είναι δεκάδες MB, και στα 5 δευτερόλεπτα που ήταν πριν το κύριο ταμείο
+            // δεν προλάβαινε καν να τελειώσει τη μία αποστολή πριν ζητηθεί η επόμενη. Πλέον ρωτάμε
+            // πρώτα «άλλαξε τίποτα;» (βλ. Version) και κατεβάζουμε μόνο τότε.
+            RemoteSync.StartPolling(TimeSpan.FromSeconds(20), RefreshFromHostIfChangedAsync);
             return;
         }
         Load();
+    }
+
+    /// <summary>
+    /// Αύξοντας αριθμός έκδοσης — αλλάζει σε κάθε μεταβολή πελατών. Το δεύτερο ταμείο τον ρωτάει
+    /// (φθηνό, ένας αριθμός) και κατεβάζει ολόκληρη τη λίστα ΜΟΝΟ όταν έχει όντως αλλάξει.
+    /// </summary>
+    public int Version { get; private set; }
+
+    /// <summary>Η «σφραγίδα» που συγκρίνει το δεύτερο ταμείο. Μαζί με τον αριθμό των πελατών, ώστε μια
+    /// επανεκκίνηση του κυρίου (που μηδενίζει την έκδοση) να μη μοιάζει κατά λάθος «ίδια» με ό,τι έχει
+    /// ήδη κατεβασμένο το δεύτερο.</summary>
+    public string Stamp => Version + ":" + _customers.Count;
+
+    /// <summary>Κάθε μεταβολή περνά από εδώ: ανεβάζει την έκδοση και ακυρώνει τους πίνακες
+    /// αναζήτησης, ώστε να ξαναχτιστούν την επόμενη φορά που θα χρειαστούν.</summary>
+    private void Touch()
+    {
+        Version++;
+        _firstNames = null;
+        _lastNames = null;
+        _streets = null;
+        _areas = null;
+        _byPhone = null;
+    }
+
+    /// <summary>Τελευταία σφραγίδα που κατέβασε το δεύτερο ταμείο — αν δεν άλλαξε, δεν ξανακατεβάζουμε.</summary>
+    private string _syncedStamp = "";
+
+    /// <summary>Δεύτερο ταμείο (client) — ρωτάει πρώτα τη σφραγίδα (λίγα bytes) και κατεβάζει
+    /// ολόκληρο τον πελατολόγιο μόνο όταν έχει αλλάξει κάτι στο κύριο ταμείο.</summary>
+    private async Task RefreshFromHostIfChangedAsync()
+    {
+        var stamp = await RemoteSync.GetAsync<string>("/api/sync/customers/version");
+        if (stamp is not null && stamp == _syncedStamp)
+            return;
+        await RefreshFromHostAsync();
+        if (stamp is not null)
+            _syncedStamp = stamp;
     }
 
     /// <summary>Δεύτερο ταμείο (client) — αντικαθιστά την τοπική λίστα με τους πελάτες του host.
@@ -43,6 +86,7 @@ public class CustomerStore
         if (customers is null)
             return;
         _customers = customers;
+        Touch();
         Changed?.Invoke();
     }
 
@@ -67,15 +111,73 @@ public class CustomerStore
         }
     }
 
+    // ---- Αποθήκευση: αναβάλλεται λίγο και γράφεται στο ΠΑΡΑΣΚΗΝΙΟ ----
+    //
+    // Πριν, κάθε αλλαγή πελάτη έγραφε ΟΛΟΚΛΗΡΟ τον πελατολόγιο πάνω στο νήμα της οθόνης. Με λίγους
+    // πελάτες ήταν αστραπή· με δεκάδες χιλιάδες κρατούσε πάνω από ένα δευτερόλεπτο — και συμβαίνει
+    // σε ΚΑΘΕ παραγγελία διανομής (βλ. RecordOrder), δηλαδή το ταμείο «κόλλαγε» σε κάθε πελάτη.
+    //
+    // Τώρα: μαζεύουμε τις αλλαγές για λίγο (πολλές αλλαγές = ΜΙΑ εγγραφή) και μετά γράφουμε από
+    // αντίγραφο, σε νήμα παρασκηνίου. Η οθόνη δεν περιμένει ποτέ τον δίσκο.
+    private DispatcherTimer? _saveTimer;
+
+    /// <summary>Δύο εγγραφές μαζί θα πατούσαν το ίδιο προσωρινό αρχείο (βλ. AtomicFile) — σειριοποιούνται.</summary>
+    private readonly object _saveGate = new();
+
     private void Save()
     {
-        try
+        // ΕΝΑ σημείο για κάθε μεταβολή: όλες οι αλλαγές πελατών καταλήγουν εδώ, οπότε εδώ ανεβαίνει
+        // η έκδοση και πετιούνται οι πίνακες αναζήτησης.
+        Touch();
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
         {
-            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_customers, JsonOpts));
+            WriteToDisk([.. _customers]);   // χωρίς UI (π.χ. δοκιμές): γράψε κατευθείαν
+            return;
         }
-        catch (Exception)
+        if (!dispatcher.CheckAccess())
         {
-            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+            dispatcher.BeginInvoke(Save);
+            return;
+        }
+
+        if (_saveTimer is null)
+        {
+            _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _saveTimer.Tick += (_, _) => FlushPendingSave(background: true);
+        }
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    /// <summary>Γράφει ΤΩΡΑ ό,τι εκκρεμεί — καλείται και στο κλείσιμο της εφαρμογής (βλ. App.OnExit),
+    /// ώστε μια αλλαγή των τελευταίων δευτερολέπτων να μη χαθεί.</summary>
+    /// <param name="background">true στη συνηθισμένη ροή (η οθόνη δεν περιμένει). ΣΤΟ ΚΛΕΙΣΙΜΟ πρέπει
+    /// να είναι false: μια εργασία παρασκηνίου δεν προλαβαίνει να τελειώσει όταν η εφαρμογή σβήνει, και
+    /// η τελευταία αλλαγή θα χανόταν σιωπηλά.</param>
+    public void FlushPendingSave(bool background = false)
+    {
+        _saveTimer?.Stop();
+        var snapshot = _customers.ToList();
+        if (background)
+            _ = Task.Run(() => WriteToDisk(snapshot));
+        else
+            WriteToDisk(snapshot);
+    }
+
+    private void WriteToDisk(List<Customer> snapshot)
+    {
+        lock (_saveGate)
+        {
+            try
+            {
+                AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(snapshot, JsonOpts));
+            }
+            catch (Exception)
+            {
+                // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+            }
         }
     }
 
@@ -344,14 +446,22 @@ public class CustomerStore
     /// </summary>
     public static bool Matches(Customer c, string query)
     {
-        var q = query.Trim().ToLowerInvariant();
+        var q = query.Trim();
         if (q.Length == 0)
             return true;
+
+        // Σύγκριση ΧΩΡΙΣ να φτιάχνονται καινούριες συμβολοσειρές. Πριν, κάθε πελάτης γεννούσε τρία
+        // πεζογραμμένα αντίγραφα ΣΕ ΚΑΘΕ ΠΛΗΚΤΡΟ — με δεκάδες χιλιάδες πελάτες, εκατοντάδες χιλιάδες
+        // περιττές συμβολοσειρές ανά γράμμα. (Και πιάνει σωστά το τελικό «ς»: το OrdinalIgnoreCase
+        // βλέπει «ς» και «σ» ως ίδιο γράμμα, ενώ το πεζογράμμισμα όχι.)
+        if (c.Name.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || c.Address.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || c.Area.Contains(q, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Τα ψηφία του τηλεφώνου υπολογίζονται ΜΟΝΟ αν όντως ψάχνει με αριθμό.
         var qDigits = DigitsOnly(q);
-        return c.Name.ToLowerInvariant().Contains(q)
-            || c.Address.ToLowerInvariant().Contains(q)
-            || c.Area.ToLowerInvariant().Contains(q)
-            || (qDigits.Length >= 3 && DigitsOnly(c.Phone).Contains(qDigits));
+        return qDigits.Length >= 3 && DigitsOnly(c.Phone).Contains(qDigits);
     }
 
     // ---- Αυτόματη συμπλήρωση από ό,τι έχει ήδη περαστεί ----
@@ -366,12 +476,20 @@ public class CustomerStore
     /// πρόταση δεν πρέπει να φέρνει μαζί και το επώνυμο κάποιου άλλου πελάτη — που κατέληγε να γράφεται
     /// ολόκληρο μέσα στο κελί του ονόματος.
     /// </summary>
+    // Οι τέσσερις πίνακες προτάσεων. Χτίζονται ΜΙΑ φορά και ζουν μέχρι να αλλάξει κάτι στους πελάτες
+    // (βλ. Touch). Πριν, κάθε πάτημα πλήκτρου σάρωνε ΟΛΟΥΣ τους πελάτες και έφτιαχνε λεξικό συχνοτήτων
+    // από την αρχή — με δεκάδες χιλιάδες πελάτες αυτό είναι αισθητό κόλλημα σε κάθε γράμμα.
+    private List<string>? _firstNames;
+    private List<string>? _lastNames;
+    private List<string>? _streets;
+    private List<string>? _areas;
+
     public IReadOnlyList<string> SuggestFirstNames(string typed) =>
-        Suggest(_customers.Select(c => FirstNameOf(c.Name)), typed);
+        Pick(_firstNames ??= BuildIndex(_customers.Select(c => FirstNameOf(c.Name))), typed);
 
     /// <summary>Επώνυμα που έχουν ήδη περαστεί — ό,τι ακολουθεί το πρώτο κενό.</summary>
     public IReadOnlyList<string> SuggestLastNames(string typed) =>
-        Suggest(_customers.Select(c => LastNameOf(c.Name)), typed);
+        Pick(_lastNames ??= BuildIndex(_customers.Select(c => LastNameOf(c.Name))), typed);
 
     /// <summary>Ο χωρισμός γίνεται στο πρώτο κενό, ίδια λογική με τα δύο κελιά της φόρμας
     /// (βλ. OrderWizardViewModel.CustomerFirstName/CustomerLastName) — από κάτω παραμένει ΕΝΑ πεδίο.</summary>
@@ -391,11 +509,11 @@ public class CustomerStore
 
     /// <summary>Οδοί που έχουν ήδη περαστεί — και οι κύριες και οι πρόσθετες διευθύνσεις.</summary>
     public IReadOnlyList<string> SuggestStreets(string typed) =>
-        Suggest(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Address).Prepend(c.Address)), typed);
+        Pick(_streets ??= BuildIndex(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Address).Prepend(c.Address))), typed);
 
     /// <summary>Περιοχές που έχουν ήδη περαστεί.</summary>
     public IReadOnlyList<string> SuggestAreas(string typed) =>
-        Suggest(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Area).Prepend(c.Area)), typed);
+        Pick(_areas ??= BuildIndex(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Area).Prepend(c.Area))), typed);
 
     /// <summary>
     /// Όσα ταιριάζουν με ό,τι πληκτρολογείται, χωρίς διπλότυπα. Πρώτα αυτά που ΑΡΧΙΖΟΥΝ από το
@@ -403,33 +521,62 @@ public class CustomerStore
     /// περιέχουν· μέσα σε κάθε ομάδα, πρώτα τα πιο συχνά — έτσι οι καθημερινές περιοχές/δρόμοι του
     /// μαγαζιού ανεβαίνουν από μόνες τους στην κορυφή.
     /// </summary>
-    private static IReadOnlyList<string> Suggest(IEnumerable<string> values, string typed)
+    private static List<string> BuildIndex(IEnumerable<string> values)
     {
-        var q = typed.Trim();
-        if (q.Length < 2)
-            return [];
-
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var value in values)
         {
             // Κεφαλαία και εδώ: οι παλιοί πελάτες είναι γραμμένοι όπως τύχαινε, και χωρίς αυτό ο ίδιος
             // δρόμος εμφανιζόταν δύο φορές στη λίστα («Μαγνησίας» και «ΜΑΓΝΗΣΙΑΣ»).
             var v = GreekText.Upper(value).Trim();
-            if (v.Length == 0 || v.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
+            if (v.Length == 0)
                 continue;
             counts[v] = counts.TryGetValue(v, out var n) ? n + 1 : 1;
         }
 
+        // Η σειρά κρίνεται ΜΙΑ φορά, εδώ: πρώτα οι πιο συχνές τιμές του μαγαζιού.
         return counts
-            // Ό,τι έχει ήδη γραφτεί ολόκληρο δεν είναι πρόταση — αλλιώς η λίστα έμενε ανοιχτή από κάτω
-            // ακόμα και αφού ο ταμίας διάλεγε από αυτήν.
-            .Where(p => !string.Equals(p.Key, q, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(p => p.Key.StartsWith(q, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenByDescending(p => p.Value)
+            .OrderByDescending(p => p.Value)
             .ThenBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
             .Select(p => p.Key)
-            .Take(6)
             .ToList();
+    }
+
+    /// <summary>
+    /// Διαλέγει μέχρι 6 προτάσεις από τον έτοιμο πίνακα. Ένα πέρασμα, χωρίς ταξινόμηση και χωρίς
+    /// καινούριες συμβολοσειρές — ο πίνακας είναι ήδη με τις πιο συχνές πρώτες, οπότε κρατάμε τη σειρά
+    /// του και απλώς βάζουμε μπροστά όσες ΑΡΧΙΖΟΥΝ από το γραμμένο κείμενο.
+    /// </summary>
+    private static IReadOnlyList<string> Pick(List<string> index, string typed)
+    {
+        var q = typed.Trim();
+        if (q.Length < 2)
+            return [];
+
+        var starts = new List<string>(6);
+        var contains = new List<string>(6);
+        foreach (var v in index)
+        {
+            // Ό,τι έχει ήδη γραφτεί ολόκληρο δεν είναι πρόταση — αλλιώς η λίστα έμενε ανοιχτή από κάτω
+            // ακόμα και αφού ο ταμίας διάλεγε από αυτήν.
+            if (string.Equals(v, q, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (v.StartsWith(q, StringComparison.OrdinalIgnoreCase))
+            {
+                starts.Add(v);
+                if (starts.Count == 6)
+                    break;   // γέμισε με τις καλύτερες, δεν χρειάζεται να δούμε τις υπόλοιπες
+            }
+            else if (contains.Count < 6 && v.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                contains.Add(v);
+            }
+        }
+
+        if (starts.Count >= 6)
+            return starts;
+        starts.AddRange(contains.Take(6 - starts.Count));
+        return starts;
     }
 
     /// <summary>Αναζήτηση για το autocomplete στις παραγγελίες (μέχρι 6 αποτελέσματα).</summary>
@@ -457,19 +604,37 @@ public class CustomerStore
     /// Συγκρίνει τα τελευταία 10 ψηφία, ώστε να ταιριάζει είτε το τηλεφωνικό κέντρο στέλνει τον
     /// αριθμό με 0, με κωδικό χώρας (+30) ή χωρίς.
     /// </summary>
+    /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία) → πελάτης. Χτίζεται μία φορά, βλ. Touch.</summary>
+    private Dictionary<string, Customer>? _byPhone;
+
+    private Dictionary<string, Customer> PhoneIndex
+    {
+        get
+        {
+            if (_byPhone is not null)
+                return _byPhone;
+            var map = new Dictionary<string, Customer>(StringComparer.Ordinal);
+            foreach (var c in _customers)
+            {
+                var d = DigitsOnly(c.Phone);
+                if (d.Length == 0)
+                    continue;
+                // Πρώτος κερδίζει — ίδια συμπεριφορά με το FirstOrDefault που υπήρχε πριν.
+                map.TryAdd(d.Length > 10 ? d[^10..] : d, c);
+            }
+            return _byPhone = map;
+        }
+    }
+
     public Customer? FindByPhone(string phone)
     {
         var digits = DigitsOnly(phone);
         if (digits.Length < 6)
             return null;
         var tail = digits.Length > 10 ? digits[^10..] : digits;
-        return _customers.FirstOrDefault(c =>
-        {
-            var cDigits = DigitsOnly(c.Phone);
-            if (cDigits.Length == 0)
-                return false;
-            var cTail = cDigits.Length > 10 ? cDigits[^10..] : cDigits;
-            return cTail == tail;
-        });
+        // Ευρετήριο αντί για σάρωση: χτίζεται μία φορά και ζει μέχρι να αλλάξει κάτι στους πελάτες.
+        // Χτυπάει σε κάθε εισερχόμενη κλήση — με δεκάδες χιλιάδες πελάτες η σάρωση γεννούσε άλλες
+        // τόσες συμβολοσειρές κάθε φορά που χτυπούσε το τηλέφωνο.
+        return PhoneIndex.GetValueOrDefault(tail);
     }
 }
