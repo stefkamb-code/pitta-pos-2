@@ -870,7 +870,13 @@ public class CustomerStore
         }
 
         _rebuildingIndexes = true;
-        var snapshot = _customers.ToList();
+        // Κρατάμε ΚΑΙ τη λίστα από την οποία βγήκε το αντίγραφο. Το δεύτερο ταμείο αντικαθιστά ολόκληρη
+        // τη λίστα σε κάθε συγχρονισμό (RefreshFromHostAsync): αν αυτό συμβεί όσο χτίζουμε, ο πίνακας
+        // ψηφίων θα αντιστοιχούσε σε ΑΛΛΗ λίστα — και αν τύχαινε ίδιο πλήθος, θα ταίριαζε σιωπηλά λάθος
+        // τηλέφωνα με λάθος πελάτες. Οι προτάσεις είναι υποδείξεις και δεν πειράζει να είναι λίγο παλιές·
+        // ο πίνακας ψηφίων όμως δείχνει με τη ΘΕΣΗ, οπότε ή ταιριάζει στη λίστα ή πετιέται.
+        var source = _customers;
+        var snapshot = source.ToList();
         var dispatcher = System.Windows.Application.Current!.Dispatcher;
         _ = Task.Run(() =>
         {
@@ -878,7 +884,7 @@ public class CustomerStore
             dispatcher.BeginInvoke(() =>
             {
                 _rebuildingIndexes = false;
-                ApplyIndexes(built);
+                ApplyIndexes(built, ReferenceEquals(source, _customers));
             });
         });
     }
@@ -905,14 +911,16 @@ public class CustomerStore
         return built;
     }
 
-    private void ApplyIndexes(Indexes built)
+    private void ApplyIndexes(Indexes built, bool sameList = true)
     {
         _firstNames = built.FirstNames;
         _lastNames = built.LastNames;
         _streets = built.Streets;
         _areas = built.Areas;
-        // Αν μπήκαν πελάτες όσο χτιζόταν, ο getter συμπληρώνει μόνος του την ουρά.
-        _phoneDigits = built.PhoneDigits;
+        // Ίδια λίστα: ό,τι μπήκε στο μεταξύ μπήκε στο ΤΕΛΟΣ, οπότε ο πίνακας είναι σωστός ως εκεί που
+        // φτάνει και ο getter συμπληρώνει την ουρά. Αλλιώς τον πετάμε και ξαναχτίζεται με την πρώτη
+        // αναζήτηση.
+        _phoneDigits = sameList ? built.PhoneDigits : null;
     }
 
     /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία, βλ. PhoneKey) → πελάτης. Χτίζεται μία φορά και ζει
