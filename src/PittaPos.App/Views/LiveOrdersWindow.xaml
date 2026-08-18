@@ -70,18 +70,18 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,14">
-                        <TextBlock Text="Παραγγελίες σε αναμονή" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Ink}"/>
+                        <TextBlock Text="Παραγγελίες σε αναμονή" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Ink}"/>
                     </Border>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="Καμία παραγγελία σε αναμονή" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
+                            <TextBlock Text="Καμία παραγγελία σε αναμονή" FontSize="11" Foreground="{DynamicResource Neutral500}"
                                        HorizontalAlignment="Center" Margin="0,24"
                                        Visibility="{Binding NoPending, Converter={StaticResource BoolToVis}}"/>
                             <ItemsControl ItemsSource="{Binding PendingOrders}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type svc:BoardOrder}">
                                         <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                                Padding="16,14" BorderThickness="0,0,0,1"
+                                                Padding="13,10" BorderThickness="0,0,0,1"
                                                 Command="{Binding DataContext.SelectOrderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}">
                                             <Button.Style>
@@ -101,28 +101,28 @@
                                             </Button.Style>
                                             <StackPanel>
                                                 <DockPanel Margin="0,0,0,4">
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ElapsedLabel}" FontSize="15"
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ElapsedLabel}" FontSize="12"
                                                                FontWeight="ExtraBold" Foreground="{Binding ElapsedBrush}"/>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="#" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <!-- Για ΕΦΑΡΜΟΓΕΣ με δηλωμένο αριθμό πλατφόρμας, αυτός είναι ο κύριος αριθμός
                                                              (πιο χρήσιμος για Wolt/e-food/BOX) — βλ. BoardOrder.DisplayNumber. -->
-                                                        <TextBlock Text="{Binding DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
-                                                        <TextBlock Text="{Binding TypeLabel}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="{Binding DisplayNumber}" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text=" · " FontSize="11" Foreground="{DynamicResource Neutral500}"/>
+                                                        <TextBlock Text="{Binding TypeLabel}" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                         <!-- Μετρητά/κάρτα — μόνο ΔΙΑΝΟΜΗ/BOX, βλ. BoardOrder.PaymentIcon -->
-                                                        <TextBlock Text="{Binding PaymentIcon}" FontSize="13" Margin="6,0,0,0"/>
+                                                        <TextBlock Text="{Binding PaymentIcon}" FontSize="11" Margin="6,0,0,0"/>
                                                     </StackPanel>
                                                 </DockPanel>
                                                 <!-- ΠΡΩΤΑ Η ΔΙΕΥΘΥΝΣΗ, από κάτω το όνομα: στην αναμονή ο ταμίας
                                                      διαβάζει πού πάει η παραγγελία, όχι ποιος την έδωσε. -->
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="13"
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="11.5"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                    <TextBlock Text="{Binding AddressOrName}" FontSize="13" FontWeight="SemiBold"
+                                                    <TextBlock Text="{Binding AddressOrName}" FontSize="11.5" FontWeight="SemiBold"
                                                                Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding NameUnderAddress}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"/>
+                                                <TextBlock Text="{Binding NameUnderAddress}" FontSize="10" Foreground="{DynamicResource Neutral600}"/>
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -149,9 +149,9 @@
                     </TextBlock>
                     <!-- Ίδια σειρά με τη λίστα (διεύθυνση πάνω, όνομα κάτω) και μικρότερα γράμματα με
                          αναδίπλωση: στα 22 το ονοματεπώνυμο έβγαινε έξω από τη στήλη και κοβόταν στη μέση. -->
-                    <TextBlock Text="{Binding SelectedOrder.AddressOrName}" FontSize="16" FontWeight="ExtraBold"
+                    <TextBlock Text="{Binding SelectedOrder.AddressOrName}" FontSize="14" FontWeight="ExtraBold"
                                Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding SelectedOrder.NameUnderAddress}" FontSize="12.5"
+                    <TextBlock Text="{Binding SelectedOrder.NameUnderAddress}" FontSize="11.5"
                                Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,2,0,4"/>
                     <!-- Πραγματική διαγραφή — π.χ. ο πελάτης ακύρωσε πριν προλάβει να περάσει σε κανάλι.
                          Μόνο με ονομαστικό κωδικό (βλ. CancelPendingOrder_Click), ίδια λογική με το τραπέζι. -->
@@ -168,9 +168,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ChannelButtonViewModel}">
                                 <Button Content="{Binding Name}" Command="{Binding Command}"
-                                        BorderThickness="2" Padding="16"
-                                        FontSize="13.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
-                                        Margin="0,0,10,10" MinWidth="150">
+                                        BorderThickness="2" Padding="13"
+                                        FontSize="12.5" FontWeight="ExtraBold" HorizontalContentAlignment="Center"
+                                        Margin="0,0,10,10" MinWidth="132">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource FlatButton}">
                                             <Setter Property="Foreground" Value="{Binding Brush}"/>
@@ -198,12 +198,12 @@
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,18">
                         <Button Content="←" FontSize="16" Style="{StaticResource GlyphButton}" Command="{Binding ClearChannelCommand}"/>
-                        <TextBlock Text="{Binding SelectedChannel}" FontSize="18" FontWeight="Bold"
+                        <TextBlock Text="{Binding SelectedChannel}" FontSize="15" FontWeight="Bold"
                                    Foreground="{DynamicResource Ink}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="Καμία παραγγελία σε αυτό το κανάλι" FontSize="13" Foreground="{DynamicResource Neutral500}"
+                            <TextBlock Text="Καμία παραγγελία σε αυτό το κανάλι" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
                                        Margin="0,24" Visibility="{Binding NoChannelOrders, Converter={StaticResource BoolToVis}}"/>
                             <ItemsControl ItemsSource="{Binding ChannelOrders}">
                                 <ItemsControl.ItemTemplate>
@@ -211,15 +211,15 @@
                                         <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,12">
                                             <StackPanel>
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Order.TotalLabel}" FontSize="13"
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Order.TotalLabel}" FontSize="11.5"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="13" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text=" · " FontSize="13" Foreground="{DynamicResource Neutral500}"/>
+                                                        <TextBlock Text="#" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                                        <TextBlock Text=" · " FontSize="11.5" Foreground="{DynamicResource Neutral500}"/>
                                                         <!-- ΔΙΕΥΘΥΝΣΗ, όχι ονοματεπώνυμο: μέσα στο κανάλι του διανομέα
                                                              η ερώτηση είναι «πού πάει», όχι «ποιος είναι». -->
-                                                        <TextBlock Text="{Binding Order.AddressOrName}" FontSize="13" FontWeight="ExtraBold"
+                                                        <TextBlock Text="{Binding Order.AddressOrName}" FontSize="11.5" FontWeight="ExtraBold"
                                                                    Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                 </DockPanel>
