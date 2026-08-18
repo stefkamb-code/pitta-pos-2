@@ -182,6 +182,18 @@ public partial class LiveOrdersViewModel : ObservableObject
             SelectedOrder = null;
     }
 
+    /// <summary>
+    /// Τι έχει μέσα η επιλεγμένη παραγγελία — τα ίδια τα προϊόντα.
+    ///
+    /// <para>Ο πίνακας κρατά μόνο τα βασικά (ποιος, πού, πόσο· βλ. BoardOrder), οπότε οι γραμμές
+    /// έρχονται από την ίδια την καταχωρημένη παραγγελία με κλειδί τον αριθμό της. Ζητήθηκε ρητά:
+    /// πατώντας μια παραγγελία σε αναμονή, ο ταμίας θέλει να δει ΚΑΙ τι είναι, όχι μόνο πού θα την
+    /// περάσει — αλλιώς έπρεπε να ανοίξει το Ιστορικό για να θυμηθεί.</para>
+    /// </summary>
+    public IReadOnlyList<SoldLine> SelectedOrderLines { get; private set; } = [];
+
+    public bool HasSelectedOrderLines => SelectedOrderLines.Count > 0;
+
     private void SelectChannel(string name)
     {
         SelectedChannel = name;
@@ -228,6 +240,11 @@ public partial class LiveOrdersViewModel : ObservableObject
             .Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Cash)
             .Sum(o => o.Total);
         CashOnDeliveryLabel = cashTotal > 0 ? "💶 Διανομέας: " + Core.Models.Order.FormatPrice(cashTotal) : "";
+
+        SelectedOrderLines = SelectedOrder is null
+            ? []
+            : SalesStatsService.Instance.Orders
+                .FirstOrDefault(o => o.OrderNumber == SelectedOrder.OrderNumber)?.Lines ?? [];
 
         DispatchOptions = SelectedOrder is null
             ? []
@@ -281,12 +298,18 @@ public partial class LiveOrdersViewModel : ObservableObject
         OnPropertyChanged(nameof(HasSelectedChannel));
         OnPropertyChanged(nameof(NothingSelected));
         OnPropertyChanged(nameof(DispatchOptions));
+        OnPropertyChanged(nameof(SelectedOrderLines));
+        OnPropertyChanged(nameof(HasSelectedOrderLines));
         OnPropertyChanged(nameof(ChannelStats));
         OnPropertyChanged(nameof(ChannelOrders));
         OnPropertyChanged(nameof(HasChannelOrders));
         OnPropertyChanged(nameof(NoChannelOrders));
     }
 
-    partial void OnSelectedOrderChanged(BoardOrder? value) => OnPropertyChanged(nameof(HasSelectedOrder));
+    partial void OnSelectedOrderChanged(BoardOrder? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedOrder));
+        Rebuild();   // αλλιώς οι γραμμές της παραγγελίας έμεναν εκείνες της προηγούμενης
+    }
     partial void OnSelectedChannelChanged(string? value) => OnPropertyChanged(nameof(HasSelectedChannel));
 }

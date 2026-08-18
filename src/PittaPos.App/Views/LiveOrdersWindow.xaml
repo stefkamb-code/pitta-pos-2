@@ -158,6 +158,30 @@
                     <Button Content="✕ ΑΚΥΡΩΣΗ ΠΑΡΑΓΓΕΛΙΑΣ" FontSize="11" FontWeight="ExtraBold" Padding="10,6"
                             HorizontalAlignment="Left" Margin="0,0,0,20" Foreground="{DynamicResource Accent}"
                             Style="{StaticResource FlatButton}" Click="CancelPendingOrder_Click"/>
+                    <!-- ΤΙ ΕΧΕΙ Η ΠΑΡΑΓΓΕΛΙΑ. Πριν φαινοταν μόνο «πού θα την περάσω» — για να δει ο
+                         ταμίας τι είναι, έπρεπε να ανοίξει το Ιστορικό. -->
+                    <StackPanel Margin="0,0,0,16" Visibility="{Binding HasSelectedOrderLines, Converter={StaticResource BoolToVis}}">
+                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+                        <ItemsControl ItemsSource="{Binding SelectedOrderLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,6">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding RevenueLabel}" FontSize="10.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                            <TextBlock Text="{Binding QtyNameLabel}" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                                        </DockPanel>
+                                        <!-- ψωμί / χωρίς / έξτρα / σημείωση — μόνο όπου υπάρχουν -->
+                                        <TextBlock Text="{Binding Details}" FontSize="9.5" Foreground="{DynamicResource Neutral600}"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="{Binding HasDetails, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
                     <TextBlock Text="ΠΕΡΑΣΕ ΤΗΝ ΣΕ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}" Margin="0,0,0,12"/>
                     <ItemsControl ItemsSource="{Binding DispatchOptions}" HorizontalAlignment="Left">
                         <ItemsControl.ItemsPanel>
