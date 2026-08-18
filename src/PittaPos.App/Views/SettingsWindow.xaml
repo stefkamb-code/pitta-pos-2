@@ -1,11 +1,15 @@
-<Window x:Class="PittaPos.App.Views.SettingsWindow"
+﻿<Window x:Class="PittaPos.App.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:PittaPos.App.Controls"
         Title="ΡΥΘΜΙΣΕΙΣ" Height="600" Width="640"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/logo.png"
         FontFamily="{StaticResource PosFont}"
         Background="{DynamicResource Bg}">
+    <!-- Ολο το περιεχομενο μεγαλωνει/μικραινει μαζι με το παραθυρο, ΚΑΙ απλωνει στον χωρο που
+         υπαρχει (βλ. Controls/ScaleHost) — γραμματα, κουμπια και αποστασεις στην ιδια αναλογια. -->
+    <ctl:ScaleHost DesignWidth="624" DesignHeight="561">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="52"/>
@@ -120,4 +124,5 @@
             </StackPanel>
         </ScrollViewer>
     </Grid>
+    </ctl:ScaleHost>
 </Window>

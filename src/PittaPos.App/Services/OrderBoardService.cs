@@ -138,6 +138,10 @@ public partial class BoardOrder : ObservableObject
     /// όνομα όπου δεν υπάρχει δική μας διεύθυνση (e-food/Wolt, τραπέζια).</summary>
     public string AddressOrName => Address.Length > 0 ? Address : Name;
 
+    /// <summary>Το όνομα ΚΑΤΩ από τη διεύθυνση — κενό όταν διεύθυνση δεν υπάρχει (e-food/Wolt), γιατί
+    /// τότε τη θέση της την έχει πάρει ήδη το όνομα και θα γραφόταν δύο φορές.</summary>
+    public string NameUnderAddress => Address.Length > 0 ? Name : "";
+
     /// <summary>Νέος τρόπος πληρωμής — με ειδοποίηση, ώστε να αλλάξει και το εικονίδιο 💶/💳.</summary>
     public void UpdatePaymentMethod(PaymentMethod? method)
     {

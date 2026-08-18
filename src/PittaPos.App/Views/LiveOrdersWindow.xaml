@@ -1,6 +1,7 @@
 ﻿<Window x:Class="PittaPos.App.Views.LiveOrdersWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:PittaPos.App.Controls"
         xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
         xmlns:svc="clr-namespace:PittaPos.App.Services"
         Title="ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ" Height="900" Width="742"
@@ -13,12 +14,10 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
-    <!-- ΟΛΟ το παράθυρο μέσα σε Viewbox: σχεδιάζεται σε σταθερό «χαρτί» 644x761 και μεγαλώνει/
-         μικραίνει ΟΛΟ μαζί με το παράθυρο — γράμματα, κουμπιά και αποστάσεις στην ίδια αναλογία.
-         Ζητήθηκε ρητά· πριν, το μεγάλωμα άπλωνε μόνο τις στήλες και τα γράμματα έμεναν μικροσκοπικά.
-         Stretch=Uniform: κρατά το σχήμα, δεν παραμορφώνει τίποτα. -->
-    <Viewbox Stretch="Uniform">
-    <Grid Width="644" Height="761">
+    <!-- Ολο το περιεχομενο μεγαλωνει/μικραινει μαζι με το παραθυρο, ΚΑΙ απλωνει στον χωρο που
+         υπαρχει (βλ. Controls/ScaleHost) — γραμματα, κουμπια και αποστασεις στην ιδια αναλογια. -->
+    <ctl:ScaleHost DesignWidth="644" DesignHeight="761">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="52"/>
             <RowDefinition Height="*"/>
@@ -115,12 +114,15 @@
                                                         <TextBlock Text="{Binding PaymentIcon}" FontSize="13" Margin="6,0,0,0"/>
                                                     </StackPanel>
                                                 </DockPanel>
+                                                <!-- ΠΡΩΤΑ Η ΔΙΕΥΘΥΝΣΗ, από κάτω το όνομα: στην αναμονή ο ταμίας
+                                                     διαβάζει πού πάει η παραγγελία, όχι ποιος την έδωσε. -->
                                                 <DockPanel>
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding TotalLabel}" FontSize="13"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Ink}"/>
+                                                    <TextBlock Text="{Binding AddressOrName}" FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding Address}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"/>
+                                                <TextBlock Text="{Binding NameUnderAddress}" FontSize="11.5" Foreground="{DynamicResource Neutral600}"/>
                                             </StackPanel>
                                         </Button>
                                     </DataTemplate>
@@ -145,8 +147,12 @@
                     <TextBlock FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}" Margin="0,0,0,6">
                         <Run Text="ΠΑΡΑΓΓΕΛΙΑ #"/><Run Text="{Binding SelectedOrder.DisplayNumber, Mode=OneWay}"/>
                     </TextBlock>
-                    <TextBlock Text="{Binding SelectedOrder.Name}" FontSize="22" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                    <TextBlock Text="{Binding SelectedOrder.Address}" FontSize="13" Foreground="{DynamicResource Neutral600}" Margin="0,2,0,4"/>
+                    <!-- Ίδια σειρά με τη λίστα (διεύθυνση πάνω, όνομα κάτω) και μικρότερα γράμματα με
+                         αναδίπλωση: στα 22 το ονοματεπώνυμο έβγαινε έξω από τη στήλη και κοβόταν στη μέση. -->
+                    <TextBlock Text="{Binding SelectedOrder.AddressOrName}" FontSize="16" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding SelectedOrder.NameUnderAddress}" FontSize="12.5"
+                               Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,2,0,4"/>
                     <!-- Πραγματική διαγραφή — π.χ. ο πελάτης ακύρωσε πριν προλάβει να περάσει σε κανάλι.
                          Μόνο με ονομαστικό κωδικό (βλ. CancelPendingOrder_Click), ίδια λογική με το τραπέζι. -->
                     <Button Content="✕ ΑΚΥΡΩΣΗ ΠΑΡΑΓΓΕΛΙΑΣ" FontSize="11" FontWeight="ExtraBold" Padding="10,6"
@@ -214,7 +220,7 @@
                                                         <!-- ΔΙΕΥΘΥΝΣΗ, όχι ονοματεπώνυμο: μέσα στο κανάλι του διανομέα
                                                              η ερώτηση είναι «πού πάει», όχι «ποιος είναι». -->
                                                         <TextBlock Text="{Binding Order.AddressOrName}" FontSize="13" FontWeight="ExtraBold"
-                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap" MaxWidth="260"/>
+                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                 </DockPanel>
                                                 <StackPanel Margin="0,8,0,0">
@@ -384,5 +390,5 @@
             </Border>
         </Grid>
     </Grid>
-    </Viewbox>
+    </ctl:ScaleHost>
 </Window>
