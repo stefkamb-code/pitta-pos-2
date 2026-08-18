@@ -51,17 +51,24 @@ public class CustomerStore
     /// ήδη κατεβασμένο το δεύτερο.</summary>
     public string Stamp => Version + ":" + _customers.Count;
 
-    /// <summary>Κάθε μεταβολή περνά από εδώ: ανεβάζει την έκδοση και ακυρώνει τους πίνακες
-    /// αναζήτησης, ώστε να ξαναχτιστούν την επόμενη φορά που θα χρειαστούν.</summary>
+    /// <summary>
+    /// Κάθε μεταβολή περνά από εδώ: ανεβάζει την έκδοση και φροντίζει τους βοηθητικούς πίνακες.
+    ///
+    /// <para><b>ΔΕΝ τους πετάει πια.</b> Πριν μηδενίζονταν όλοι, και ο επόμενος που θα τους ζητούσε
+    /// πλήρωνε την ανακατασκευή ΠΑΝΩ ΣΤΗΝ ΟΘΟΝΗ: με 135.000 πελάτες αυτό είναι κοντά στο ένα
+    /// δευτερόλεπτο. Και επειδή κάθε ολοκληρωμένη διανομή είναι μεταβολή, ο ταμίας το έτρωγε ξανά και
+    /// ξανά — «περνάει ώρα, πάω να γράψω πελάτη και κολλάει μέχρι να φορτώσει».</para>
+    ///
+    /// <para>Πλέον οι πίνακες προτάσεων ξαναχτίζονται στο παρασκήνιο και ΩΣ ΤΟΤΕ σερβίρεται ο
+    /// προηγούμενος: μια πρόταση που λείπει για ένα δευτερόλεπτο δεν τη βλέπει κανείς, ένα κολλημένο
+    /// ταμείο το βλέπουν όλοι. Εξαίρεση το ευρετήριο τηλεφώνου, που δεν είναι υπόδειξη αλλά ΑΚΡΙΒΕΙΑ
+    /// (πάνω του κρίνεται αν ο πελάτης είναι ο ίδιος) — αυτό ακυρώνεται αμέσως.</para>
+    /// </summary>
     private void Touch()
     {
         Version++;
-        _firstNames = null;
-        _lastNames = null;
-        _streets = null;
-        _areas = null;
         _byPhone = null;
-        _phoneDigits = null;
+        ScheduleIndexRebuild();
     }
 
     /// <summary>Τελευταία σφραγίδα που κατέβασε το δεύτερο ταμείο — αν δεν άλλαξε, δεν ξανακατεβάζουμε.</summary>
@@ -111,6 +118,9 @@ public class CustomerStore
             _customers = [];
         }
         ImportSeedIfPresent();
+        // Πρώτο χτίσιμο αμέσως, στο παρασκήνιο: μέχρι να ανοίξει ο ταμίας παραγγελία είναι έτοιμο,
+        // και δεν πληρώνεται ποτέ πάνω στο πρώτο πληκτρολόγημα.
+        ScheduleIndexRebuild();
     }
 
     /// <summary>Τα τελευταία 10 ψηφία — έτσι ταιριάζει το ίδιο νούμερο γραμμένο με 0, με +30 ή σκέτο.</summary>
@@ -630,11 +640,11 @@ public class CustomerStore
     private List<string>? _areas;
 
     public IReadOnlyList<string> SuggestFirstNames(string typed) =>
-        Pick(_firstNames ??= BuildIndex(_customers.Select(c => FirstNameOf(c.Name))), typed);
+        Pick(_firstNames, typed);
 
     /// <summary>Επώνυμα που έχουν ήδη περαστεί — ό,τι ακολουθεί το πρώτο κενό.</summary>
     public IReadOnlyList<string> SuggestLastNames(string typed) =>
-        Pick(_lastNames ??= BuildIndex(_customers.Select(c => LastNameOf(c.Name))), typed);
+        Pick(_lastNames, typed);
 
     /// <summary>Ο χωρισμός γίνεται στο πρώτο κενό, ίδια λογική με τα δύο κελιά της φόρμας
     /// (βλ. OrderWizardViewModel.CustomerFirstName/CustomerLastName) — από κάτω παραμένει ΕΝΑ πεδίο.</summary>
@@ -654,11 +664,11 @@ public class CustomerStore
 
     /// <summary>Οδοί που έχουν ήδη περαστεί — και οι κύριες και οι πρόσθετες διευθύνσεις.</summary>
     public IReadOnlyList<string> SuggestStreets(string typed) =>
-        Pick(_streets ??= BuildIndex(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Address).Prepend(c.Address))), typed);
+        Pick(_streets, typed);
 
     /// <summary>Περιοχές που έχουν ήδη περαστεί.</summary>
     public IReadOnlyList<string> SuggestAreas(string typed) =>
-        Pick(_areas ??= BuildIndex(_customers.SelectMany(c => c.OtherAddresses.Select(a => a.Area).Prepend(c.Area))), typed);
+        Pick(_areas, typed);
 
     /// <summary>
     /// Όσα ταιριάζουν με ό,τι πληκτρολογείται, χωρίς διπλότυπα. Πρώτα αυτά που ΑΡΧΙΖΟΥΝ από το
@@ -692,10 +702,12 @@ public class CustomerStore
     /// καινούριες συμβολοσειρές — ο πίνακας είναι ήδη με τις πιο συχνές πρώτες, οπότε κρατάμε τη σειρά
     /// του και απλώς βάζουμε μπροστά όσες ΑΡΧΙΖΟΥΝ από το γραμμένο κείμενο.
     /// </summary>
-    private static IReadOnlyList<string> Pick(List<string> index, string typed)
+    private static IReadOnlyList<string> Pick(List<string>? index, string typed)
     {
         var q = typed.Trim();
-        if (q.Length < 2)
+        // Άδειος πίνακας = δεν έχει προλάβει να χτιστεί ακόμα (τα πρώτα δευτερόλεπτα μετά το άνοιγμα).
+        // Καμία πρόταση, καμία αναμονή.
+        if (index is null || q.Length < 2)
             return [];
 
         var starts = new List<string>(6);
@@ -804,12 +816,103 @@ public class CustomerStore
     {
         get
         {
-            // Ο έλεγχος μήκους είναι δίχτυ ασφαλείας: αν κάποια μελλοντική διαδρομή προσθέσει πελάτη
-            // χωρίς να περάσει από το Touch, καλύτερα να ξαναχτιστεί παρά να διαβαστεί λάθος θέση.
-            if (_phoneDigits is null || _phoneDigits.Length != _customers.Count)
+            // Οι πελάτες μόνο ΠΡΟΣΤΙΘΕΝΤΑΙ στο τέλος, ποτέ δεν αφαιρούνται: όταν ο πίνακας έχει μείνει
+            // πίσω, αρκεί να συμπληρωθεί η ουρά — δεν ξαναϋπολογίζονται 135.000 τηλέφωνα επειδή
+            // μπήκε ένας πελάτης. (Αλλαγή τηλεφώνου σε υπάρχοντα διορθώνεται με την ανακατασκευή
+            // παρασκηνίου λίγο μετά· η αναζήτηση είναι υπόδειξη, όχι ταμειακή απόδειξη.)
+            if (_phoneDigits is null || _phoneDigits.Length > _customers.Count)
                 _phoneDigits = [.. _customers.Select(c => DigitsOnly(c.Phone))];
+            else if (_phoneDigits.Length < _customers.Count)
+                _phoneDigits = [.. _phoneDigits, .. _customers.Skip(_phoneDigits.Length).Select(c => DigitsOnly(c.Phone))];
             return _phoneDigits;
         }
+    }
+
+    // ---- Ανακατασκευή πινάκων στο παρασκήνιο ----
+
+    /// <summary>Μαζεύει τις αλλαγές για λίγο (μια βάρδια με παραγγελίες πίσω από πίσω θα έριχνε
+    /// αλλιώς μια ανακατασκευή ανά παραγγελία) και μετά χτίζει ΜΙΑ φορά, εκτός οθόνης.</summary>
+    private DispatcherTimer? _indexTimer;
+    private bool _rebuildingIndexes;
+
+    private void ScheduleIndexRebuild()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            ApplyIndexes(BuildIndexes([.. _customers]));   // χωρίς UI (π.χ. δοκιμές): επιτόπου
+            return;
+        }
+        if (!dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(ScheduleIndexRebuild);
+            return;
+        }
+
+        if (_indexTimer is null)
+        {
+            _indexTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            _indexTimer.Tick += (_, _) => StartIndexRebuild();
+        }
+        _indexTimer.Stop();
+        _indexTimer.Start();
+    }
+
+    private void StartIndexRebuild()
+    {
+        _indexTimer?.Stop();
+        if (_rebuildingIndexes)
+        {
+            // Τρέχει ήδη μία με παλιότερα δεδομένα — ξαναπρογραμμάτισε ώστε να πιαστούν και οι νέες
+            // αλλαγές, αντί για δύο ανακατασκευές μαζί πάνω στον ίδιο επεξεργαστή.
+            ScheduleIndexRebuild();
+            return;
+        }
+
+        _rebuildingIndexes = true;
+        var snapshot = _customers.ToList();
+        var dispatcher = System.Windows.Application.Current!.Dispatcher;
+        _ = Task.Run(() =>
+        {
+            var built = BuildIndexes(snapshot);
+            dispatcher.BeginInvoke(() =>
+            {
+                _rebuildingIndexes = false;
+                ApplyIndexes(built);
+            });
+        });
+    }
+
+    private sealed record Indexes(List<string> FirstNames, List<string> LastNames, List<string> Streets,
+        List<string> Areas, string[] PhoneDigits);
+
+    /// <summary>Το ακριβό κομμάτι, πάντα πάνω σε ΑΝΤΙΓΡΑΦΟ της λίστας ώστε να μπορεί να τρέξει έξω από
+    /// το νήμα της οθόνης όσο το ταμείο δουλεύει.</summary>
+    private static Indexes BuildIndexes(List<Customer> customers)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var built = new Indexes(
+            BuildIndex(customers.Select(c => FirstNameOf(c.Name))),
+            BuildIndex(customers.Select(c => LastNameOf(c.Name))),
+            BuildIndex(customers.SelectMany(c => c.OtherAddresses.Select(a => a.Address).Prepend(c.Address))),
+            BuildIndex(customers.SelectMany(c => c.OtherAddresses.Select(a => a.Area).Prepend(c.Area))),
+            [.. customers.Select(c => DigitsOnly(c.Phone))]);
+        // Μετρημένο 18/8/2026 με 135.004 πελάτες: 811 ms. Είναι ΚΑΝΟΝΙΚΟ και γι αυτό τρέχει στο
+        // παρασκήνιο· καταγράφεται μόνο αν ξεφύγει πολύ πάνω από αυτό, χωρίς να γεμίζει το αρχείο
+        // γραμμές σε κάθε παραγγελία.
+        if (watch.ElapsedMilliseconds > 2000)
+            AppLog.Write("customers", $"Πίνακες αναζήτησης: {customers.Count} πελάτες σε {watch.ElapsedMilliseconds} ms (παρασκήνιο).");
+        return built;
+    }
+
+    private void ApplyIndexes(Indexes built)
+    {
+        _firstNames = built.FirstNames;
+        _lastNames = built.LastNames;
+        _streets = built.Streets;
+        _areas = built.Areas;
+        // Αν μπήκαν πελάτες όσο χτιζόταν, ο getter συμπληρώνει μόνος του την ουρά.
+        _phoneDigits = built.PhoneDigits;
     }
 
     /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία, βλ. PhoneKey) → πελάτης. Χτίζεται μία φορά και ζει
