@@ -109,6 +109,86 @@ public class CustomerStore
             // Χαλασμένο αρχείο — ξεκίνα με κενή λίστα αντί να ρίξεις την εφαρμογή
             _customers = [];
         }
+        ImportSeedIfPresent();
+    }
+
+    /// <summary>Τα τελευταία 10 ψηφία — έτσι ταιριάζει το ίδιο νούμερο γραμμένο με 0, με +30 ή σκέτο.</summary>
+    private static string PhoneKey(string phone)
+    {
+        var d = DigitsOnly(phone);
+        return d.Length > 10 ? d[^10..] : d;
+    }
+
+    /// <summary>
+    /// Πελατολόγιο που ήρθε ΜΑΖΙ ΜΕ ΤΗΝ ΕΓΚΑΤΑΣΤΑΣΗ (αρχείο «pelates.json» δίπλα στο exe).
+    ///
+    /// <para><b>ΠΡΟΣΘΕΤΕΙ, ΔΕΝ ΑΝΤΙΚΑΘΙΣΤΑ.</b> Όποιος υπάρχει ήδη μένει ακριβώς όπως είναι — κρατάει το
+    /// ιστορικό του (παραγγελίες, τζίρος, υπενθύμιση), που το εισαγόμενο αρχείο δεν έχει. Μπαίνουν μόνο
+    /// όσοι λείπουν, με κλειδί το τηλέφωνο.</para>
+    ///
+    /// <para>Γίνεται ΜΙΑ φορά ανά αρχείο: η σφραγίδα (μέγεθος + ώρα) γράφεται δίπλα στα δεδομένα, οπότε
+    /// τα επόμενα setup με τον ΙΔΙΟ πελατολόγιο δεν ξαναπερνούν τίποτα. Αν σταλεί ανανεωμένος, η
+    /// σφραγίδα αλλάζει και μπαίνουν οι νέοι — πάλι χωρίς να πειραχτεί κανείς υπάρχων.</para>
+    /// </summary>
+    private void ImportSeedIfPresent()
+    {
+        try
+        {
+            var seed = Path.Combine(AppContext.BaseDirectory, "pelates.json");
+            if (!File.Exists(seed))
+                return;
+
+            var info = new FileInfo(seed);
+            var stamp = info.Length + ":" + info.LastWriteTimeUtc.Ticks;
+            var marker = Path.Combine(Path.GetDirectoryName(_path)!, "customers-import.txt");
+            if (File.Exists(marker) && File.ReadAllText(marker).Trim() == stamp)
+                return;
+
+            var incoming = JsonSerializer.Deserialize<List<Customer>>(File.ReadAllText(seed)) ?? [];
+            var known = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var c in _customers)
+            {
+                var key = PhoneKey(c.Phone);
+                if (key.Length > 0)
+                    known.Add(key);
+            }
+
+            var had = _customers.Count;
+            var added = 0;
+            var skipped = 0;
+            foreach (var c in incoming)
+            {
+                var key = PhoneKey(c.Phone);
+                // Χωρίς τηλέφωνο δεν μπορεί ούτε να ταιριάξει ούτε να βρεθεί — δεν το κρατάμε.
+                if (key.Length == 0)
+                {
+                    skipped++;
+                    continue;
+                }
+                if (!known.Add(key))
+                {
+                    skipped++;   // υπάρχει ήδη — ο ΥΠΑΡΧΩΝ κερδίζει, έχει ιστορικό
+                    continue;
+                }
+                _customers.Add(c);
+                added++;
+            }
+
+            if (added > 0)
+            {
+                Touch();
+                FlushPendingSave();
+            }
+            File.WriteAllText(marker, stamp);
+            AppLog.Write("customers",
+                $"Πελατολόγιο εγκατάστασης: είχε {had}, ήρθαν {incoming.Count}, προστέθηκαν {added}, " +
+                $"υπήρχαν ήδη/χωρίς τηλέφωνο {skipped}. Σύνολο τώρα {_customers.Count}.");
+        }
+        catch (Exception ex)
+        {
+            // Αποτυχία εισαγωγής δεν πρέπει να εμποδίσει το ταμείο να ανοίξει — αλλά πρέπει να φαίνεται.
+            AppLog.Write("customers", $"Η εισαγωγή πελατολογίου απέτυχε: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     // ---- Αποθήκευση: αναβάλλεται λίγο και γράφεται στο ΠΑΡΑΣΚΗΝΙΟ ----

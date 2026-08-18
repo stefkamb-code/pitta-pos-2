@@ -27,6 +27,13 @@ if [ -n "$MENU_SRC" ]; then
   MENUID="v$VERSION"
 fi
 
+# Πελατολόγιο: ταξιδεύει ΠΑΝΤΑ μαζί με το setup (ζητήθηκε ρητά), αν υπάρχει στην Επιφάνεια.
+#
+# Μπαίνει απλώς ΔΙΠΛΑ ΣΤΟ EXE ως «pelates.json». Το setup ΔΕΝ αγγίζει τον πελατολόγιο του μαγαζιού —
+# τη δουλειά την κάνει το ίδιο το πρόγραμμα στο πρώτο άνοιγμα (βλ. CustomerStore.ImportSeedIfPresent),
+# που ΠΡΟΣΘΕΤΕΙ όσους λείπουν χωρίς να σβήνει κανέναν υπάρχοντα.
+CUST_SRC="$DESKTOP/customers.json"
+
 # Καθαρίζει παλιά setup.bat στην Επιφάνεια (και το παλιό όνομα χωρίς έκδοση) — ώστε να μένει πάντα
 # μόνο ΕΝΑ, με το σωστό όνομα, χωρίς σύγχυση για το ποιο είναι το τρέχον.
 rm -f "$DESKTOP"/PittaPOS2-Setup-v*.bat
@@ -43,6 +50,14 @@ else
   # οπότε ένα ξεχασμένο katalogos.json θα ταξίδευε μέσα στο setup χωρίς λόγο — και θα καθόταν στο
   # C:\PittaPOS2 του μαγαζιού σαν παλιός κατάλογος που δεν διαβάζει κανείς.
   rm -f "$PUBLISH_DIR/katalogos.json"
+fi
+
+if [ -f "$CUST_SRC" ]; then
+  echo "Bundling customers from $CUST_SRC ..."
+  cp "$CUST_SRC" "$PUBLISH_DIR/pelates.json"
+else
+  echo "ΠΡΟΣΟΧΗ: δεν βρέθηκε πελατολόγιο στο $CUST_SRC — το setup φεύγει ΧΩΡΙΣ πελάτες."
+  rm -f "$PUBLISH_DIR/pelates.json"
 fi
 
 echo "Zipping publish output..."
