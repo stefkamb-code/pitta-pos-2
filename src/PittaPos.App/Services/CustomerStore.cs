@@ -61,6 +61,7 @@ public class CustomerStore
         _streets = null;
         _areas = null;
         _byPhone = null;
+        _phoneDigits = null;
     }
 
     /// <summary>Τελευταία σφραγίδα που κατέβασε το δεύτερο ταμείο — αν δεν άλλαξε, δεν ξανακατεβάζουμε.</summary>
@@ -538,7 +539,10 @@ public class CustomerStore
 
     /// <summary>Ίδιο με το παραπάνω, με τα ψηφία του ερωτήματος ΕΤΟΙΜΑ — για σάρωση δεκάδων χιλιάδων
     /// πελατών σε κάθε πλήκτρο, όπου ο υπολογισμός τους ανά πελάτη ήταν σκέτη σπατάλη.</summary>
-    private static bool Matches(Customer c, string q, string qDigits)
+    private static bool Matches(Customer c, string q, string qDigits) =>
+        Matches(c, q, qDigits, DigitsOnly(c.Phone));
+
+    private static bool Matches(Customer c, string q, string qDigits, string cDigits)
     {
         if (q.Length == 0)
             return true;
@@ -553,7 +557,7 @@ public class CustomerStore
             return true;
 
         // Το τηλέφωνο μετράει ΜΟΝΟ αν όντως ψάχνει με αριθμό.
-        return qDigits.Length >= 3 && DigitsOnly(c.Phone).Contains(qDigits);
+        return qDigits.Length >= 3 && cDigits.Contains(qDigits);
     }
 
     // ---- Αυτόματη συμπλήρωση από ό,τι έχει ήδη περαστεί ----
@@ -690,13 +694,15 @@ public class CustomerStore
             return [];
 
         var qDigits = DigitsOnly(q);
+        var digits = PhoneDigits;
         var starts = new List<Customer>(6);
         var contains = new List<Customer>(6);
-        foreach (var c in _customers)
+        for (var i = 0; i < _customers.Count; i++)
         {
-            if (!Matches(c, q, qDigits))
+            var c = _customers[i];
+            if (!Matches(c, q, qDigits, digits[i]))
                 continue;
-            if (StartsWithQuery(c, q, qDigits))
+            if (StartsWithQuery(c, q, qDigits, digits[i]))
             {
                 starts.Add(c);
                 if (starts.Count == 6)
@@ -713,8 +719,8 @@ public class CustomerStore
 
     /// <summary>Ταιριάζει από την ΑΡΧΗ — αυτό περιμένει ο ταμίας όταν πληκτρολογεί τα πρώτα ψηφία ή
     /// γράμματα. Υπολογίζεται μόνο για τους λίγους που πέρασαν ήδη το φίλτρο.</summary>
-    private static bool StartsWithQuery(Customer c, string q, string qDigits) =>
-        (qDigits.Length >= 3 && DigitsOnly(c.Phone).StartsWith(qDigits, StringComparison.Ordinal))
+    private static bool StartsWithQuery(Customer c, string q, string qDigits, string cDigits) =>
+        (qDigits.Length >= 3 && cDigits.StartsWith(qDigits, StringComparison.Ordinal))
         || c.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase)
         || c.Address.StartsWith(q, StringComparison.OrdinalIgnoreCase);
 
@@ -735,6 +741,28 @@ public class CustomerStore
     /// Συγκρίνει τα τελευταία 10 ψηφία, ώστε να ταιριάζει είτε το τηλεφωνικό κέντρο στέλνει τον
     /// αριθμό με 0, με κωδικό χώρας (+30) ή χωρίς.
     /// </summary>
+    /// <summary>
+    /// Τα ψηφία του τηλεφώνου κάθε πελάτη, στη ΣΕΙΡΑ του _customers.
+    ///
+    /// <para>Η αναζήτηση με αριθμό είναι «περιέχει», άρα δεν γίνεται ευρετήριο — πρέπει να δει έναν
+    /// έναν τους πελάτες. Χωρίς αυτόν τον πίνακα, κάθε πλήκτρο γεννούσε μια συμβολοσειρά ΑΝΑ ΠΕΛΑΤΗ:
+    /// με 135.000 πελάτες, εκατόν τριάντα πέντε χιλιάδες σκουπίδια σε κάθε γράμμα που πληκτρολογεί ο
+    /// ταμίας. Τώρα τα ψηφία υπολογίζονται μία φορά και ζουν μέχρι να αλλάξει κάτι (βλ. Touch).</para>
+    /// </summary>
+    private string[]? _phoneDigits;
+
+    private string[] PhoneDigits
+    {
+        get
+        {
+            // Ο έλεγχος μήκους είναι δίχτυ ασφαλείας: αν κάποια μελλοντική διαδρομή προσθέσει πελάτη
+            // χωρίς να περάσει από το Touch, καλύτερα να ξαναχτιστεί παρά να διαβαστεί λάθος θέση.
+            if (_phoneDigits is null || _phoneDigits.Length != _customers.Count)
+                _phoneDigits = [.. _customers.Select(c => DigitsOnly(c.Phone))];
+            return _phoneDigits;
+        }
+    }
+
     /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία, βλ. PhoneKey) → πελάτης. Χτίζεται μία φορά και ζει
     /// μέχρι να αλλάξει κάτι στους πελάτες (βλ. Touch). Το χρησιμοποιούν και η αναγνώριση κλήσης και το
     /// FindOrCreate κάθε παραγγελίας.</summary>
