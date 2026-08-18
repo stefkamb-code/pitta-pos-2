@@ -469,9 +469,11 @@ public partial class OrderBoardService : ObservableObject
         if (order.SentVia is not null)
         {
             var isCard = method == Core.Models.PaymentMethod.Card;
-            // Το Wolt Drive δινεται μονο σε ΔΙΑΝΟΜΗ (βλ. LiveOrdersViewModel.WoltDrive), αρα μονο εκει
-            // εχει νοημα να κρατηθει οταν διορθωθει το καναλι.
-            var keepsCourier = order.SentVia == "Wolt Drive" && type == OrderType.Delivery;
+            // Το Wolt Drive δινεται οπου παραδιδουμε εμεις — ΔΙΑΝΟΜΗ και BOX (βλ.
+            // LiveOrdersViewModel.WoltDrive) — αρα εκει εχει νοημα να κρατηθει ο κουριερ οταν
+            // διορθωθει το καναλι. Σε e-food/Wolt οχι: τις παραδιδει η πλατφορμα.
+            var keepsCourier = order.SentVia == "Wolt Drive"
+                && (type == OrderType.Delivery || (type == OrderType.Apps && channel == "BOX"));
             order.SentVia = (type, channel) switch
             {
                 (OrderType.Apps, "e-food") => "e-food",

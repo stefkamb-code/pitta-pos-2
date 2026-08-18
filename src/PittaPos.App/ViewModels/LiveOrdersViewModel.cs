@@ -215,10 +215,17 @@ public partial class LiveOrdersViewModel : ObservableObject
     /// ανάποδα. (Στο πρώτο πέρασμα από την αναμονή μένει ΕΝΑ κουμπί — εκεί δεν υπάρχει τίποτα να
     /// αποφασιστεί.) Η μετακίνηση αλλάζει και τον τρόπο πληρωμής της ίδιας της παραγγελίας, βλ.
     /// OrderBoardService.ApplyChannelPayment.</param>
-    /// <summary>Το κανάλι για παραγγελία δική μας που την παραδίδει κούριερ της Wolt. Προσφέρεται
-    /// <b>μόνο σε ΔΙΑΝΟΜΗ</b>, μετρητά ή κάρτα — δηλαδή ακριβώς εκεί που εναλλακτικά θα πήγαινε ο
-    /// δικός μας διανομέας. Όχι σε BOX, όχι σε e-food/Wolt (τις παραδίδει η ίδια η πλατφόρμα).
-    /// Δεν αγγίζει τον τρόπο πληρωμής (βλ. OrderBoardService.PaymentOf).</summary>
+    /// <summary>
+    /// Το κανάλι για παραγγελία δική μας που την παραδίδει κούριερ της Wolt.
+    ///
+    /// <para>Προσφέρεται όπου την παράδοση θα την έκανε <b>δικός μας διανομέας</b>: <b>ΔΙΑΝΟΜΗ και
+    /// BOX</b>, μετρητά ή κάρτα. Το BOX μοιάζει πλατφόρμα αλλά δεν είναι — έχει δικό του κωδικό και το
+    /// παραδίδουμε εμείς (βλ. OrderWizardViewModel.ShowCustomerForm), άρα μπορεί κάλλιστα να το πάει
+    /// κούριερ. Έξω μένουν μόνο e-food/Wolt, που τις παραδίδει η ίδια η πλατφόρμα.</para>
+    ///
+    /// <para>Δεν αγγίζει τον τρόπο πληρωμής (βλ. OrderBoardService.PaymentOf) — λέει ποιος παραδίδει,
+    /// όχι πώς πληρώθηκε.</para>
+    /// </summary>
     private const string WoltDrive = "Wolt Drive";
 
     private static IReadOnlyList<ChannelInfo> AllowedChannels(BoardOrder order, bool bothVariants = false)
@@ -228,9 +235,7 @@ public partial class LiveOrdersViewModel : ObservableObject
         var unknownPayment = order.PaymentMethod is null || bothVariants;
         var names = (isApps ? order.Channel : null) switch
         {
-            // Το BOX ΔΕΝ περναει σε Wolt Drive (ζητηθηκε ρητα): εκει πηγαινουν μονο δικες μας
-            // παραγγελιες διανομης, μετρητα ή καρτα.
-            "BOX" => unknownPayment ? ["BOX Μετρητά", "BOX Κάρτα"] : [isCard ? "BOX Κάρτα" : "BOX Μετρητά"],
+            "BOX" => unknownPayment ? ["BOX Μετρητά", "BOX Κάρτα", WoltDrive] : [isCard ? "BOX Κάρτα" : "BOX Μετρητά", WoltDrive],
             "e-food" => new[] { "e-food" },
             "Wolt" => new[] { "Wolt" },
             _ => unknownPayment ? ["Διανομέας", "Κάρτα Διανομέα", WoltDrive] : [isCard ? "Κάρτα Διανομέα" : "Διανομέας", WoltDrive],
