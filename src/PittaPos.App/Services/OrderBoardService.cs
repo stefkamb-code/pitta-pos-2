@@ -23,6 +23,10 @@ public sealed record ChannelInfo(string Name, Brush Brush)
         new("Κάρτα Διανομέα", new SolidColorBrush(Color.FromRgb(0x20, 0x1e, 0x1d))),
         new("e-food", new SolidColorBrush(Color.FromRgb(0xd3, 0x2f, 0x2f))),
         new("Wolt", new SolidColorBrush(Color.FromRgb(0x15, 0x65, 0xc0))),
+        // Wolt Drive: ΔΙΚΗ ΜΑΣ παραγγελία (δικός μας πελάτης, δική μας διεύθυνση, δικά μας λεφτά) που
+        // απλώς την παραδίδει κούριερ της Wolt αντί για τον διανομέα μας. Γι' αυτό δεν είναι πλατφόρμα
+        // στο Βήμα 2 μαζί με e-food/Wolt — είναι κανάλι ΑΠΟΣΤΟΛΗΣ, δίπλα στον Διανομέα.
+        new("Wolt Drive", new SolidColorBrush(Color.FromRgb(0x1e, 0x88, 0xe5))),
         new("BOX Μετρητά", new SolidColorBrush(Color.FromRgb(0xb8, 0x86, 0x0b))),
         new("BOX Κάρτα", new SolidColorBrush(Color.FromRgb(0xb8, 0x86, 0x0b))),
     ];
@@ -376,6 +380,8 @@ public partial class OrderBoardService : ObservableObject
     {
         "Διανομέας" or "BOX Μετρητά" => Core.Models.PaymentMethod.Cash,
         "Κάρτα Διανομέα" or "BOX Κάρτα" => Core.Models.PaymentMethod.Card,
+        // Το «Wolt Drive» λέει ΠΟΙΟΣ παραδίδει, όχι πώς πληρώθηκε: ο τρόπος πληρωμής μένει αυτός που
+        // διάλεξε ο ταμίας στην παραγγελία (μετρητά ή κάρτα) και δεν τον πειράζει το καναλι.
         _ => null,
     };
 
@@ -405,21 +411,28 @@ public partial class OrderBoardService : ObservableObject
         if (method is null)
             return;
         var order = Orders.FirstOrDefault(o => o.OrderNumber == orderNumber);
-        if (order is null || order.SentVia is null || PaymentOf(order.SentVia) is null)
+        if (order is null)
             return;
+
+        // Το εικονιδιο 💶/💳 του πινακα αλλαζει σε ΚΑΘΕ περιπτωση — ακομα κι αν η παραγγελια ειναι
+        // ακομα σε αναμονη ή σε καναλι που δεν οριζει τροπο πληρωμης (Wolt Drive, e-food, Wolt).
+        order.UpdatePaymentMethod(method);
+
+        // Μετακομιζει σε αλλο κουτι ΜΟΝΟ οταν το ιδιο το καναλι ειναι ο τροπος πληρωμης. Το Wolt Drive
+        // λεει ποιος παραδιδει, οχι πως πληρωθηκε: μενει εκει που ειναι.
+        if (order.SentVia is null || PaymentOf(order.SentVia) is null)
+        {
+            Notify();
+            return;
+        }
 
         var wanted = order.SentVia switch
         {
             "Διανομέας" or "Κάρτα Διανομέα" => method == Core.Models.PaymentMethod.Card ? "Κάρτα Διανομέα" : "Διανομέας",
             _ => method == Core.Models.PaymentMethod.Card ? "BOX Κάρτα" : "BOX Μετρητά",
         };
-        order.UpdatePaymentMethod(method);
-        if (order.SentVia == wanted)
-        {
-            Notify();
-            return;
-        }
-        order.SentVia = wanted;
+        if (order.SentVia != wanted)
+            order.SentVia = wanted;
         Notify();
     }
 
@@ -450,13 +463,19 @@ public partial class OrderBoardService : ObservableObject
         order.UpdatePaymentMethod(method);
 
         // Όσο ήταν σε αναμονή, μένει σε αναμονή: ο ταμίας θα το περάσει μόνος του στο σωστό κανάλι.
+        // Και αν την ειχε ηδη αναλαβει κουριερ της Wolt, εκει μενει: η διορθωση αφορα το ΤΙ ειναι η
+        // παραγγελια, οχι ποιος την κραταει στο χερι — εκτος αν πηγε σε πλατφορμα, που την παραδιδει
+        // πλεον η ιδια.
         if (order.SentVia is not null)
         {
             var isCard = method == Core.Models.PaymentMethod.Card;
+            var keepsCourier = order.SentVia == "Wolt Drive" && type is OrderType.Delivery or OrderType.Apps
+                && channel is null or "BOX";
             order.SentVia = (type, channel) switch
             {
                 (OrderType.Apps, "e-food") => "e-food",
                 (OrderType.Apps, "Wolt") => "Wolt",
+                _ when keepsCourier => "Wolt Drive",
                 (OrderType.Apps, _) => isCard ? "BOX Κάρτα" : "BOX Μετρητά",
                 _ => isCard ? "Κάρτα Διανομέα" : "Διανομέας",
             };
