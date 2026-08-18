@@ -216,8 +216,9 @@ public partial class LiveOrdersViewModel : ObservableObject
     /// αποφασιστεί.) Η μετακίνηση αλλάζει και τον τρόπο πληρωμής της ίδιας της παραγγελίας, βλ.
     /// OrderBoardService.ApplyChannelPayment.</param>
     /// <summary>Το κανάλι για παραγγελία δική μας που την παραδίδει κούριερ της Wolt. Προσφέρεται
-    /// ΠΑΝΤΑ σε ΔΙΑΝΟΜΗ και BOX, δίπλα στον διανομέα μας: την ώρα που περνάς την παραγγελία αποφασίζεις
-    /// ποιος θα την πάει. Δεν αγγίζει τον τρόπο πληρωμής (βλ. OrderBoardService.PaymentOf).</summary>
+    /// <b>μόνο σε ΔΙΑΝΟΜΗ</b>, μετρητά ή κάρτα — δηλαδή ακριβώς εκεί που εναλλακτικά θα πήγαινε ο
+    /// δικός μας διανομέας. Όχι σε BOX, όχι σε e-food/Wolt (τις παραδίδει η ίδια η πλατφόρμα).
+    /// Δεν αγγίζει τον τρόπο πληρωμής (βλ. OrderBoardService.PaymentOf).</summary>
     private const string WoltDrive = "Wolt Drive";
 
     private static IReadOnlyList<ChannelInfo> AllowedChannels(BoardOrder order, bool bothVariants = false)
@@ -227,7 +228,9 @@ public partial class LiveOrdersViewModel : ObservableObject
         var unknownPayment = order.PaymentMethod is null || bothVariants;
         var names = (isApps ? order.Channel : null) switch
         {
-            "BOX" => unknownPayment ? ["BOX Μετρητά", "BOX Κάρτα", WoltDrive] : [isCard ? "BOX Κάρτα" : "BOX Μετρητά", WoltDrive],
+            // Το BOX ΔΕΝ περναει σε Wolt Drive (ζητηθηκε ρητα): εκει πηγαινουν μονο δικες μας
+            // παραγγελιες διανομης, μετρητα ή καρτα.
+            "BOX" => unknownPayment ? ["BOX Μετρητά", "BOX Κάρτα"] : [isCard ? "BOX Κάρτα" : "BOX Μετρητά"],
             "e-food" => new[] { "e-food" },
             "Wolt" => new[] { "Wolt" },
             _ => unknownPayment ? ["Διανομέας", "Κάρτα Διανομέα", WoltDrive] : [isCard ? "Κάρτα Διανομέα" : "Διανομέας", WoltDrive],

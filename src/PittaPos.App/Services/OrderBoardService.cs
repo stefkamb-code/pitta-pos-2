@@ -469,8 +469,9 @@ public partial class OrderBoardService : ObservableObject
         if (order.SentVia is not null)
         {
             var isCard = method == Core.Models.PaymentMethod.Card;
-            var keepsCourier = order.SentVia == "Wolt Drive" && type is OrderType.Delivery or OrderType.Apps
-                && channel is null or "BOX";
+            // Το Wolt Drive δινεται μονο σε ΔΙΑΝΟΜΗ (βλ. LiveOrdersViewModel.WoltDrive), αρα μονο εκει
+            // εχει νοημα να κρατηθει οταν διορθωθει το καναλι.
+            var keepsCourier = order.SentVia == "Wolt Drive" && type == OrderType.Delivery;
             order.SentVia = (type, channel) switch
             {
                 (OrderType.Apps, "e-food") => "e-food",
