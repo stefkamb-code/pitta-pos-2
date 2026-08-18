@@ -70,12 +70,23 @@ public static class DayReportService
         // χωρίς λέξη για τα υπόλοιπα 20 — ο ταμίας έβλεπε ότι δεν βγαίνει και δεν είχε πουθενά να
         // ψάξει. Τώρα τα τέσσερα νούμερα αθροίζουν ΑΚΡΙΒΩΣ στον τζίρο, οπότε ή βγαίνει με τη μία ή
         // φαίνεται αμέσως πόσο και πού λείπει.
-        var unsettled = revenue - cash - card - platforms;
+        // ΟΡΘΙΟΣ: δεν καταγράφεται πια τρόπος πληρωμής (ζητήθηκε — ο πελάτης πληρώνει μπροστά στο
+        // ταμείο εκείνη τη στιγμή). Τα λεφτά του δεν επιτρέπεται ούτε να μπουν αυθαίρετα στα μετρητά
+        // ούτε να εμφανιστούν «ανεξόφλητα», που σημαίνει κάτι εντελώς άλλο: παίρνουν δική τους γραμμή
+        // ώστε τα νούμερα να συνεχίζουν να αθροίζουν ΑΚΡΙΒΩΣ στον τζίρο. (Παλιές παραγγελίες ΟΡΘΙΟΥ με
+        // καταγεγραμμένο τρόπο μετράνε κανονικά στα μετρητά/κάρτα και δεν ξαναμετριούνται εδώ.)
+        var counter = orders
+            .Where(o => o.Type == OrderType.Pickup && o.PaymentMethod is null)
+            .Sum(o => o.Total);
+
+        var unsettled = revenue - cash - card - platforms - counter;
 
         if (revenue > 0)
         {
             sb.AppendLine($"    Μετρητά   : {Order.FormatPrice(cash)}");
             sb.AppendLine($"    Κάρτα     : {Order.FormatPrice(card)}");
+            if (counter != 0)
+                sb.AppendLine($"    Όρθιος    : {Order.FormatPrice(counter)}");
             if (platforms != 0)
                 sb.AppendLine($"    Εφαρμογές : {Order.FormatPrice(platforms)}");
             if (unsettled != 0)

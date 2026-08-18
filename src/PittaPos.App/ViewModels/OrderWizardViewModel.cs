@@ -456,10 +456,20 @@ public partial class OrderWizardViewModel : ObservableObject
     public bool ShowCustomerForm => OrderType == Core.Models.OrderType.Delivery
         || (OrderType == Core.Models.OrderType.Apps && AppPlatform == "BOX");
 
-    /// <summary>Ποιοι τύποι παραγγελίας ρωτάνε τρόπο πληρωμής στο τέλος (βλ. ShowPaymentPrompt/
-    /// ContinueStep3) — ΔΙΑΝΟΜΗ/BOX (βλ. ShowCustomerForm, τα παραδίδει δικός μας διανομέας) ΚΑΙ ΠΑΡΑΛΑΒΗ
-    /// (ο πελάτης πληρώνει στο ταμείο όταν παραλαμβάνει). ΤΡΑΠΕΖΙ/e-food/Wolt δεν το χρειάζονται.</summary>
-    public bool NeedsPaymentMethod => ShowCustomerForm || OrderType == Core.Models.OrderType.Pickup;
+    /// <summary>
+    /// Ποιοι τύποι παραγγελίας ρωτάνε τρόπο πληρωμής στο τέλος (βλ. ShowPaymentPrompt/ContinueStep3):
+    /// <b>μόνο ΔΙΑΝΟΜΗ και BOX</b> (βλ. ShowCustomerForm) — εκεί ο διανομέας πρέπει να ξέρει τι θα
+    /// εισπράξει, και το ποσό κρέμεται πάνω του μέχρι να γυρίσει.
+    ///
+    /// <para>Ο <b>ΟΡΘΙΟΣ βγήκε</b> (ζητήθηκε ρητά): ο πελάτης είναι μπροστά στο ταμείο και πληρώνει
+    /// εκείνη τη στιγμή — η ερώτηση δεν έλυνε κανένα πρόβλημα, απλώς πρόσθετε ένα πάτημα σε κάθε
+    /// παραγγελία της ουράς. Τα λεφτά του παίρνουν πλέον δική τους γραμμή στην αναφορά ημέρας (βλ.
+    /// DayReportService.AppendPrintSummary), ώστε να μη μετρηθούν αυθαίρετα σαν μετρητά ούτε να
+    /// εμφανιστούν σαν «ανεξόφλητα».</para>
+    ///
+    /// <para>ΤΡΑΠΕΖΙ/e-food/Wolt δεν το χρειάζονται ούτως ή άλλως.</para>
+    /// </summary>
+    public bool NeedsPaymentMethod => ShowCustomerForm;
 
     /// <summary>Βήμα 2 για ΕΦΑΡΜΟΓΕΣ — αντί για στοιχεία πελάτη (τα έχει ήδη η ίδια η εφαρμογή), επιλογή
     /// πλατφόρμας πρώτα-πρώτα, πριν τα προϊόντα (βλ. SelectAppMethod). Το πεδίο αριθμού παραγγελίας
