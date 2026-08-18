@@ -208,21 +208,26 @@
                             <ItemsControl ItemsSource="{Binding ChannelOrders}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:ChannelOrderViewModel}">
-                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,12">
+                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
                                             <StackPanel>
+                                                <!-- Η ΔΙΕΥΘΥΝΣΗ ΣΕ ΔΙΚΗ ΤΗΣ ΓΡΑΜΜΗ. Πριν καθόταν σε οριζόντια στοίβα
+                                                     δίπλα στο «#01 ·», που δίνει στα παιδιά της ΑΠΕΙΡΟ πλάτος: η
+                                                     αναδίπλωση δεν έπιανε ποτέ και η διεύθυνση κοβόταν στην άκρη της
+                                                     στήλης. Πάνω μένουν αριθμός και ποσό — μικρά, είναι η ταυτότητα·
+                                                     από κάτω το όνομα, για όποιον το χρειαστεί. -->
                                                 <DockPanel>
                                                     <TextBlock DockPanel.Dock="Right" Text="{Binding Order.TotalLabel}" FontSize="11.5"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                                        <TextBlock Text=" · " FontSize="11.5" Foreground="{DynamicResource Neutral500}"/>
-                                                        <!-- ΔΙΕΥΘΥΝΣΗ, όχι ονοματεπώνυμο: μέσα στο κανάλι του διανομέα
-                                                             η ερώτηση είναι «πού πάει», όχι «ποιος είναι». -->
-                                                        <TextBlock Text="{Binding Order.AddressOrName}" FontSize="11.5" FontWeight="ExtraBold"
-                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="#" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                                        <TextBlock Text="{Binding Order.PaymentIcon}" FontSize="11.5" Margin="6,0,0,0"/>
                                                     </StackPanel>
                                                 </DockPanel>
+                                                <TextBlock Text="{Binding Order.AddressOrName}" FontSize="13.5" FontWeight="ExtraBold"
+                                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                <TextBlock Text="{Binding Order.NameUnderAddress}" FontSize="10.5"
+                                                           Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"/>
                                                 <StackPanel Margin="0,8,0,0">
                                                     <Button Content="ΑΛΛΑΓΗ ΣΕ" Command="{Binding ToggleReassignOptionsCommand}"
                                                             HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
