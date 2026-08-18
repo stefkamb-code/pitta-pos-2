@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
@@ -538,14 +538,11 @@ public partial class HistoryViewModel : ObservableObject
     [ObservableProperty]
     private string _searchNumber = "";
 
+    /// <summary>Δέχεται και γράμματα: οι κωδικοί του BOX δεν είναι σκέτοι αριθμοί (βλ.
+    /// OrderWizardViewModel.FilterOrderRef). Όσο εδώ κρατιόνταν μόνο τα ψηφία, μια BOX παραγγελία με
+    /// γράμμα στον κωδικό δεν βρισκόταν ποτέ.</summary>
     partial void OnSearchNumberChanged(string value)
     {
-        var digits = new string(value.Where(char.IsDigit).ToArray());
-        if (digits != value)
-        {
-            SearchNumber = digits; // ξαναμπαίνει εδώ, καθαρό
-            return;
-        }
         OnPropertyChanged(nameof(IsSearching));
         OnPropertyChanged(nameof(NoOrdersLabel));
         Refresh();
@@ -570,7 +567,9 @@ public partial class HistoryViewModel : ObservableObject
         // e-food/Wolt/BOX, τον αριθμό τραπεζιού στα τραπέζια, τη σειρά βάρδιας στον ΟΡΘΙΟ/ΔΙΑΝΟΜΗ.
         // Με τον εσωτερικό αριθμό, το «322» της e-food δεν έβγαζε τίποτα — ακριβώς ο λόγος που
         // ζητήθηκε η αλλαγή αρίθμησης.
-        orders.Where(o => o.DisplayNumber.Contains(search, StringComparison.Ordinal));
+        // Χωρίς διάκριση πεζών/κεφαλαίων — ο κωδικός του BOX μπορεί να έχει γράμματα και κανείς
+        // δεν θυμάται αν τα είχε γράψει κεφαλαία.
+        orders.Where(o => o.DisplayNumber.Contains(search, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Περνάει το φίλτρο καναλιού πάνω στις παραγγελίες της περιόδου.</summary>
     private IEnumerable<CompletedOrder> ApplyChannelFilter(IEnumerable<CompletedOrder> orders) =>

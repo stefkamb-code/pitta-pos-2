@@ -5,6 +5,7 @@
         xmlns:ac="clr-namespace:PittaPos.App.Controls"
         xmlns:models="clr-namespace:PittaPos.Core.Models;assembly=PittaPos.Core"
         Title="ΔΙΑΧΕΙΡΙΣΗ ΚΑΤΑΛΟΓΟΥ" Height="800" Width="1280"
+        WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/logo.png"
         FontFamily="{StaticResource PosFont}"
@@ -13,7 +14,12 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
-    <Grid>
+    <!-- ΟΛΟ το παράθυρο μέσα σε Viewbox: σχεδιάζεται σε σταθερό «χαρτί» 1264x761 και μεγαλώνει/
+         μικραίνει ΟΛΟ μαζί με το παράθυρο — γράμματα, κουμπιά και αποστάσεις στην ίδια αναλογία.
+         Ζητήθηκε ρητά· πριν, το μεγάλωμα άπλωνε μόνο τις στήλες και τα γράμματα έμεναν μικροσκοπικά.
+         Stretch=Uniform: κρατά το σχήμα, δεν παραμορφώνει τίποτα. -->
+    <Viewbox Stretch="Uniform">
+    <Grid Width="1264" Height="761">
         <Grid.RowDefinitions>
             <RowDefinition Height="52"/>
             <RowDefinition Height="*"/>
@@ -452,4 +458,5 @@
             </ScrollViewer>
         </Grid>
     </Grid>
+    </Viewbox>
 </Window>

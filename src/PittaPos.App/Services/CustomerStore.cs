@@ -155,19 +155,20 @@ public class CustomerStore
 
             var had = _customers.Count;
             var added = 0;
-            var skipped = 0;
+            var already = 0;
+            var noPhone = 0;
             foreach (var c in incoming)
             {
                 var key = PhoneKey(c.Phone);
                 // Χωρίς τηλέφωνο δεν μπορεί ούτε να ταιριάξει ούτε να βρεθεί — δεν το κρατάμε.
                 if (key.Length == 0)
                 {
-                    skipped++;
+                    noPhone++;
                     continue;
                 }
                 if (!known.Add(key))
                 {
-                    skipped++;   // υπάρχει ήδη — ο ΥΠΑΡΧΩΝ κερδίζει, έχει ιστορικό
+                    already++;   // υπάρχει ήδη — ο ΥΠΑΡΧΩΝ κερδίζει, έχει ιστορικό
                     continue;
                 }
                 _customers.Add(c);
@@ -180,9 +181,11 @@ public class CustomerStore
                 FlushPendingSave();
             }
             File.WriteAllText(marker, stamp);
+            // Χωριστά νούμερα: το «πετάχτηκαν» έκρυβε δύο πολύ διαφορετικά πράγματα, και μόνο το ένα
+            // είναι φυσιολογικό. Πολλοί ΧΩΡΙΣ ΤΗΛΕΦΩΝΟ σημαίνει ότι το αρχείο ήρθε λειψό.
             AppLog.Write("customers",
                 $"Πελατολόγιο εγκατάστασης: είχε {had}, ήρθαν {incoming.Count}, προστέθηκαν {added}, " +
-                $"υπήρχαν ήδη/χωρίς τηλέφωνο {skipped}. Σύνολο τώρα {_customers.Count}.");
+                $"υπήρχαν ήδη {already}, χωρίς τηλέφωνο (δεν μπήκαν) {noPhone}. Σύνολο τώρα {_customers.Count}.");
         }
         catch (Exception ex)
         {
@@ -405,13 +408,20 @@ public class CustomerStore
         && string.Equals(a.StreetNumber.Trim(), b.StreetNumber.Trim(), StringComparison.OrdinalIgnoreCase)
         && string.Equals(a.Area.Trim(), b.Area.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Βρίσκει (με τηλέφωνο, αλλιώς όνομα+διεύθυνση) ή δημιουργεί πελάτη και ενημερώνει το προφίλ.</summary>
+    /// <summary>Βρίσκει (με τηλέφωνο, αλλιώς όνομα+διεύθυνση) ή δημιουργεί πελάτη και ενημερώνει το προφίλ.
+    /// <para>Το ταίριασμα γίνεται με το ΙΔΙΟ κλειδί που χρησιμοποιεί η αναγνώριση κλήσης και η εισαγωγή
+    /// πελατολογίου (PhoneKey, τα τελευταία 10 ψηφία). Πριν συγκρίνονταν όλα τα ψηφία ολόκληρα, οπότε ο
+    /// ίδιος άνθρωπος γραμμένος «+30 210…» τη μία και «210…» την άλλη έφτιαχνε ΔΕΥΤΕΡΗ καρτέλα — ενώ το
+    /// τηλέφωνο που χτυπούσε τον έβρισκε κανονικά. Με εισαγόμενο πελατολόγιο από αλλού, όπου τα νούμερα
+    /// είναι γραμμένα όπως τύχαινε, αυτό είναι ο κανόνας και όχι η εξαίρεση.</para>
+    /// <para>Και είναι ευρετήριο αντί για σάρωση: το FindOrCreate τρέχει σε ΚΑΘΕ παραγγελία διανομής, και
+    /// η σάρωση γεννούσε μια συμβολοσειρά ανά πελάτη — δεκάδες χιλιάδες, δύο φορές, σε κάθε παραγγελία.</para></summary>
     private Customer FindOrCreate(string name, string phone, string address, string streetNumber,
         string area, string postalCode, string floor, string notes)
     {
-        var phoneDigits = DigitsOnly(phone);
-        var existing = phoneDigits.Length > 0
-            ? _customers.FirstOrDefault(c => DigitsOnly(c.Phone) == phoneDigits)
+        var phoneKey = PhoneKey(phone);
+        var existing = phoneKey.Length > 0
+            ? PhoneIndex.GetValueOrDefault(phoneKey)
             : _customers.FirstOrDefault(c =>
                 string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(c.Address, address, StringComparison.OrdinalIgnoreCase));
@@ -524,9 +534,12 @@ public class CustomerStore
     /// Κοινή λογική αναζήτησης πελάτη — όνομα, διεύθυνση, περιοχή ή τηλέφωνο.
     /// Χρησιμοποιείται και στις παραγγελίες και στο παράθυρο Πελάτες.
     /// </summary>
-    public static bool Matches(Customer c, string query)
+    public static bool Matches(Customer c, string query) => Matches(c, query.Trim(), DigitsOnly(query));
+
+    /// <summary>Ίδιο με το παραπάνω, με τα ψηφία του ερωτήματος ΕΤΟΙΜΑ — για σάρωση δεκάδων χιλιάδων
+    /// πελατών σε κάθε πλήκτρο, όπου ο υπολογισμός τους ανά πελάτη ήταν σκέτη σπατάλη.</summary>
+    private static bool Matches(Customer c, string q, string qDigits)
     {
-        var q = query.Trim();
         if (q.Length == 0)
             return true;
 
@@ -539,8 +552,7 @@ public class CustomerStore
             || c.Area.Contains(q, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Τα ψηφία του τηλεφώνου υπολογίζονται ΜΟΝΟ αν όντως ψάχνει με αριθμό.
-        var qDigits = DigitsOnly(q);
+        // Το τηλέφωνο μετράει ΜΟΝΟ αν όντως ψάχνει με αριθμό.
         return qDigits.Length >= 3 && DigitsOnly(c.Phone).Contains(qDigits);
     }
 
@@ -659,21 +671,60 @@ public class CustomerStore
         return starts;
     }
 
-    /// <summary>Αναζήτηση για το autocomplete στις παραγγελίες (μέχρι 6 αποτελέσματα).</summary>
+    /// <summary>
+    /// Αναζήτηση για το autocomplete στις παραγγελίες — μέχρι 6, με τους πιθανότερους ΠΡΩΤΟΥΣ.
+    ///
+    /// <para>Πριν κρατούσε απλώς τους 6 πρώτους της λίστας που ταίριαζαν, με σειρά καταχώρησης. Και
+    /// επειδή το ταίριασμα είναι «περιέχει», το «211» ενός σταθερού έπιανε και κάθε κινητό που τύχαινε
+    /// να έχει 211 στη μέση: με δεκάδες χιλιάδες πελάτες η λίστα γέμιζε άσχετους και ο ζητούμενος δεν
+    /// φαινόταν ΠΟΤΕ. Τώρα προηγούνται όσοι <b>ΑΡΧΙΖΟΥΝ</b> από ό,τι γράφτηκε — τηλέφωνο, όνομα ή
+    /// διεύθυνση — και οι υπόλοιποι μπαίνουν από κάτω για να γεμίσουν τις 6 θέσεις.</para>
+    ///
+    /// <para>Ένα πέρασμα, με έξοδο μόλις γεμίσουν οι 6 «αρχίζει από»: στη συνηθισμένη περίπτωση (γράφει
+    /// τηλέφωνο από την αρχή) σταματά αμέσως, χωρίς να δει ολόκληρο τον πελατολόγιο.</para>
+    /// </summary>
     public IReadOnlyList<Customer> Search(string query)
     {
-        if (query.Trim().Length == 0)
+        var q = query.Trim();
+        if (q.Length == 0)
             return [];
-        return _customers.Where(c => Matches(c, query)).Take(6).ToList();
+
+        var qDigits = DigitsOnly(q);
+        var starts = new List<Customer>(6);
+        var contains = new List<Customer>(6);
+        foreach (var c in _customers)
+        {
+            if (!Matches(c, q, qDigits))
+                continue;
+            if (StartsWithQuery(c, q, qDigits))
+            {
+                starts.Add(c);
+                if (starts.Count == 6)
+                    return starts;
+            }
+            else if (contains.Count < 6)
+            {
+                contains.Add(c);
+            }
+        }
+        starts.AddRange(contains.Take(6 - starts.Count));
+        return starts;
     }
+
+    /// <summary>Ταιριάζει από την ΑΡΧΗ — αυτό περιμένει ο ταμίας όταν πληκτρολογεί τα πρώτα ψηφία ή
+    /// γράμματα. Υπολογίζεται μόνο για τους λίγους που πέρασαν ήδη το φίλτρο.</summary>
+    private static bool StartsWithQuery(Customer c, string q, string qDigits) =>
+        (qDigits.Length >= 3 && DigitsOnly(c.Phone).StartsWith(qDigits, StringComparison.Ordinal))
+        || c.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase)
+        || c.Address.StartsWith(q, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Χρησιμοποιείται από το endpoint συγχρονισμού μνήμης (host) όταν το δεύτερο ταμείο
     /// στέλνει υπενθύμιση πελάτη — ίδιο ταίριασμα με το FindOrCreate (τηλέφωνο, αλλιώς όνομα+διεύθυνση).</summary>
     public Customer? Find(string name, string phone, string address)
     {
-        var phoneDigits = DigitsOnly(phone);
-        return phoneDigits.Length > 0
-            ? _customers.FirstOrDefault(c => DigitsOnly(c.Phone) == phoneDigits)
+        var phoneKey = PhoneKey(phone);
+        return phoneKey.Length > 0
+            ? PhoneIndex.GetValueOrDefault(phoneKey)
             : _customers.FirstOrDefault(c =>
                 string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(c.Address, address, StringComparison.OrdinalIgnoreCase));
@@ -684,7 +735,9 @@ public class CustomerStore
     /// Συγκρίνει τα τελευταία 10 ψηφία, ώστε να ταιριάζει είτε το τηλεφωνικό κέντρο στέλνει τον
     /// αριθμό με 0, με κωδικό χώρας (+30) ή χωρίς.
     /// </summary>
-    /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία) → πελάτης. Χτίζεται μία φορά, βλ. Touch.</summary>
+    /// <summary>Τηλέφωνο (τα τελευταία 10 ψηφία, βλ. PhoneKey) → πελάτης. Χτίζεται μία φορά και ζει
+    /// μέχρι να αλλάξει κάτι στους πελάτες (βλ. Touch). Το χρησιμοποιούν και η αναγνώριση κλήσης και το
+    /// FindOrCreate κάθε παραγγελίας.</summary>
     private Dictionary<string, Customer>? _byPhone;
 
     private Dictionary<string, Customer> PhoneIndex
@@ -696,11 +749,11 @@ public class CustomerStore
             var map = new Dictionary<string, Customer>(StringComparer.Ordinal);
             foreach (var c in _customers)
             {
-                var d = DigitsOnly(c.Phone);
-                if (d.Length == 0)
+                var key = PhoneKey(c.Phone);
+                if (key.Length == 0)
                     continue;
                 // Πρώτος κερδίζει — ίδια συμπεριφορά με το FirstOrDefault που υπήρχε πριν.
-                map.TryAdd(d.Length > 10 ? d[^10..] : d, c);
+                map.TryAdd(key, c);
             }
             return _byPhone = map;
         }
@@ -708,13 +761,10 @@ public class CustomerStore
 
     public Customer? FindByPhone(string phone)
     {
-        var digits = DigitsOnly(phone);
-        if (digits.Length < 6)
+        var key = PhoneKey(phone);
+        // Λιγότερα από 6 ψηφία δεν είναι τηλέφωνο — το τηλεφωνικό κέντρο στέλνει και σκουπίδια.
+        if (key.Length < 6)
             return null;
-        var tail = digits.Length > 10 ? digits[^10..] : digits;
-        // Ευρετήριο αντί για σάρωση: χτίζεται μία φορά και ζει μέχρι να αλλάξει κάτι στους πελάτες.
-        // Χτυπάει σε κάθε εισερχόμενη κλήση — με δεκάδες χιλιάδες πελάτες η σάρωση γεννούσε άλλες
-        // τόσες συμβολοσειρές κάθε φορά που χτυπούσε το τηλέφωνο.
-        return PhoneIndex.GetValueOrDefault(tail);
+        return PhoneIndex.GetValueOrDefault(key);
     }
 }

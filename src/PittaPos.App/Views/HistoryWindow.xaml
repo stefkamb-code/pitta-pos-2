@@ -1,9 +1,10 @@
-<Window x:Class="PittaPos.App.Views.HistoryWindow"
+﻿<Window x:Class="PittaPos.App.Views.HistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
         xmlns:svc="clr-namespace:PittaPos.App.Services"
         Title="ΙΣΤΟΡΙΚΟ ΠΑΡΑΓΓΕΛΙΩΝ" Height="800" Width="1280"
+        WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/logo.png"
         FontFamily="{StaticResource PosFont}"
@@ -135,7 +136,12 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <!-- ΟΛΟ το παράθυρο μέσα σε Viewbox: σχεδιάζεται σε σταθερό «χαρτί» 1264x761 και μεγαλώνει/
+         μικραίνει ΟΛΟ μαζί με το παράθυρο — γράμματα, κουμπιά και αποστάσεις στην ίδια αναλογία.
+         Ζητήθηκε ρητά· πριν, το μεγάλωμα άπλωνε μόνο τις στήλες και τα γράμματα έμεναν μικροσκοπικά.
+         Stretch=Uniform: κρατά το σχήμα, δεν παραμορφώνει τίποτα. -->
+    <Viewbox Stretch="Uniform">
+    <Grid Width="1264" Height="761">
         <Grid.RowDefinitions>
             <RowDefinition Height="52"/>
             <RowDefinition Height="*"/>
@@ -214,7 +220,7 @@
                         <TextBlock Text="🔎" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0"/>
                         <Grid Width="150">
                             <TextBox x:Name="SearchBox" Style="{StaticResource PosTextBox}" FontSize="13"
-                                     FontWeight="ExtraBold" MaxLength="7"
+                                     FontWeight="ExtraBold" MaxLength="16"
                                      Text="{Binding SearchNumber, UpdateSourceTrigger=PropertyChanged}"/>
                             <TextBlock Text="Αρ. παραγγελίας" FontSize="12" IsHitTestVisible="False"
                                        Foreground="{DynamicResource Neutral500}" VerticalAlignment="Center"
@@ -634,4 +640,5 @@
             </ScrollViewer>
         </Grid>
     </Grid>
+    </Viewbox>
 </Window>

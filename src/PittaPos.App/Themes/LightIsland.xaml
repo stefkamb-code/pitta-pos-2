@@ -1,0 +1,32 @@
+﻿<!--
+    «Λευκό νησί»: το ΛΕΥΚΟ θέμα, καρφωμένο σε ένα κομμάτι της οθόνης.
+
+    Ζητήθηκε για τις Ζωντανές Παραγγελίες: με μαύρο θέμα, το παράθυρο μένει μαύρο (κεφαλίδα, μπάρα
+    καναλιών) αλλά οι ΔΥΟ μεσαίες περιοχές — η λίστα αναμονής και το δεξί ταμπλό — γίνονται λευκές.
+
+    Δουλεύει επειδή όλα τα XAML δείχνουν τα χρώματα με DynamicResource: η αναζήτηση ανεβαίνει το
+    λογικό δέντρο και σταματά ΕΔΩ, πριν φτάσει στο Application.Resources που γυρίζει ο ThemeManager.
+    Τα ονόματα των κλειδιών είναι επίτηδες ΤΑ ΙΔΙΑ — τίποτα από κάτω δεν χρειάζεται να ξέρει ότι
+    βρίσκεται σε νησί. Οι τιμές είναι οι Light στήλες του ThemeManager.Palette· αν αλλάξει κάποια
+    εκεί, άλλαξέ τη και εδώ.
+
+    Το Bg είναι ΚΑΘΑΡΟ ΛΕΥΚΟ (όχι το #f3f2f2 του λευκού θέματος): εδώ είναι φύλλο χαρτιού μέσα σε
+    μαύρο παράθυρο, και το γκριζωπό δίπλα στο μαύρο διαβαζόταν σαν λέρα.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="Bg" Color="#ffffff"/>
+    <SolidColorBrush x:Key="Surface" Color="#eae9e9"/>
+    <SolidColorBrush x:Key="Ink" Color="#201e1d"/>
+    <SolidColorBrush x:Key="Divider" Color="#9F9D9D"/>
+    <SolidColorBrush x:Key="Accent" Color="#ec3013"/>
+    <SolidColorBrush x:Key="Accent100" Color="#fff2ef"/>
+    <SolidColorBrush x:Key="Accent600" Color="#dd2b0f"/>
+    <SolidColorBrush x:Key="Accent700" Color="#ae1800"/>
+    <SolidColorBrush x:Key="Accent800" Color="#7c1405"/>
+    <SolidColorBrush x:Key="Neutral300" Color="#d7d3d3"/>
+    <SolidColorBrush x:Key="Neutral400" Color="#bab6b6"/>
+    <SolidColorBrush x:Key="Neutral500" Color="#9b9797"/>
+    <SolidColorBrush x:Key="Neutral600" Color="#7d7979"/>
+    <SolidColorBrush x:Key="Neutral700" Color="#605d5d"/>
+</ResourceDictionary>

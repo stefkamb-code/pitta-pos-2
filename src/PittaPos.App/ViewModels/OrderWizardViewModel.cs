@@ -1092,22 +1092,35 @@ public partial class OrderWizardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Ο κωδικός της πλατφόρμας δέχεται ΜΟΝΟ ψηφία — ό,τι άλλο πληκτρολογηθεί απλώς δεν γράφεται.
-    /// <para>Ίδιος κανόνας με το πεδίο αναζήτησης του Ιστορικού (βλ. HistoryViewModel.OnSearchNumberChanged),
-    /// και για τον ίδιο λόγο: εκείνο ψάχνει μόνο με ψηφία, οπότε ένα γράμμα που ξέφευγε εδώ έφτιαχνε
-    /// παραγγελία που μετά ΔΕΝ βρισκόταν ποτέ με αναζήτηση.</para>
+    /// Ο κωδικός της πλατφόρμας: <b>Wolt και e-food δέχονται ΜΟΝΟ ψηφία</b> — ό,τι άλλο πληκτρολογηθεί
+    /// απλώς δεν γράφεται. Το <b>BOX δέχεται και γράμματα</b>, γιατί οι δικοί του κωδικοί δεν είναι
+    /// σκέτοι αριθμοί.
+    /// <para>Γι' αυτό ακριβώς η αναζήτηση του Ιστορικού δέχεται πλέον κι εκείνη γράμματα (βλ.
+    /// HistoryViewModel.OnSearchNumberChanged): όσο έψαχνε μόνο με ψηφία, ένας κωδικός με γράμμα
+    /// έφτιαχνε παραγγελία που μετά ΔΕΝ βρισκόταν ποτέ με αναζήτηση.</para>
     /// </summary>
     partial void OnAppOrderRefChanged(string value)
     {
-        var digits = new string(value.Where(char.IsDigit).ToArray());
-        if (digits != value)
+        var clean = FilterOrderRef(value);
+        if (clean != value)
         {
-            AppOrderRef = digits; // ξαναμπαίνει εδώ, καθαρό
+            AppOrderRef = clean; // ξαναμπαίνει εδώ, καθαρό
             return;
         }
         NotifyStep2Validation();
     }
-    partial void OnAppPlatformChanged(string? value) => NotifyStep2Validation();
+
+    /// <summary>Το BOX κρατά ό,τι γράφτηκε· οι υπόλοιπες πλατφόρμες κρατούν μόνο τα ψηφία.</summary>
+    private string FilterOrderRef(string value) =>
+        AppPlatform == "BOX" ? value : new string(value.Where(char.IsDigit).ToArray());
+
+    partial void OnAppPlatformChanged(string? value)
+    {
+        // Αλλαγή BOX → Wolt/e-food με γράμματα ήδη γραμμένα: καθαρίζουν εδώ, αλλιώς θα περνούσε
+        // κωδικός με γράμματα σε πλατφόρμα που δεν τα δέχεται.
+        AppOrderRef = FilterOrderRef(AppOrderRef);
+        NotifyStep2Validation();
+    }
 
     partial void OnStep2ValidatedChanged(bool value) => NotifyStep2Validation();
 
