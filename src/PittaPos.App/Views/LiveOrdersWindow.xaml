@@ -208,7 +208,7 @@
                             <ItemsControl ItemsSource="{Binding ChannelOrders}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:ChannelOrderViewModel}">
-                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,10">
+                                        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,7">
                                             <StackPanel>
                                                 <!-- Η ΔΙΕΥΘΥΝΣΗ ΣΕ ΔΙΚΗ ΤΗΣ ΓΡΑΜΜΗ. Πριν καθόταν σε οριζόντια στοίβα
                                                      δίπλα στο «#01 ·», που δίνει στα παιδιά της ΑΠΕΙΡΟ πλάτος: η
@@ -216,22 +216,22 @@
                                                      στήλης. Πάνω μένουν αριθμός και ποσό — μικρά, είναι η ταυτότητα·
                                                      από κάτω το όνομα, για όποιον το χρειαστεί. -->
                                                 <DockPanel>
-                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Order.TotalLabel}" FontSize="11.5"
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Order.TotalLabel}" FontSize="10.5"
                                                                FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="11.5" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                                                        <TextBlock Text="{Binding Order.PaymentIcon}" FontSize="11.5" Margin="6,0,0,0"/>
+                                                        <TextBlock Text="#" FontSize="10" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                                        <TextBlock Text="{Binding Order.DisplayNumber}" FontSize="10" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                                        <TextBlock Text="{Binding Order.PaymentIcon}" FontSize="10" Margin="5,0,0,0"/>
                                                     </StackPanel>
                                                 </DockPanel>
-                                                <TextBlock Text="{Binding Order.AddressOrName}" FontSize="13.5" FontWeight="ExtraBold"
-                                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" Margin="0,3,0,0"/>
-                                                <TextBlock Text="{Binding Order.NameUnderAddress}" FontSize="10.5"
+                                                <TextBlock Text="{Binding Order.AddressOrName}" FontSize="12" FontWeight="ExtraBold"
+                                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                <TextBlock Text="{Binding Order.NameUnderAddress}" FontSize="9.5"
                                                            Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"/>
-                                                <StackPanel Margin="0,8,0,0">
+                                                <StackPanel Margin="0,5,0,0">
                                                     <Button Content="ΑΛΛΑΓΗ ΣΕ" Command="{Binding ToggleReassignOptionsCommand}"
                                                             HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
-                                                            Padding="10,5" FontSize="11" FontWeight="ExtraBold"/>
+                                                            Padding="8,3" FontSize="9.5" FontWeight="ExtraBold"/>
 
                                                     <StackPanel Margin="0,8,0,0" Visibility="{Binding ShowReassignOptions, Converter={StaticResource BoolToVis}}">
                                                         <TextBlock Text="Αλλαγή σε:" FontSize="10.5" Foreground="{DynamicResource Neutral500}"
