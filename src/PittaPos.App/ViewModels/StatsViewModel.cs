@@ -369,6 +369,12 @@ public partial class StatsViewModel : ObservableObject
     public string TotalRevenueLabel { get; private set; } = Order.FormatPrice(0);
     public string TotalCountLabel { get; private set; } = "0 παραγγελίες";
 
+    /// <summary>Οι παραγγελίες που περιμένουν ακόμα κανάλι στις Ζωντανές — δεν μετράνε σε καμία βάρδια
+    /// (βλ. SalesStatsService.CountedOrders), αλλά φαίνονται εδώ ώστε να μη «λείπουν» λεφτά αναπάντητα.</summary>
+    public string PendingRevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string PendingCountLabel { get; private set; } = "0 παραγγελίες";
+    public bool HasPending { get; private set; }
+
     public IReadOnlyList<ProductStatViewModel> ProductStats { get; private set; } = [];
     /// <summary>Οι κάρτες καναλιού της ΠΡΩΙΝΗΣ και της ΒΡΑΔΙΝΗΣ βάρδιας, χωριστά.</summary>
     public IReadOnlyList<ChannelRevenueViewModel> MorningChannelRevenues { get; private set; } = [];
@@ -484,7 +490,10 @@ public partial class StatsViewModel : ObservableObject
 
     private void Refresh()
     {
-        var orders = _stats.Orders.ToList();
+        // ΟΧΙ _stats.Orders: όσες κάθονται ακόμα στην αναμονή του πίνακα δεν έχουν μπει στον τζίρο
+        // (βλ. SalesStatsService.CountedOrders) — μετράνε μόλις περάσουν σε κανάλι.
+        var orders = _stats.CountedOrders;
+        var awaiting = _stats.AwaitingChannelOrders;
 
         var revenue = orders.Sum(o => o.Total);
         RevenueLabel = Order.FormatPrice(revenue);
@@ -551,6 +560,10 @@ public partial class StatsViewModel : ObservableObject
         TotalRevenueLabel = RevenueLabel;
         TotalCountLabel = CountLabel(orders.Count);
 
+        PendingRevenueLabel = Order.FormatPrice(awaiting.Sum(o => o.Total));
+        PendingCountLabel = CountLabel(awaiting.Count);
+        HasPending = awaiting.Count > 0;
+
         NoData = orders.Count == 0;
 
         OnPropertyChanged(nameof(RevenueLabel));
@@ -566,6 +579,9 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(EveningCountLabel));
         OnPropertyChanged(nameof(TotalRevenueLabel));
         OnPropertyChanged(nameof(TotalCountLabel));
+        OnPropertyChanged(nameof(PendingRevenueLabel));
+        OnPropertyChanged(nameof(PendingCountLabel));
+        OnPropertyChanged(nameof(HasPending));
 
         // Το διάγραμμα ξαναδιαβάζει αρχεία ιστορικού (ακριβό για ΜΗΝΑΣ/ΧΡΟΝΟΣ) — μόνο όταν
         // είναι ορατό, ώστε μια νέα παραγγελία στην κίνηση να μην ξανασαρώνει αρχεία άδικα.

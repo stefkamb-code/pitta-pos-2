@@ -355,6 +355,9 @@ public partial class OrderBoardService : ObservableObject
         order.SentVia = channel;
         order.SentAt = DateTime.Now;
         ApplyChannelPayment(order, channel);
+        // ΤΩΡΑ μπαίνει στον τζίρο, στη βάρδια αυτής της στιγμής — όσο ήταν στην αναμονή δεν μετρούσε
+        // πουθενά (βλ. SalesStatsService.CountedOrders για το γιατί).
+        SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
         Notify();
     }
 
@@ -368,6 +371,9 @@ public partial class OrderBoardService : ObservableObject
         order.IsEveningShift = SettingsStore.Instance.Settings.IsEveningShift;
         order.SentVia = channel;
         ApplyChannelPayment(order, channel);
+        // Ίδιος κανόνας με το Dispatch: η βάρδια του τζίρου ακολουθεί τη βάρδια του καναλιού, ώστε
+        // στατιστικά και ταμπελάκια καναλιών να μη λένε ποτέ διαφορετικά πράγματα.
+        SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
         Notify();
     }
 
@@ -510,6 +516,10 @@ public partial class OrderBoardService : ObservableObject
         order.SentVia = null;
         order.SentAt = null;
         Notify();
+        // Ξαναβγαίνει από τον τζίρο (η βάρδια της μένει όπως ήταν — θα ξαναγραφτεί μόλις περάσει πάλι
+        // σε κανάλι). Τα στατιστικά διαβάζουν τον πίνακα αλλά ξαναχτίζονται μόνο στο δικό τους Changed,
+        // γι' αυτό χρειάζεται ρητό σήμα — ΜΕΤΑ το Notify, ώστε να έχει ήδη σωθεί η νέα κατάσταση.
+        SalesStatsService.Instance.RaiseChanged();
     }
 
     /// <summary>Κλείσιμο ημέρας — αδειάζει τον πίνακα, εκκρεμείς και ήδη περασμένες σε κανάλι, ώστε το
@@ -536,6 +546,10 @@ public partial class OrderBoardService : ObservableObject
             Orders.Remove(o);
         Notify();
     }
+
+    /// <summary>Οι αριθμοί των παραγγελιών που περιμένουν ακόμα κανάλι. Αυτές ΔΕΝ μετράνε στον τζίρο —
+    /// βλ. SalesStatsService.CountedOrders για ολόκληρο τον λόγο.</summary>
+    public HashSet<int> AwaitingChannelNumbers => Orders.Where(o => o.IsPending).Select(o => o.OrderNumber).ToHashSet();
 
     private void Notify()
     {

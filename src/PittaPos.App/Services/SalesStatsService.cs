@@ -171,6 +171,46 @@ public class SalesStatsService
 
     public IReadOnlyCollection<CompletedOrder> Orders => _orders.Values;
 
+    /// <summary>
+    /// Ο ΤΖΙΡΟΣ: όλες οι παραγγελίες εκτός από όσες κάθονται ακόμα στην αναμονή του πίνακα ζωντανών
+    /// χωρίς κανάλι. Στην πράξη είναι ΔΙΑΝΟΜΗ και BOX — Wolt/e-food περνάνε μόνες τους σε κανάλι
+    /// (βλ. OrderBoardService.AutoDispatchPlatform) και ΟΡΘΙΟΣ/ΤΡΑΠΕΖΙ δεν μπαίνουν καν στον πίνακα.
+    ///
+    /// <para>ΓΙΑΤΙ: μια διανομή που γράφτηκε στο τέλος της πρωινής βάρδιας αλλά την πήρε ο διανομέας
+    /// μετά την αλλαγή ανήκει στη ΒΡΑΔΙΝΗ βάρδια — τότε μπαίνουν τα λεφτά στο συρτάρι. Πριν, η βάρδια
+    /// κλείδωνε τη στιγμή της καταχώρησης, οπότε το πρωί έβγαινε φουσκωμένο και το βράδυ λειψό, και
+    /// μάλιστα με το ταμπελάκι του καναλιού (που ακολουθεί το Dispatch) να λέει ήδη το αντίθετο.
+    /// Τώρα η παραγγελία μπαίνει στον τζίρο τη στιγμή που περνάει σε κανάλι, με τη βάρδια εκείνης της
+    /// στιγμής — βλ. <see cref="SetShift"/>, που το καλεί το OrderBoardService.Dispatch/Reassign.</para>
+    /// </summary>
+    public List<CompletedOrder> CountedOrders
+    {
+        get
+        {
+            var awaiting = OrderBoardService.Instance.AwaitingChannelNumbers;
+            return awaiting.Count == 0
+                ? _orders.Values.ToList()
+                : _orders.Values.Where(o => !awaiting.Contains(o.OrderNumber)).ToList();
+        }
+    }
+
+    /// <summary>Όσες δεν έχουν μπει ακόμα στον τζίρο. ΔΕΝ κρύβονται: παίρνουν δική τους γραμμή στα
+    /// στατιστικά και στην αναφορά, ώστε να μη «λείπουν» λεφτά χωρίς εξήγηση.</summary>
+    public List<CompletedOrder> AwaitingChannelOrders
+    {
+        get
+        {
+            var awaiting = OrderBoardService.Instance.AwaitingChannelNumbers;
+            return awaiting.Count == 0
+                ? []
+                : _orders.Values.Where(o => awaiting.Contains(o.OrderNumber)).ToList();
+        }
+    }
+
+    /// <summary>Ο πίνακας ζωντανών μετακίνησε λεφτά μέσα/έξω από τον τζίρο χωρίς να αλλάξει καμία
+    /// παραγγελία (επαναφορά στην αναμονή) — ξαναχτίσε ό,τι διαβάζει τζίρο.</summary>
+    public void RaiseChanged() => Changed?.Invoke();
+
     /// <summary>Ώρα-όριο ημέρας: πριν από αυτήν η νύχτα μετράει ακόμα στην προηγούμενη μέρα.</summary>
     private const int DayCutoffHour = 5;
 
@@ -482,6 +522,46 @@ public class SalesStatsService
             };
         }
         Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Ξαναγράφει τη ΒΑΡΔΙΑ μιας ολοκληρωμένης παραγγελίας — καλείται όταν περάσει (ή ξαναπεράσει) σε
+    /// κανάλι, βλ. OrderBoardService.Dispatch/Reassign. Μέχρι τότε η παραγγελία δεν μετράει πουθενά
+    /// (βλ. <see cref="CountedOrders"/>), οπότε αυτή είναι η στιγμή που μπαίνει στον τζίρο.
+    /// </summary>
+    /// <remarks>Μόνο στο κύριο ταμείο: ο client δεν φτάνει ποτέ εδώ — τα Dispatch/Reassign γυρίζουν
+    /// νωρίτερα και στέλνουν στο host, που τρέχει την ίδια διαδρομή τοπικά.</remarks>
+    public void SetShift(int orderNumber, bool isEveningShift)
+    {
+        if (RemoteSync.IsClient || !_orders.TryGetValue(orderNumber, out var order))
+            return;
+        if (order.IsEveningShift != isEveningShift)
+        {
+            _orders[orderNumber] = new CompletedOrder
+            {
+                OrderNumber = order.OrderNumber,
+                Type = order.Type,
+                Channel = order.Channel,
+                AppOrderRef = order.AppOrderRef,
+                PaymentMethod = order.PaymentMethod,
+                Who = order.Who,
+                Phone = order.Phone,
+                DeliveryAddress = order.DeliveryAddress,
+                DeliveryFloor = order.DeliveryFloor,
+                DeliveryNotes = order.DeliveryNotes,
+                Total = order.Total,
+                Lines = order.Lines,
+                Note = order.Note,
+                PlacedAt = order.PlacedAt,
+                IsEveningShift = isEveningShift,
+                TablePerson = order.TablePerson,
+                TableOpenedAt = order.TableOpenedAt,
+            };
+            Save();
+        }
+        // Πάντα, ακόμα κι αν η βάρδια δεν άλλαξε: το ποσό μόλις μπήκε στον τζίρο και τα στατιστικά
+        // πρέπει να το δείξουν.
         Changed?.Invoke();
     }
 

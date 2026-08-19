@@ -22,6 +22,44 @@ public static class DayReportService
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Ό,τι κάθεται ακόμα στην αναμονή του πίνακα ζωντανών χωρίς κανάλι. ΔΕΝ είναι μέσα στον τζίρο
+    /// (βλ. SalesStatsService.CountedOrders) — τυπώνεται χωριστά ώστε τα λεφτά να μη λείπουν σιωπηλά
+    /// από το χαρτί: ο ταμίας βλέπει αμέσως πόσα και ποιες παραγγελίες περιμένουν ακόμα διανομέα.
+    /// Παραλείπεται εντελώς όταν δεν υπάρχει καμία, που είναι και το συνηθισμένο.
+    /// </summary>
+    private static void AppendAwaiting(StringBuilder sb, List<CompletedOrder> awaiting)
+    {
+        if (awaiting.Count == 0)
+            return;
+        AppendAwaitingTitle(sb);
+        foreach (var o in awaiting.OrderBy(o => o.PlacedAt))
+            sb.AppendLine($"  #{o.DisplayNumber} · {o.TimeLabel} · {o.TypeLabel}"
+                + (o.Who.Length > 0 ? " · " + o.Who : "") + $"   {Order.FormatPrice(o.Total)}");
+        sb.AppendLine($"  Σύνολο      : {Order.FormatPrice(awaiting.Sum(o => o.Total))}");
+        sb.AppendLine();
+    }
+
+    /// <summary>Η ίδια πληροφορία για ΤΟ ΧΑΡΤΙ — μόνο πλήθος και σύνολο, χωρίς γραμμή ανά παραγγελία.
+    /// Η γραμμή με όνομα πελάτη ξεπερνά εύκολα τους ~48 χαρακτήρες της αναφοράς, και το DayReportWindow
+    /// μικραίνει τη γραμματοσειρά ΟΛΟΥ του χαρτιού για να χωρέσει την πιο μακριά γραμμή
+    /// (βλ. DayReportWindow.FitTextToWidth) — δύο ξεχασμένες διανομές θα ζάρωναν ολόκληρη την αναφορά.</summary>
+    private static void AppendAwaitingPrint(StringBuilder sb, List<CompletedOrder> awaiting)
+    {
+        if (awaiting.Count == 0)
+            return;
+        AppendAwaitingTitle(sb);
+        sb.AppendLine($"  Παραγγελίες : {awaiting.Count}");
+        sb.AppendLine($"  Σύνολο      : {Order.FormatPrice(awaiting.Sum(o => o.Total))}");
+        sb.AppendLine();
+    }
+
+    private static void AppendAwaitingTitle(StringBuilder sb)
+    {
+        sb.AppendLine("ΣΕ ΑΝΑΜΟΝΗ — ΕΚΤΟΣ ΤΖΙΡΟΥ");
+        sb.AppendLine("  (μπαίνουν μόλις περάσουν σε κανάλι)");
+    }
+
     private static void AppendSummary(StringBuilder sb, List<CompletedOrder> orders)
     {
         var revenue = orders.Sum(o => o.Total);
@@ -133,13 +171,18 @@ public static class DayReportService
     /// <summary>Χτίζει αναλυτική αναφορά όλης της ημέρας από τα στατιστικά — για email και τοπικό backup.</summary>
     public static string Build()
     {
-        var orders = SalesStatsService.Instance.Orders
+        // Ο τζίρος και οι αναλύσεις του μετράνε ΜΟΝΟ ό,τι έχει περάσει σε κανάλι — όσες περιμένουν
+        // ακόμα στην αναμονή βγαίνουν παρακάτω σε δικό τους μπλοκ (βλ. AppendAwaiting), ώστε όλα τα
+        // νούμερα της αναφοράς να αθροίζουν μεταξύ τους και να μη χάνεται τίποτα.
+        var orders = SalesStatsService.Instance.CountedOrders
             .OrderBy(o => o.PlacedAt)
             .ToList();
+        var awaiting = SalesStatsService.Instance.AwaitingChannelOrders;
 
         var sb = new StringBuilder();
         AppendHeader(sb);
         AppendSummary(sb, orders);
+        AppendAwaiting(sb, awaiting);
         AppendPerChannel(sb, orders);
 
         sb.AppendLine("ΑΝΑ ΠΡΟΪΟΝ");
@@ -173,13 +216,15 @@ public static class DayReportService
     /// παραγγελία) — αυτή τυπώνεται στον θερμικό εκτυπωτή· η πλήρης αναλυτική (Build) πάει σε email/backup.</summary>
     public static string BuildPrintSummary()
     {
-        var orders = SalesStatsService.Instance.Orders
+        // Ίδιος κανόνας με το Build: τζίρος = μόνο όσες πέρασαν σε κανάλι.
+        var orders = SalesStatsService.Instance.CountedOrders
             .OrderBy(o => o.PlacedAt)
             .ToList();
 
         var sb = new StringBuilder();
         AppendHeader(sb);
         AppendPrintSummary(sb, orders);
+        AppendAwaitingPrint(sb, SalesStatsService.Instance.AwaitingChannelOrders);
         AppendPrintPerChannel(sb, orders);
         return sb.ToString();
     }

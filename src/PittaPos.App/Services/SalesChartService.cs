@@ -121,7 +121,9 @@ public static class SalesChartService
         // Ίδιο φίλτρο ημέρας-επιχείρησης και στις ζωντανές, όπως και στο Ιστορικό: μια παραγγελία
         // προηγούμενης μέρας που κάθεται ακόμα εδώ ανήκει στη ΔΙΚΗ ΤΗΣ μέρα του διαγράμματος, όχι στη
         // σημερινή (βλ. HistoryViewModel.Refresh).
-        var live = SalesStatsService.Instance.Orders
+        // CountedOrders, όχι Orders: το διάγραμμα δείχνει τζίρο, και όσες περιμένουν ακόμα κανάλι δεν
+        // έχουν μπει σε αυτόν (βλ. SalesStatsService.CountedOrders).
+        var live = SalesStatsService.Instance.CountedOrders
             .Where(o =>
             {
                 var day = SalesStatsService.BusinessDay(o.PlacedAt);
