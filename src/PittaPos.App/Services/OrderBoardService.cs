@@ -562,8 +562,18 @@ public partial class OrderBoardService : ObservableObject
     /// μπαίνουν εδώ, τα παραδίδει η ίδια η πλατφόρμα.</summary>
     private static readonly string[] DriverChannels = ["Διανομέας", "Κάρτα Διανομέα", "BOX Μετρητά", "BOX Κάρτα"];
 
+    /// <summary>Πόσοι χαρακτήρες πλάτος γράφεται η αναφορά διανομέα.
+    ///
+    /// ΑΥΤΟΣ ο αριθμός καθορίζει πόσο ΜΕΓΑΛΑ βγαίνουν τα γράμματα στο χαρτί: το DayReportWindow
+    /// μικραίνει τη γραμματοσειρά μέχρι να χωρέσει η πιο μακριά γραμμή στο ρολό (βλ.
+    /// DayReportWindow.FitTextToWidth). Με τις παλιές γραμμές των ~43 χαρακτήρων
+    /// («#01 · Κάρτα Διανομέα · Κωνσταντίνος   12,40») η αναφορά έβγαινε στο μισό μέγεθος και δεν
+    /// διαβαζόταν. Στους 24 χαρακτήρες τα γράμματα σχεδόν διπλασιάζονται. Αν προσθέσεις στοιχείο,
+    /// σπάσ' το σε δεύτερη γραμμή — μη φαρδύνεις τη γραμμή.</summary>
+    private const int DriverReportWidth = 24;
+
     /// <summary>Αναλυτική αναφορά διανομέα — όλες οι παραγγελίες που πέρασαν σήμερα σε κανάλι διανομέα
-    /// (μετρητά/κάρτα, ΔΙΑΝΟΜΗ ή BOX), μία-μία με διεύθυνση, και σύνολο τζίρου στο τέλος. Για εκτύπωση
+    /// (μετρητά/κάρτα, ΔΙΑΝΟΜΗ ή BOX), μία-μία με διεύθυνση, και σύνολο τζίρου στην κορυφή. Για εκτύπωση
     /// πριν βγει ο διανομέας — βλ. ReceiptPrinter.PrintDriverReport.</summary>
     public string BuildDriverReport()
     {
@@ -577,31 +587,81 @@ public partial class OrderBoardService : ObservableObject
             .OrderBy(o => o.SentAt ?? o.PlacedAt)
             .ToList();
 
-        var sb = new StringBuilder();
-        sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ — ΔΙΑΝΟΜΕΑΣ");
-        // Η βάρδια γράφεται στο χαρτί: δύο αναφορές της ίδιας μέρας είναι αλλιώς αξεχώριστες.
-        sb.AppendLine(evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ");
-        sb.AppendLine(DateTime.Now.ToString("dddd d MMMM yyyy · HH:mm", greek));
-        sb.AppendLine(new string('=', 40));
-        sb.AppendLine();
-        sb.AppendLine($"ΣΥΝΟΛΟ ΤΖΙΡΟΥ: {Order.FormatPrice(orders.Sum(o => o.Total))}  ({orders.Count} παρ.)");
-
         // Μετρητά/κάρτα βγαίνουν κατευθείαν από το SentVia (το ίδιο το κανάλι λέει ήδη ποιο είναι) —
         // δεν χρειάζεται να ξαναφιλτράρουμε με βάση PaymentMethod, DriverChannels ήδη τα καλύπτει όλα.
-        var cash = orders.Where(o => o.SentVia is "Διανομέας" or "BOX Μετρητά").ToList();
-        var card = orders.Where(o => o.SentVia is "Κάρτα Διανομέα" or "BOX Κάρτα").ToList();
-        sb.AppendLine($"  Μετρητά: {Order.FormatPrice(cash.Sum(o => o.Total))}  ({cash.Count} παρ.)");
-        sb.AppendLine($"  Κάρτες:  {Order.FormatPrice(card.Sum(o => o.Total))}  ({card.Count} παρ.)");
+        var cash = orders.Where(o => IsCashChannel(o.SentVia)).ToList();
+        var card = orders.Where(o => !IsCashChannel(o.SentVia)).ToList();
 
-        sb.AppendLine(new string('-', 40));
-        sb.AppendLine();
+        var sb = new StringBuilder();
+        sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ");
+        sb.AppendLine("ΔΙΑΝΟΜΕΑΣ");
+        // Η βάρδια γράφεται στο χαρτί: δύο αναφορές της ίδιας μέρας είναι αλλιώς αξεχώριστες.
+        sb.AppendLine(evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ");
+        sb.AppendLine(DateTime.Now.ToString("dd/MM/yyyy · HH:mm", greek));
+        sb.AppendLine(new string('=', DriverReportWidth));
+        sb.AppendLine(DriverRow($"ΣΥΝΟΛΟ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
+        sb.AppendLine(DriverRow($"ΜΕΤΡΗΤΑ ({cash.Count})", Order.FormatPrice(cash.Sum(o => o.Total))));
+        sb.AppendLine(DriverRow($"ΚΑΡΤΑ ({card.Count})", Order.FormatPrice(card.Sum(o => o.Total))));
+        sb.AppendLine(new string('=', DriverReportWidth));
 
         foreach (var o in orders)
         {
-            sb.AppendLine($"#{o.DisplayNumber} · {o.SentVia} · {o.Name}   {o.TotalLabel}");
-            if (o.Address.Length > 0)
-                sb.AppendLine($"    {o.Address}");
+            // Δύο κενές γραμμές ΠΡΙΝ από κάθε παραγγελία: ο διανομέας διαβάζει το χαρτί περπατώντας και
+            // οι κολλητές γραμμές γίνονταν ένα μπλοκ όπου δεν ξεχώριζε πού τελειώνει η μία διεύθυνση.
+            sb.AppendLine();
+            sb.AppendLine();
+            // ΜΕΤΡΗΤΑ ή ΚΑΡΤΑ με το όνομά του, όχι το κανάλι: το «Διανομέας» και το «Κάρτα Διανομέα»
+            // είναι εσωτερικά ονόματα καναλιών — αυτό που θέλει να ξέρει είναι αν θα εισπράξει.
+            sb.AppendLine(DriverRow($"#{o.DisplayNumber} {(IsCashChannel(o.SentVia) ? "ΜΕΤΡΗΤΑ" : "ΚΑΡΤΑ")}", o.TotalLabel));
+            foreach (var line in WrapPlain(o.AddressOrName))
+                sb.AppendLine(line);
+            foreach (var line in WrapPlain(o.NameUnderAddress))
+                sb.AppendLine(line);
         }
         return sb.ToString();
+    }
+
+    /// <summary>Μετρητά ή κάρτα, από το ίδιο το κανάλι — τα δύο κανάλια «Διανομέας»/«BOX Μετρητά» ΕΙΝΑΙ
+    /// τα μετρητά (βλ. ChannelInfo.All).</summary>
+    private static bool IsCashChannel(string? sentVia) => sentVia is "Διανομέας" or "BOX Μετρητά";
+
+    /// <summary>Ετικέτα αριστερά, ποσό δεξιά στην άκρη του χαρτιού. Αν δεν χωρέσουν μαζί, μένει ένα
+    /// κενό ανάμεσά τους — καλύτερα στριμωγμένο παρά να αναδιπλωθεί και να μικρύνει όλη η αναφορά.</summary>
+    private static string DriverRow(string left, string right)
+    {
+        var gap = DriverReportWidth - left.Length - right.Length;
+        return left + new string(' ', Math.Max(1, gap)) + right;
+    }
+
+    /// <summary>Σπάει ελεύθερο κείμενο (διεύθυνση, όνομα) σε γραμμές του πλάτους της αναφοράς, στα κενά.
+    /// Το σπάσιμο γίνεται ΕΔΩ και όχι από το WPF επίτηδες: μια γραμμή πιο φαρδιά από το χαρτί θα
+    /// μίκραινε τη γραμματοσειρά ΟΛΗΣ της αναφοράς (βλ. DriverReportWidth).</summary>
+    private static IEnumerable<string> WrapPlain(string text)
+    {
+        if (text.Length == 0)
+            yield break;
+
+        var line = new StringBuilder();
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var w = word;
+            // Λέξη μεγαλύτερη από το χαρτί (σπάνιο: κολλημένη διεύθυνση) — κόβεται στα ίσια.
+            while (w.Length > DriverReportWidth)
+            {
+                if (line.Length > 0) { yield return line.ToString(); line.Clear(); }
+                yield return w[..DriverReportWidth];
+                w = w[DriverReportWidth..];
+            }
+            if (line.Length > 0 && line.Length + 1 + w.Length > DriverReportWidth)
+            {
+                yield return line.ToString();
+                line.Clear();
+            }
+            if (line.Length > 0)
+                line.Append(' ');
+            line.Append(w);
+        }
+        if (line.Length > 0)
+            yield return line.ToString();
     }
 }

@@ -216,7 +216,17 @@ public static class ReceiptPrinter
 
     /// <summary>Σιωπηλή εκτύπωση της αναφοράς διανομέα (βλ. OrderBoardService.BuildDriverReport) στον
     /// εκτυπωτή που έχει οριστεί στις Ρυθμίσεις.</summary>
-    public static void PrintDriverReport(string report) => PrintPlainText(report, "Αναφορά Διανομέα");
+    public static void PrintDriverReport(string report) => PrintPlainText(report, DriverReportTitle);
+
+    /// <summary>Ο τίτλος ταξιδεύει μαζί με το κείμενο ως το ταμείο που έχει τον εκτυπωτή (βλ.
+    /// SendTextToHostAsync), οπότε πάνω του κρίνεται και το μέγεθος — αλλιώς η αναφορά που στέλνει το
+    /// δεύτερο ταμείο θα τυπωνόταν στο μέγεθος της αναφοράς ημέρας.</summary>
+    public const string DriverReportTitle = "Αναφορά Διανομέα";
+
+    /// <summary>Η αναφορά διανομέα γράφεται στενή επίτηδες (24 χαρακτήρες, βλ.
+    /// OrderBoardService.DriverReportWidth) ώστε να τυπωθεί με μεγάλα γράμματα· η αναφορά ημέρας έχει
+    /// στοιχισμένες στήλες ~48 χαρακτήρων και μένει στο μέγεθος σχεδίασης.</summary>
+    private static double FontSizeFor(string title) => title == DriverReportTitle ? 22 : 14;
 
     /// <summary>Τελευταίο ορατό preview-παράθυρο (όταν δεν έχει οριστεί εκτυπωτής) — κλείνει το προηγούμενο
     /// πριν ανοίξει το επόμενο, αλλιώς επαναλαμβανόμενα κλικ σε «ΕΚΤΥΠΩΣΗ ΤΩΡΑ»/«ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ»
@@ -246,7 +256,7 @@ public static class ReceiptPrinter
         if (printerName.Length == 0)
         {
             _previewWindow?.Close();
-            _previewWindow = new Views.DayReportWindow(text)
+            _previewWindow = new Views.DayReportWindow(text, FontSizeFor(title))
             {
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
                 ShowInTaskbar = true,
@@ -274,7 +284,7 @@ public static class ReceiptPrinter
                 return;
             }
 
-            textSource = new Views.DayReportWindow(text)
+            textSource = new Views.DayReportWindow(text, FontSizeFor(title))
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -5000,

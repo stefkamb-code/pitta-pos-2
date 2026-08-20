@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 
@@ -10,9 +10,13 @@ namespace PittaPos.App.Views;
 /// (βλ. ReceiptPrinter.PrintDayReport) — απλό μονόχωρο κείμενο, καμία σύνδεση σε ViewModel.</summary>
 public partial class DayReportWindow : Window
 {
-    public DayReportWindow(string report)
+    /// <param name="fontSize">Μέγεθος εκκίνησης. Η αναφορά διανομέα ξεκινά ΜΕΓΑΛΥΤΕΡΗ (βλ.
+    /// ReceiptPrinter.FontSizeFor): το <see cref="FitTextToWidth"/> μόνο μικραίνει, οπότε με μικρό
+    /// αρχικό μέγεθος μια στενή αναφορά τύπωνε μικρά γράμματα και άφηνε μισό χαρτί κενό δεξιά.</param>
+    public DayReportWindow(string report, double fontSize = 14)
     {
         InitializeComponent();
+        ReportText.FontSize = fontSize;
         // ΟΧΙ TitleBarTheme εδώ, ίδιος λόγος με το ReceiptWindow: το παράθυρο τυπώνεται εκτός οθόνης και
         // το ύψος του βγαίνει από το περιεχόμενο (SizeToContent) — δεν πρέπει να το πειράξει τίποτα.
         ReportText.Text = report;
