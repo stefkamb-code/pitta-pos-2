@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+﻿using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
@@ -52,8 +52,16 @@ public class ChannelRevenueViewModel
     public required System.Windows.Media.Brush Brush { get; init; }
     public required int OrderCount { get; init; }
     public required decimal Revenue { get; init; }
+    /// <summary>Μετρητά/κάρτα χωριστά μέσα στην κάρτα — μόνο για τα κανάλια που κρατούν τρόπο πληρωμής
+    /// (BOX: το παραδίδει δικός μας διανομέας και εισπράττει επιτόπου). Στα e-food/Wolt το ποσό έχει ήδη
+    /// πληρωθεί στην πλατφόρμα, οπότε ένας διαχωρισμός εκεί θα ήταν πάντα μηδέν.</summary>
+    public bool HasPaymentSplit { get; init; }
+    public decimal CashRevenue { get; init; }
+    public decimal CardRevenue { get; init; }
 
     public string RevenueLabel => Order.FormatPrice(Revenue);
+    public string CashLabel => Order.FormatPrice(CashRevenue);
+    public string CardLabel => Order.FormatPrice(CardRevenue);
     public string CountLabel => OrderCount + (OrderCount == 1 ? " παραγγελία" : " παραγγελίες");
 }
 
@@ -366,8 +374,6 @@ public partial class StatsViewModel : ObservableObject
     public string MorningCountLabel { get; private set; } = "0 παραγγελίες";
     public string EveningRevenueLabel { get; private set; } = Order.FormatPrice(0);
     public string EveningCountLabel { get; private set; } = "0 παραγγελίες";
-    public string TotalRevenueLabel { get; private set; } = Order.FormatPrice(0);
-    public string TotalCountLabel { get; private set; } = "0 παραγγελίες";
 
     /// <summary>Οι παραγγελίες που περιμένουν ακόμα κανάλι στις Ζωντανές — δεν μετράνε σε καμία βάρδια
     /// (βλ. SalesStatsService.CountedOrders), αλλά φαίνονται εδώ ώστε να μη «λείπουν» λεφτά αναπάντητα.</summary>
@@ -557,8 +563,6 @@ public partial class StatsViewModel : ObservableObject
         MorningCountLabel = CountLabel(morning.Count);
         EveningRevenueLabel = Order.FormatPrice(evening.Sum(o => o.Total));
         EveningCountLabel = CountLabel(evening.Count);
-        TotalRevenueLabel = RevenueLabel;
-        TotalCountLabel = CountLabel(orders.Count);
 
         PendingRevenueLabel = Order.FormatPrice(awaiting.Sum(o => o.Total));
         PendingCountLabel = CountLabel(awaiting.Count);
@@ -577,8 +581,6 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(MorningCountLabel));
         OnPropertyChanged(nameof(EveningRevenueLabel));
         OnPropertyChanged(nameof(EveningCountLabel));
-        OnPropertyChanged(nameof(TotalRevenueLabel));
-        OnPropertyChanged(nameof(TotalCountLabel));
         OnPropertyChanged(nameof(PendingRevenueLabel));
         OnPropertyChanged(nameof(PendingCountLabel));
         OnPropertyChanged(nameof(HasPending));
@@ -598,17 +600,17 @@ public partial class StatsViewModel : ObservableObject
         var ink = System.Windows.Application.Current.Resources["Ink"] as System.Windows.Media.Brush
             ?? System.Windows.Media.Brushes.Black;
 
-        (string Name, System.Windows.Media.Brush Brush, Func<CompletedOrder, bool> Match)[] channels =
+        (string Name, System.Windows.Media.Brush Brush, Func<CompletedOrder, bool> Match, bool SplitsPayment)[] channels =
         [
-            ("ΔΙΑΝΟΜΗ", ink, o => o.Type == OrderType.Delivery),
-            ("ΟΡΘΙΟ", ink, o => o.Type == OrderType.Pickup),
-            ("ΤΡΑΠΕΖΙ", ink, o => o.Type == OrderType.Table),
+            ("ΔΙΑΝΟΜΗ", ink, o => o.Type == OrderType.Delivery, false),
+            ("ΟΡΘΙΟ", ink, o => o.Type == OrderType.Pickup, false),
+            ("ΤΡΑΠΕΖΙ", ink, o => o.Type == OrderType.Table, false),
             ("e-food", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xd3, 0x2f, 0x2f)),
-                o => o.Channel == "e-food"),
+                o => o.Channel == "e-food", false),
             ("Wolt", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x15, 0x65, 0xc0)),
-                o => o.Channel == "Wolt"),
+                o => o.Channel == "Wolt", false),
             ("BOX", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xb8, 0x86, 0x0b)),
-                o => o.Channel == "BOX"),
+                o => o.Channel == "BOX", true),
         ];
 
         return channels.Select(c =>
@@ -620,6 +622,13 @@ public partial class StatsViewModel : ObservableObject
                 Brush = c.Brush,
                 OrderCount = matched.Count,
                 Revenue = matched.Sum(o => o.Total),
+                HasPaymentSplit = c.SplitsPayment,
+                // Χωρίς δηλωμένο τρόπο πληρωμής (παλιά ή διορθωμένη παραγγελία) μετράει ως μετρητά —
+                // έτσι τα δύο νούμερα αθροίζουν πάντα στον τζίρο της κάρτας από πάνω.
+                CashRevenue = c.SplitsPayment
+                    ? matched.Where(o => o.PaymentMethod != Core.Models.PaymentMethod.Card).Sum(o => o.Total) : 0m,
+                CardRevenue = c.SplitsPayment
+                    ? matched.Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Card).Sum(o => o.Total) : 0m,
             };
         }).ToList();
     }

@@ -27,6 +27,24 @@
                                    Foreground="{DynamicResource Ink}" Margin="0,3,0,0"/>
                         <TextBlock Text="{Binding CountLabel}" FontSize="10.5"
                                    Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
+                        <!-- Μετρητά/κάρτα μόνο όπου εισπράττει ο δικός μας διανομέας (BOX) — αλλού
+                             θα ήταν δύο μηδενικά που τρώνε ύψος από όλες τις κάρτες της σειράς. -->
+                        <StackPanel Visibility="{Binding HasPaymentSplit, Converter={StaticResource BoolToVis}}"
+                                    Margin="0,7,0,0">
+                            <Border Height="1" Background="{DynamicResource Divider}" Margin="0,0,0,6"/>
+                            <DockPanel Margin="0,0,0,2">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding CashLabel}" FontSize="11"
+                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                <TextBlock Text="ΜΕΤΡΗΤΑ" FontSize="9.5" FontWeight="ExtraBold"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource Neutral600}"/>
+                            </DockPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding CardLabel}" FontSize="11"
+                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                <TextBlock Text="ΚΑΡΤΑ" FontSize="9.5" FontWeight="ExtraBold"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource Neutral600}"/>
+                            </DockPanel>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -232,7 +250,7 @@
             <!-- morning / evening / total -->
             <TextBlock Text="ΑΝΑ ΒΑΡΔΙΑ" FontSize="11" FontWeight="ExtraBold"
                        Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
-            <UniformGrid Columns="3" Margin="0,0,0,26">
+            <UniformGrid Columns="2" Margin="0,0,0,26">
                 <Grid Margin="0,0,14,0">
                     <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
                     <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
@@ -244,7 +262,7 @@
                         </StackPanel>
                     </Border>
                 </Grid>
-                <Grid Margin="0,0,14,0">
+                <Grid>
                     <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
                     <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
                         <StackPanel>
@@ -252,17 +270,6 @@
                             <TextBlock Text="{Binding EveningRevenueLabel}" FontSize="24" FontWeight="ExtraBold"
                                        Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
                             <TextBlock Text="{Binding EveningCountLabel}" FontSize="11.5" Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
-                <Grid>
-                    <Border Background="{DynamicResource Accent100}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
-                    <Border BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="12" Padding="18,14" Background="{DynamicResource Accent100}">
-                        <StackPanel>
-                            <TextBlock Text="ΣΥΝΟΛΙΚΟ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Accent700}"/>
-                            <TextBlock Text="{Binding TotalRevenueLabel}" FontSize="24" FontWeight="ExtraBold"
-                                       Foreground="{DynamicResource Accent700}" Margin="0,4,0,0"/>
-                            <TextBlock Text="{Binding TotalCountLabel}" FontSize="11.5" Foreground="{DynamicResource Accent700}" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>
