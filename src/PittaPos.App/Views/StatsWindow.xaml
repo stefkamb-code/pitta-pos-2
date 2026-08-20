@@ -19,32 +19,29 @@
         <DataTemplate x:Key="ChannelCardTemplate" DataType="{x:Type vm:ChannelRevenueViewModel}">
             <Grid Margin="0,0,14,0">
                 <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
-                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="14,10">
+                <!-- Χαμηλή, φαρδιά κάρτα: ό,τι μπορεί να μπει σε μία γραμμή μπαίνει σε μία γραμμή
+                     (τζίρος δίπλα στις παραγγελίες, μετρητά δίπλα στην κάρτα). Στοιβαγμένα, οι έξι
+                     κάρτες γίνονταν σχεδόν τετράγωνες. -->
+                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="14,9">
                     <StackPanel>
                         <TextBlock Text="{Binding Name}" FontSize="10.5" FontWeight="ExtraBold"
                                    Foreground="{Binding Brush}"/>
-                        <TextBlock Text="{Binding RevenueLabel}" FontSize="19" FontWeight="ExtraBold"
-                                   Foreground="{DynamicResource Ink}" Margin="0,3,0,0"/>
-                        <TextBlock Text="{Binding CountLabel}" FontSize="10.5"
-                                   Foreground="{DynamicResource Neutral600}" Margin="0,2,0,0"/>
+                        <DockPanel Margin="0,3,0,0">
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding CountLabel}" FontSize="10.5"
+                                       VerticalAlignment="Bottom" Margin="6,0,0,3"
+                                       Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding RevenueLabel}" FontSize="19" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}"/>
+                        </DockPanel>
                         <!-- Μετρητά/κάρτα μόνο όπου εισπράττει ο δικός μας διανομέας (BOX) — αλλού
                              θα ήταν δύο μηδενικά που τρώνε ύψος από όλες τις κάρτες της σειράς. -->
-                        <StackPanel Visibility="{Binding HasPaymentSplit, Converter={StaticResource BoolToVis}}"
-                                    Margin="0,7,0,0">
-                            <Border Height="1" Background="{DynamicResource Divider}" Margin="0,0,0,6"/>
-                            <DockPanel Margin="0,0,0,2">
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding CashLabel}" FontSize="11"
-                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                <TextBlock Text="ΜΕΤΡΗΤΑ" FontSize="9.5" FontWeight="ExtraBold"
-                                           VerticalAlignment="Center" Foreground="{DynamicResource Neutral600}"/>
-                            </DockPanel>
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Text="{Binding CardLabel}" FontSize="11"
-                                           FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                                <TextBlock Text="ΚΑΡΤΑ" FontSize="9.5" FontWeight="ExtraBold"
-                                           VerticalAlignment="Center" Foreground="{DynamicResource Neutral600}"/>
-                            </DockPanel>
-                        </StackPanel>
+                        <TextBlock Visibility="{Binding HasPaymentSplit, Converter={StaticResource BoolToVis}}"
+                                   Margin="0,4,0,0" FontSize="10" TextTrimming="CharacterEllipsis">
+                            <Run Text="ΜΕΤΡΗΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <Run Text="{Binding CashLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                            <Run Text="  ·  ΚΑΡΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <Run Text="{Binding CardLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
             </Grid>

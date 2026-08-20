@@ -527,10 +527,40 @@
                                                        FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
                                             <TextBlock Text="Τύπος" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
                                         </DockPanel>
-                                        <DockPanel x:Name="CustomerRow">
+                                        <DockPanel>
                                             <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.WhoLabel}" FontSize="12.5"
                                                        FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220" TextWrapping="Wrap"/>
                                             <TextBlock Text="Πελάτης" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
+                                        </DockPanel>
+                                        <!-- Τηλέφωνο/διεύθυνση/όροφος/σχόλια: ΜΟΝΟ εδώ, στην προεπισκόπηση. Στο χαρτί
+                                             δεν αλλάζει τίποτα — η εκτύπωση δεν περνά από αυτή την κάρτα αλλά από το
+                                             ReceiptPrinter (βλ. HistoryWindow.xaml.cs Reprint_Click). Γεμίζουν μόνο σε
+                                             ΔΙΑΝΟΜΗ/BOX, οπότε κάθε γραμμή κρύβεται όταν το πεδίο είναι κενό. -->
+                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding SelectedOrder.HasPhone, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.Phone}" FontSize="12.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                            <TextBlock Text="Τηλέφωνο" FontSize="12.5" Foreground="{DynamicResource Neutral700}"/>
+                                        </DockPanel>
+                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding SelectedOrder.HasAddress, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.DeliveryAddress}" FontSize="12.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220"
+                                                       TextWrapping="Wrap" TextAlignment="Right"/>
+                                            <TextBlock Text="Διεύθυνση" FontSize="12.5" Foreground="{DynamicResource Neutral700}"
+                                                       VerticalAlignment="Top"/>
+                                        </DockPanel>
+                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding SelectedOrder.HasFloor, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.DeliveryFloor}" FontSize="12.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220"
+                                                       TextWrapping="Wrap" TextAlignment="Right"/>
+                                            <TextBlock Text="Όροφος" FontSize="12.5" Foreground="{DynamicResource Neutral700}"
+                                                       VerticalAlignment="Top"/>
+                                        </DockPanel>
+                                        <DockPanel Margin="0,4,0,0" Visibility="{Binding SelectedOrder.HasNotes, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedOrder.DeliveryNotes}" FontSize="12.5"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}" MaxWidth="220"
+                                                       TextWrapping="Wrap" TextAlignment="Right"/>
+                                            <TextBlock Text="Σχόλια" FontSize="12.5" Foreground="{DynamicResource Neutral700}"
+                                                       VerticalAlignment="Top"/>
                                         </DockPanel>
                                         <!-- Μετρητά/κάρτα. Για ΔΙΑΝΟΜΗ/BOX έρχεται από την ίδια την παραγγελία·
                                              για ΤΡΑΠΕΖΙ από την είσπραξη του ατόμου — βλ. HistoryViewModel.SelectedPaymentIcon. -->

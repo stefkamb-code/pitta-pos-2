@@ -89,6 +89,12 @@ public sealed class CompletedOrder
     /// αδιάκριτες μεταξύ τους.</summary>
     public string WhoWithPersonLabel => HasPerson ? WhoLabel + " · " + PersonLabel : WhoLabel;
     public bool HasDeliveryInfo => DeliveryAddress.Length > 0 || DeliveryFloor.Length > 0 || DeliveryNotes.Length > 0;
+    // Ανά πεδίο, για την προεπισκόπηση του Ιστορικού: εκεί κάθε στοιχείο του πελάτη έχει τη δική του
+    // γραμμή και μια κενή γραμμή «Τηλέφωνο —» δεν λέει τίποτα.
+    public bool HasPhone => Phone.Length > 0;
+    public bool HasAddress => DeliveryAddress.Length > 0;
+    public bool HasFloor => DeliveryFloor.Length > 0;
+    public bool HasNotes => DeliveryNotes.Length > 0;
     /// <summary>Ο αριθμός τραπεζιού, βγαλμένος από το <see cref="Who"/> («Τραπέζι 5») — κενό για ό,τι δεν
     /// είναι τραπέζι. Δεν κρατιέται χωριστό πεδίο: το Who γράφεται πάντα έτσι, ενώ ένα ακόμα πεδίο θα
     /// έπρεπε να αντιγράφεται σε πέντε ανακατασκευές (WithOrderNumber/RemoveLine/UpdatePaymentMethod/

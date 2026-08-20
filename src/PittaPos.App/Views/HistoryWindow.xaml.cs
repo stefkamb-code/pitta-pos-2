@@ -28,7 +28,10 @@ public partial class HistoryWindow : Window
         FooterText.Text = s.ReceiptFooter;
         FooterText.Visibility = s.ReceiptFooter.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         DateTimeText.Visibility = s.ReceiptShowDateTime ? Visibility.Visible : Visibility.Collapsed;
-        CustomerRow.Visibility = s.ReceiptShowCustomer ? Visibility.Visible : Visibility.Collapsed;
+        // Ο πελάτης ΔΕΝ ακολουθεί τη ρύθμιση της απόδειξης: αυτή η κάρτα είναι προεπισκόπηση, δεν
+        // τυπώνεται (η επανεκτύπωση περνά από το ReceiptPrinter). Εδώ ψάχνει ο ταμίας ποιανού είναι η
+        // παραγγελία — μαζί με τηλέφωνο/διεύθυνση από κάτω — και το «μη δείχνεις πελάτη στο χαρτί» τα
+        // έκρυβε όλα.
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
