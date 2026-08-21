@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private SettingsWindow? _settings;
     private MenuManagerWindow? _menuManager;
     private CustomersWindow? _customers;
+    private ConsumptionWindow? _consumption;
     private TableDetailWindow? _tableDetail;
 
     /// <summary>
@@ -327,6 +328,24 @@ public partial class MainWindow : Window
         else
         {
             _customers.Activate();
+        }
+    }
+
+    /// <summary>Πόσο κρέας τρώει κάθε προϊόν, και πόσο έχει φύγει σήμερα. Πίσω από τον κωδικό όπως
+    /// Στατιστικά/Ιστορικό/Πελάτες — δείχνει τζίρο σε υλικά.</summary>
+    private void OpenConsumption_Click(object sender, RoutedEventArgs e)
+    {
+        if (_consumption is null || !_consumption.IsLoaded)
+        {
+            if (!PinDialog.Require(this))
+                return;
+            _consumption = new ConsumptionWindow();
+            _consumption.Closed += (_, _) => _consumption = null;
+            _consumption.Show();
+        }
+        else
+        {
+            _consumption.Activate();
         }
     }
 

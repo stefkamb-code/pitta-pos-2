@@ -157,6 +157,11 @@
                 <Button DockPanel.Dock="Left" Content="ΠΕΛΑΤΕΣ" FontSize="12.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
                         VerticalAlignment="Center" Click="OpenCustomers_Click"/>
+                <!-- Δίπλα στους ΠΕΛΑΤΕΣ και όχι μέσα στη Διαχείριση Καταλόγου: δεν είναι ρύθμιση που
+                     πειράζεις μια φορά, είναι νούμερο που κοιτάς μέσα στη μέρα («πόσα κιλά έφυγαν»). -->
+                <Button DockPanel.Dock="Left" Content="ΚΑΤΑΝΑΛΩΣΕΙΣ" FontSize="12.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
+                        VerticalAlignment="Center" Click="OpenConsumption_Click"/>
                 <Button DockPanel.Dock="Right" Content="⚙" FontSize="23" ToolTip="Ρυθμίσεις"
                         Style="{StaticResource GlyphButton}" Padding="7,0" Margin="12,0,0,0"
                         VerticalAlignment="Center" Click="OpenSettings_Click"/>
