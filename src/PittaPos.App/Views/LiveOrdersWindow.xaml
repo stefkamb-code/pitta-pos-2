@@ -4,7 +4,7 @@
         xmlns:ctl="clr-namespace:PittaPos.App.Controls"
         xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
         xmlns:svc="clr-namespace:PittaPos.App.Services"
-        Title="ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ" Height="900" Width="742"
+        Title="ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ" Height="921" Width="828"
         MinWidth="560" MinHeight="520"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/logo.png"
@@ -314,8 +314,9 @@
 
             </Grid>
 
-            <!-- channel rail: κάθετα, τέρμα δεξιά -->
-            <Border Grid.Column="2" BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0" Width="156">
+            <!-- channel rail: κάθετα, τέρμα δεξιά. ΤΟ ΠΛΑΤΟΣ ΕΙΝΑΙ ΜΕΤΡΗΜΕΝΟ: το «Κάρτα Διανομέα»
+                 δίπλα στο «3 · €42,50» θέλει ~175 μονάδες. Στις 156 έσπαγε στη μέση της λέξης. -->
+            <Border Grid.Column="2" BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0" Width="186">
                 <DockPanel>
                     <!-- shift toggle: φιλτράρει μόνο τα box e-food / Wolt / BOX -->
                     <StackPanel DockPanel.Dock="Top" Margin="10,14,10,4">
@@ -364,9 +365,9 @@
                                 <Button Command="{Binding Command}" Style="{StaticResource FlatButton}"
                                         Padding="9,8" Margin="0,0,0,7" HorizontalContentAlignment="Stretch">
                                     <DockPanel LastChildFill="True">
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="13" FontWeight="ExtraBold"
-                                                   Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="7,0,0,0"/>
-                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="12" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="10.5" FontWeight="ExtraBold"
                                                    VerticalAlignment="Center" TextWrapping="Wrap">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">

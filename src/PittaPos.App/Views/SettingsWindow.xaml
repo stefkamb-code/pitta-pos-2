@@ -106,6 +106,33 @@
                 <TextBlock Text="Τυπώνει την αναφορά τζίρου μέχρι αυτή τη στιγμή — δεν μηδενίζει τίποτα, μπορείς να την τυπώνεις όσες φορές θες μέσα στη μέρα. Το πραγματικό κλείσιμο/μηδενισμός του ταμείου γίνεται μόνο αυτόματα στις 5:00 το πρωί."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
+                <!-- report email -->
+                <TextBlock Text="EMAIL ΑΝΑΦΟΡΑΣ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <TextBlock Text="Πού θα φτάνει η αναλυτική αναφορά ημέρας στο αυτόματο κλείσιμο (5:00 το πρωί). Χρειάζεται έναν λογαριασμό Gmail που θα ΣΤΕΛΝΕΙ, με «κωδικό εφαρμογής» της Google — ο κανονικός κωδικός του λογαριασμού δεν δουλεύει."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Παραλήπτης — πού θα έρχεται η αναφορά" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                <TextBox x:Name="ReportEmailBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"
+                         Width="360" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Gmail αποστολής" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                <TextBox x:Name="SmtpUserBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"
+                         Width="360" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Κωδικός εφαρμογής (16 χαρακτήρες από τη Google)" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                <TextBox x:Name="SmtpPasswordBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"
+                         Width="360" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                <Button Content="ΑΠΟΘΗΚΕΥΣΗ ΚΑΙ ΔΟΚΙΜΗ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
+                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                        HorizontalContentAlignment="Center" Click="SaveEmail_Click"/>
+                <TextBlock x:Name="EmailStatus" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,26"
+                           Foreground="{DynamicResource Neutral500}"/>
+
                 <!-- theme -->
                 <TextBlock Text="ΕΜΦΑΝΙΣΗ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>

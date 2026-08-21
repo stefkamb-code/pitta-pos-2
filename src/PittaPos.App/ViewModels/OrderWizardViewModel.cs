@@ -27,6 +27,11 @@ public partial class OrderTypeOptionViewModel : ObservableObject
     public required string Label { get; init; }
     public required string Sub { get; init; }
 
+    /// <summary>Οι πλατφόρμες με τα χρώματά τους — μόνο η κάρτα ΕΦΑΡΜΟΓΕΣ τις έχει. Όπου είναι null
+    /// γράφεται το απλό γκρίζο <see cref="Sub"/>, όπως και πριν.</summary>
+    public IReadOnlyList<AppMethodViewModel>? Platforms { get; init; }
+    public bool HasPlatforms => Platforms is { Count: > 0 };
+
     [ObservableProperty]
     private bool _isSelected;
 }
@@ -148,7 +153,12 @@ public partial class OrderWizardViewModel : ObservableObject
         [
             new() { Key = Core.Models.OrderType.Pickup, Label = "ΟΡΘΙΟΣ", Sub = "Από το κατάστημα" },
             new() { Key = Core.Models.OrderType.Table, Label = "ΤΡΑΠΕΖΙ", Sub = "Επί τόπου" },
-            new() { Key = Core.Models.OrderType.Apps, Label = "ΕΦΑΡΜΟΓΕΣ", Sub = "e-food · Wolt · BOX" },
+            // Οι τρεις πλατφόρμες με τα χρώματά τους αντί για μια γκρίζα γραμμή κειμένου: το μάτι τις
+            // πιάνει αμέσως, και είναι τα ίδια χρώματα με το Βήμα 2 και τα κανάλια των Ζωντανών.
+            // Ξεχωριστά αντικείμενα από το AppMethods παρακάτω — κοινά, το πάτημα στο Βήμα 2 θα
+            // «άναβε» και την κάρτα της αρχικής (κοινό IsSelected).
+            new() { Key = Core.Models.OrderType.Apps, Label = "ΕΦΑΡΜΟΓΕΣ", Sub = "e-food · Wolt · BOX",
+                    Platforms = NewAppMethods() },
             new() { Key = Core.Models.OrderType.Delivery, Label = "ΔΙΑΝΟΜΗ", Sub = "Ίδιος διανομέας" },
         ];
         TableNumbers = [];
@@ -159,7 +169,10 @@ public partial class OrderWizardViewModel : ObservableObject
         TableStatusService.Instance.Changed += RebuildTableNumbers;
         TableSettlementService.Instance.Changed += RebuildTableNumbers;
         TableLayoutService.Instance.Changed += RebuildTableNumbers;
-        AppMethods =
+        AppMethods = [.. NewAppMethods()];
+        // Καθαρή σειρά αντικειμένων κάθε φορά: το IsSelected είναι κατάσταση της ΟΘΟΝΗΣ, οπότε δύο
+        // σημεία που δείχνουν τις ίδιες πλατφόρμες δεν πρέπει να μοιράζονται τα ίδια αντικείμενα.
+        static List<AppMethodViewModel> NewAppMethods() =>
         [
             new() { Name = "e-food", Color = new SolidColorBrush(Color.FromRgb(0xd3, 0x2f, 0x2f)) },
             new() { Name = "Wolt", Color = new SolidColorBrush(Color.FromRgb(0x15, 0x65, 0xc0)) },

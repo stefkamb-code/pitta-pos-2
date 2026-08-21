@@ -120,11 +120,45 @@ public partial class SettingsWindow : Window
     /// αυτόματα στις 5πμ (βλ. SalesStatsService.CheckAutoClose/DayReportService.CloseDay).</summary>
     private void CloseDay_Click(object sender, RoutedEventArgs e) => DayReportService.PrintCurrentReport();
 
+    /// <summary>
+    /// Αποθηκεύει τα στοιχεία email και <b>στέλνει αμέσως μια δοκιμαστική αναφορά</b>. Η αποστολή
+    /// γίνεται εδώ και όχι σιωπηλά στο κλείσιμο επίτηδες: αλλιώς το λάθος (λάθος κωδικός, κλειστό
+    /// «app password», μπλοκαρισμένος λογαριασμός) θα φαινόταν πρώτη φορά στις 5 το πρωί, όταν δεν
+    /// κοιτάει κανείς — και θα χανόταν η αναφορά της μέρας χωρίς να το πάρει είδηση κανείς.
+    /// </summary>
+    private async void SaveEmail_Click(object sender, RoutedEventArgs e)
+    {
+        var user = SmtpUserBox.Text.Trim();
+        var password = SmtpPasswordBox.Text.Trim();
+        var to = ReportEmailBox.Text.Trim();
+
+        // Ο κωδικός εφαρμογής της Google δίνεται με κενά ανά τέσσερα («abcd efgh ijkl mnop») και τα
+        // κενά ΔΕΝ είναι μέρος του — αν μείνουν, η σύνδεση αποτυγχάνει με «λάθος κωδικός».
+        password = password.Replace(" ", "");
+
+        // Το gmail θέλει πάντα smtp.gmail.com:587· κρατιούνται όπως είναι για όποιον βάλει άλλον πάροχο.
+        _store.SetEmail(_store.Settings.SmtpHost, _store.Settings.SmtpPort, user, password, to);
+
+        EmailStatus.SetResourceReference(ForegroundProperty, "Neutral500");
+        EmailStatus.Text = "Στέλνω δοκιμαστικό…";
+
+        var (ok, error) = await Task.Run(() =>
+            DayReportService.TrySendEmail(DayReportService.BuildPrintSummary()));
+
+        EmailStatus.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
+        EmailStatus.Text = ok
+            ? "✓ Στάλθηκε δοκιμαστικό στο " + (to.Length > 0 ? to : user) + " — δες το εισερχόμενο."
+            : "✕ " + error;
+    }
+
     private void RefreshUi()
     {
         Highlight(LightBtn, _store.Settings.Theme == "light");
         Highlight(DarkBtn, _store.Settings.Theme == "dark");
         TableCountText.Text = _store.Settings.TableCount.ToString();
+        SmtpUserBox.Text = _store.Settings.SmtpUser;
+        SmtpPasswordBox.Text = _store.Settings.SmtpPassword;
+        ReportEmailBox.Text = _store.Settings.ReportEmail;
     }
 
     private static void Highlight(Button button, bool active)

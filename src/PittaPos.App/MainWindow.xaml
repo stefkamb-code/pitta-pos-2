@@ -456,7 +456,38 @@
                                     <TextBlock Text="{Binding Label}" FontSize="21" FontWeight="ExtraBold"
                                                Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
                                     <TextBlock Text="{Binding Sub}" FontSize="12.5" Foreground="{DynamicResource Neutral600}"
-                                               HorizontalAlignment="Center" Margin="0,7,0,0"/>
+                                               HorizontalAlignment="Center" Margin="0,7,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <!-- Όπου υπάρχουν έγχρωμες πλατφόρμες, το γκρίζο κείμενο θα ήταν
+                                                         η ίδια πληροφορία δύο φορές. -->
+                                                    <DataTrigger Binding="{Binding HasPlatforms}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <!-- e-food · Wolt · BOX στα δικά τους χρώματα, ίδια με το Βήμα 2 και τις
+                                         Ζωντανές Παραγγελίες. -->
+                                    <!-- Το αριστερό 9 αντισταθμίζει το κενό της τελευταίας ετικέτας, ώστε οι
+                                         τρεις να κάθονται όντως στο κέντρο της κάρτας. -->
+                                    <ItemsControl ItemsSource="{Binding Platforms}" HorizontalAlignment="Center"
+                                                  Margin="9,7,0,0"
+                                                  Visibility="{Binding HasPlatforms, Converter={StaticResource BoolToVis}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:AppMethodViewModel}">
+                                                <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="ExtraBold"
+                                                           Foreground="{Binding Color}" Margin="0,0,9,0"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </Button>
                         </DataTemplate>
