@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Windows;
@@ -16,8 +16,97 @@ public static class AmiClientService
     public static void Start()
     {
         if (SettingsStore.Instance.Settings.UcmHost.Trim().Length == 0)
-            return; // δεν έχει ρυθμιστεί αναγνώριση κλήσεων — ανενεργό
+        {
+            // Γράφεται, γιατί «δεν δουλεύει η αναγνώριση κλήσεων» και «δεν έχει ρυθμιστεί καθόλου»
+            // είναι δύο εντελώς διαφορετικά πράγματα — και μέχρι τώρα φαίνονταν ακριβώς ίδια: σιωπή.
+            AppLog.Write("ami", "Η αναγνώριση κλήσεων είναι ΑΝΕΝΕΡΓΗ: δεν έχει οριστεί IP τηλεφωνικού κέντρου.");
+            return;
+        }
+        AppLog.Write("ami", $"Σύνδεση στο τηλεφωνικό κέντρο {SettingsStore.Instance.Settings.UcmHost.Trim()}:{SettingsStore.Instance.Settings.AmiPort}…");
         _ = RunForeverAsync();
+    }
+
+    /// <summary>
+    /// ΔΟΚΙΜΗ με τα στοιχεία που βλέπει ο χρήστης στην οθόνη, χωρίς να χρειαστεί επανεκκίνηση.
+    ///
+    /// <para>Απαντά στο πραγματικό ερώτημα — «γιατί δεν δουλεύει;» — με σειρά: απαντά η IP/θύρα;
+    /// δέχτηκε τον κωδικό; και, όσο ακούει, <b>έρχεται κάτι όταν χτυπήσει το τηλέφωνο;</b> Το τελευταίο
+    /// είναι που έλειπε: αν το UCM στέλνει γεγονότα με άλλο όνομα απ' όσα περιμένουμε, μέχρι τώρα δεν
+    /// υπήρχε κανένας τρόπος να το δει κανείς — ούτε καν ότι έφτασε κάτι.</para>
+    /// </summary>
+    public static async Task<string> TestAsync(string host, int port, string user, string password,
+        TimeSpan listenFor, IProgress<string>? progress = null)
+    {
+        host = host.Trim();
+        if (host.Length == 0)
+            return "Δεν έχει οριστεί IP τηλεφωνικού κέντρου.";
+
+        try
+        {
+            using var client = new TcpClient();
+            progress?.Report($"Συνδέομαι στο {host}:{port}…");
+            var connect = client.ConnectAsync(host, port);
+            if (await Task.WhenAny(connect, Task.Delay(TimeSpan.FromSeconds(6))) != connect)
+                return $"✕ Δεν απαντά το {host}:{port} — λάθος IP ή θύρα, ή το AMI δεν είναι ενεργό στο UCM.";
+            await connect;
+
+            await using var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.ASCII);
+            await using var writer = new StreamWriter(stream, Encoding.ASCII) { NewLine = "\r\n", AutoFlush = true };
+
+            var banner = await reader.ReadLineAsync();
+            progress?.Report("Απάντησε: " + (banner ?? "(τίποτα)"));
+
+            await writer.WriteLineAsync("Action: Login");
+            await writer.WriteLineAsync("Username: " + user.Trim());
+            await writer.WriteLineAsync("Secret: " + password);
+            await writer.WriteLineAsync();
+
+            var login = await ReadBlockAsync(reader);
+            if (login is null)
+                return "✕ Το κέντρο έκλεισε τη σύνδεση χωρίς απάντηση — συνήθως η IP του ταμείου δεν είναι στις επιτρεπόμενες (Permitted IP) του AMI χρήστη.";
+            if (!login.GetValueOrDefault("Response", "").Equals("Success", StringComparison.OrdinalIgnoreCase))
+                return "✕ Απορρίφθηκε: " + login.GetValueOrDefault("Message", "λάθος χρήστης ή κωδικός AMI");
+
+            // Ρητό αίτημα για γεγονότα: σε κάποια firmware η σύνδεση περνάει αλλά δεν στέλνεται τίποτα
+            // μέχρι να ζητηθεί — και τότε όλα μοιάζουν σωστά ενώ δεν έρχεται ποτέ κλήση.
+            await writer.WriteLineAsync("Action: Events");
+            await writer.WriteLineAsync("EventMask: on");
+            await writer.WriteLineAsync();
+
+            progress?.Report("✓ Συνδέθηκα. ΧΤΥΠΑ ΤΩΡΑ ΤΟ ΤΗΛΕΦΩΝΟ ΤΟΥ ΜΑΓΑΖΙΟΥ…");
+
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var callers = new List<string>();
+            var deadline = DateTime.UtcNow + listenFor;
+            while (DateTime.UtcNow < deadline)
+            {
+                var read = ReadBlockAsync(reader);
+                if (await Task.WhenAny(read, Task.Delay(deadline - DateTime.UtcNow)) != read)
+                    break;
+                var block = await read;
+                if (block is null)
+                    break;
+                if (!block.TryGetValue("Event", out var evt))
+                    continue;
+                seen[evt] = seen.GetValueOrDefault(evt) + 1;
+                var caller = block.GetValueOrDefault("CallerIDNum", "");
+                if (caller.Length >= 6 && !callers.Contains(caller))
+                    callers.Add(caller);
+            }
+
+            if (seen.Count == 0)
+                return "✓ Η σύνδεση δουλεύει, αλλά ΔΕΝ ήρθε κανένα γεγονός. Αν χτύπησε το τηλέφωνο, ο χρήστης AMI δεν έχει δικαίωμα «Call» στο UCM.";
+
+            var summary = string.Join(", ", seen.OrderByDescending(kv => kv.Value).Take(6).Select(kv => $"{kv.Key}×{kv.Value}"));
+            return callers.Count > 0
+                ? $"✓ ΟΛΑ ΚΑΛΑ — ήρθαν αριθμοί: {string.Join(", ", callers)}\n({summary})"
+                : $"✓ Η σύνδεση δουλεύει και έρχονται γεγονότα, αλλά κανένα με αριθμό καλούντος.\n({summary})";
+        }
+        catch (Exception ex)
+        {
+            return "✕ " + ex.Message;
+        }
     }
 
     /// <summary>Τελευταίο καταγεγραμμένο πρόβλημα — ώστε μια μόνιμα χαλασμένη ρύθμιση (π.χ. λάθος IP)
@@ -94,6 +183,10 @@ public static class AmiClientService
                     return;
                 }
                 Report(null);
+                // Ίδιος λόγος με τη ΔΟΚΙΜΗ: σε κάποια firmware δεν στέλνεται τίποτα μέχρι να ζητηθεί.
+                await writer.WriteLineAsync("Action: Events");
+                await writer.WriteLineAsync("EventMask: on");
+                await writer.WriteLineAsync();
             }
 
             HandleBlock(block);

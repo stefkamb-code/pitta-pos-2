@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Threading;
@@ -136,6 +136,37 @@ public partial class NetworkSettingsWindow : Window
         {
             FindHostBtn.Content = previous;
             FindHostBtn.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Δοκιμάζει ΤΩΡΑ τη σύνδεση με το τηλεφωνικό κέντρο, με ό,τι είναι γραμμένο στα κουτιά — χωρίς
+    /// αποθήκευση και χωρίς επανεκκίνηση. Ακούει 25 δευτερόλεπτα ώστε να προλάβει ο χρήστης να χτυπήσει
+    /// το τηλέφωνο του μαγαζιού και να δει ΖΩΝΤΑΝΑ αν φτάνει ο αριθμός.
+    /// </summary>
+    private async void TestAmiConfig_Click(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(AmiPortBox.Text, out var port) || port < 1)
+        {
+            AmiTestStatus.SetResourceReference(ForegroundProperty, "Accent");
+            AmiTestStatus.Text = "Η θύρα AMI δεν είναι σωστή.";
+            return;
+        }
+
+        TestAmiButton.IsEnabled = false;
+        AmiTestStatus.SetResourceReference(ForegroundProperty, "Neutral500");
+        var progress = new Progress<string>(text => AmiTestStatus.Text = text);
+        try
+        {
+            var result = await AmiClientService.TestAsync(UcmHostBox.Text, port, AmiUserBox.Text,
+                AmiPasswordBox.Text, TimeSpan.FromSeconds(25), progress);
+            AmiTestStatus.SetResourceReference(ForegroundProperty, result.StartsWith('✕') ? "Accent" : "Neutral500");
+            AmiTestStatus.Text = result;
+            AppLog.Write("ami", "ΔΟΚΙΜΗ: " + result);
+        }
+        finally
+        {
+            TestAmiButton.IsEnabled = true;
         }
     }
 

@@ -112,9 +112,19 @@
                         <TextBox x:Name="AmiPasswordBox" Style="{StaticResource PosTextBox}" Height="42" FontSize="14"/>
                     </StackPanel>
                 </Grid>
-                <Button Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Width="140"
-                        HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="ApplyAmiConfig_Click"/>
-                <TextBlock Text="Στοιχεία σύνδεσης στο AMI του Grandstream UCM (Integrations → AMI → Add), ώστε το ταμείο να αναγνωρίζει αυτόματα τον καλούντα. Κενή IP = ανενεργό. Χρειάζεται επανεκκίνηση της εφαρμογής μετά την αλλαγή."
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="ΕΦΑΡΜΟΓΗ" Height="42" FontSize="12.5" FontWeight="ExtraBold" Width="140"
+                            Style="{StaticResource PrimaryButton}" Click="ApplyAmiConfig_Click"/>
+                    <!-- Χωρίς αυτό, «δεν δουλεύει η αναγνώριση κλήσεων» ήταν αδιαπέραστο: καμία ένδειξη
+                         πουθενά για το αν φταίει η IP, ο κωδικός, ή το ίδιο το UCM που δεν στέλνει. -->
+                    <Button x:Name="TestAmiButton" Content="ΔΟΚΙΜΗ ΣΥΝΔΕΣΗΣ" Height="42" FontSize="12.5"
+                            FontWeight="ExtraBold" Width="180" Margin="10,0,0,0"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center"
+                            Click="TestAmiConfig_Click"/>
+                </StackPanel>
+                <TextBlock x:Name="AmiTestStatus" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Foreground="{DynamicResource Neutral500}"/>
+                <TextBlock Text="Στοιχεία σύνδεσης στο AMI του Grandstream UCM (Integrations → AMI → Add), ώστε το ταμείο να αναγνωρίζει αυτόματα τον καλούντα. Κενή IP = ανενεργό. Χρειάζεται επανεκκίνηση της εφαρμογής μετά την αλλαγή — η ΔΟΚΙΜΗ όμως δουλεύει αμέσως, με ό,τι γράφεις εδώ."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
                 <!-- δεύτερο ταμείο -->
