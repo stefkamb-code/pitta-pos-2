@@ -1560,27 +1560,50 @@ public partial class OrderWizardViewModel : ObservableObject
 
         Step2Validated = false;
         SaveCustomer();
-        Products.SetRepeatableOrder(FindLastOrderLines(CustomerName));
+        // Ο ίδιος ο πελάτης λέει πότε παρήγγειλε τελευταία φορά — έτσι ανοίγεται μία μέρα αρχείου
+        // αντί για έξι μήνες (βλ. FindLastOrderLines).
+        var known = CustomerStore.Instance.FindByPhone(CustomerPhone);
+        Products.SetRepeatableOrder(FindLastOrderLines(CustomerName, known?.LastOrderAt));
         // Σχόλιο γραμμένο ήδη στο Βήμα 2 (ή σταθερό σχόλιο του πελάτη): το κουτί ανοίγει μόνο του στα
         // Προϊόντα, αλλιώς το κουμπί σχολίων θα έδειχνε κλειστό ενώ από κάτω υπάρχει κείμενο.
         Products.ShowNoteField = CustomerNotes.Trim().Length > 0;
         AdvanceTo(3);
     }
 
-    /// <summary>Ψάχνει την πιο πρόσφατη ολοκληρωμένη παραγγελία αυτού του πελάτη (σημερινές + αρχείο
-    /// ιστορικού) για το κουμπί «μία από τα ίδια» στα προϊόντα. Ταίριασμα με το όνομα, γιατί το
-    /// αρχειοθετημένο ιστορικό δεν κρατάει τηλέφωνο ανά παραγγελία.</summary>
-    private static IReadOnlyList<SoldLine>? FindLastOrderLines(string customerName)
+    /// <summary>
+    /// Ψάχνει την πιο πρόσφατη ολοκληρωμένη παραγγελία αυτού του πελάτη, για το κουμπί «μία από τα
+    /// ίδια» στα προϊόντα. Ταίριασμα με το όνομα, γιατί το αρχειοθετημένο ιστορικό δεν κρατάει
+    /// τηλέφωνο ανά παραγγελία.
+    ///
+    /// <para><b>ΔΙΑΒΑΖΕΙ ΤΟ ΠΟΛΥ ΕΝΑ ΑΡΧΕΙΟ.</b> Πριν φόρτωνε ολόκληρο το αρχείο <b>180 ημερών</b> και
+    /// το αποκωδικοποιούσε στο νήμα της οθόνης — σε ΚΑΘΕ παραγγελία διανομής, μόνο και μόνο για να
+    /// βρει μία παραγγελία. Με λίγες μέρες αρχείου δεν φαινόταν· με έξι μήνες γίνονται δεκάδες MB
+    /// JSON ανά παραγγελία, δηλαδή το ταμείο θα «κόλλαγε» όλο και περισσότερο χωρίς να αλλάξει
+    /// τίποτα. Τώρα ο ίδιος ο πελάτης λέει πότε παρήγγειλε τελευταία φορά
+    /// (<see cref="Customer.LastOrderAt"/>) και ανοίγεται μόνο εκείνη η μέρα.</para>
+    /// </summary>
+    /// <param name="lastOrderAt">Πότε παρήγγειλε τελευταία φορά· null = δεν έχει ξαναπαραγγείλει από
+    /// αυτό το ταμείο, οπότε δεν υπάρχει τίποτα να ψάξουμε στο αρχείο.</param>
+    private static IReadOnlyList<SoldLine>? FindLastOrderLines(string customerName, DateTime? lastOrderAt)
     {
         var name = customerName.Trim();
         if (name.Length == 0)
             return null;
 
-        return SalesStatsService.Instance.Orders
-            .Concat(HistoryArchiveService.LoadOrders(DateTime.Now.AddDays(-180), DateTime.Now))
-            .Where(o => string.Equals(o.Who.Trim(), name, StringComparison.OrdinalIgnoreCase))
+        static IReadOnlyList<SoldLine>? Newest(IEnumerable<CompletedOrder> orders, string who) => orders
+            .Where(o => string.Equals(o.Who.Trim(), who, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(o => o.PlacedAt)
             .FirstOrDefault()?.Lines;
+
+        // Πρώτα η σημερινή μέρα: είναι ήδη στη μνήμη και είναι και η πιο πρόσφατη.
+        if (Newest(SalesStatsService.Instance.Orders, name) is { } todayLines)
+            return todayLines;
+
+        if (lastOrderAt is not { } when)
+            return null;
+
+        var day = SalesStatsService.BusinessDay(when);
+        return Newest(HistoryArchiveService.LoadOrders(day, day), name);
     }
 
     /// <summary>Αποθηκεύει/ενημερώνει τον πελάτη ώστε να βρίσκεται στην αναζήτηση από εδώ και πέρα.</summary>

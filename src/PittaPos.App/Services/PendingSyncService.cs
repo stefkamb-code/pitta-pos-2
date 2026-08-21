@@ -166,9 +166,12 @@ public partial class PendingSyncService : ObservableObject
         {
             AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_items, JsonOpts));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+            // ΤΟ ΠΙΟ ΚΡΙΣΙΜΟ ΑΡΧΕΙΟ ΤΟΥ ΔΕΥΤΕΡΟΥ ΤΑΜΕΙΟΥ: εδώ μέσα ζουν παραγγελίες που ΔΕΝ έχουν
+            // φτάσει στο κύριο ταμείο και δεν υπάρχουν πουθενά αλλού. Αν δεν γραφτεί και κλείσει η
+            // εφαρμογή, χάνονται οριστικά — δεν επιτρέπεται να συμβεί χωρίς ίχνος.
+            AppLog.Write("pending-sync", $"ΔΕΝ ΓΡΑΦΤΗΚΕ η ουρά αναμονής ({_items.Count} καταχωρήσεις): {ex.GetType().Name}: {ex.Message}");
         }
     }
 }
