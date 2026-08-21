@@ -36,16 +36,23 @@ public partial class CustomersViewModel : ObservableObject
         CustomerStore.Instance.Changed += Refresh;
     }
 
+    /// <summary>Ξεκολλάει από το CustomerStore όταν κλείνει το παράθυρο — αλλιώς κάθε ολοκληρωμένη
+    /// παραγγελία ξανάχτιζε τη λίστα των 135.000 για ένα παράθυρο που δεν υπάρχει πια, και μάλιστα
+    /// μία φορά για κάθε φορά που άνοιξε το παράθυρο μέσα στη μέρα.</summary>
+    public void Detach() => CustomerStore.Instance.Changed -= Refresh;
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Customers))]
     private string _search = "";
+
+    partial void OnSearchChanged(string value) => Rebuild();
 
     /// <summary>"revenue" ή "frequency".</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Customers))]
     [NotifyPropertyChangedFor(nameof(SortByRevenue))]
     [NotifyPropertyChangedFor(nameof(SortByFrequency))]
     private string _sortMode = "revenue";
+
+    partial void OnSortModeChanged(string value) => Rebuild();
 
     public bool SortByRevenue => SortMode == "revenue";
     public bool SortByFrequency => SortMode == "frequency";
@@ -53,18 +60,55 @@ public partial class CustomersViewModel : ObservableObject
     [RelayCommand]
     private void SetSort(string mode) => SortMode = mode;
 
-    private List<Customer> _all = [];
+    private IReadOnlyList<Customer> _all = [];
 
-    public IReadOnlyList<CustomerRowViewModel> Customers
+    /// <summary>
+    /// Πόσες γραμμές πελάτη φτιάχνονται το πολύ.
+    ///
+    /// <para><b>ΜΗΝ ΤΟ ΒΓΑΛΕΙΣ.</b> Η λίστα δεν είναι εικονικοποιημένη (ItemsControl μέσα σε
+    /// ScrollViewer, βλ. CustomersWindow.xaml): κάθε γραμμή γίνεται κουμπί με πέντε TextBlock μέσα.
+    /// Με 135.000 πελάτες το παράθυρο προσπαθούσε να φτιάξει πάνω από ένα εκατομμύριο στοιχεία και
+    /// <b>κόλλαγε το ταμείο χωρίς να ανοίξει ποτέ</b>. Κανείς δεν κατεβάζει 135.000 γραμμές με το
+    /// χέρι — ό,τι ψάχνει βγαίνει από την αναζήτηση.</para>
+    /// </summary>
+    private const int MaxRows = 200;
+
+    [ObservableProperty]
+    private IReadOnlyList<CustomerRowViewModel> _customers = [];
+
+    /// <summary>Πόσοι δείχνονται από πόσους — για να μη νομίζει ο χρήστης ότι έχει μόνο 200 πελάτες.</summary>
+    [ObservableProperty]
+    private string _countLabel = "";
+
+    /// <summary>Οι ίδιοι πελάτες ταξινομημένοι κατά συχνότητα. Χτίζεται ΜΙΑ φορά και ζει μέχρι να
+    /// αλλάξει κάτι στους πελάτες — ταξινόμηση 135.000 εγγραφών σε κάθε πλήκτρο είναι σκέτο κόλλημα.</summary>
+    private IReadOnlyList<Customer>? _byFrequency;
+
+    private IReadOnlyList<Customer> ByFrequency =>
+        _byFrequency ??= [.. _all.OrderBy(AvgIntervalDays).ThenByDescending(c => c.OrderCount)];
+
+    /// <summary>Φτιάχνει τις ορατές γραμμές: ένα πέρασμα πάνω στην ήδη ταξινομημένη λίστα, με έξοδο
+    /// μόλις γεμίσουν οι <see cref="MaxRows"/> — με άδεια αναζήτηση σταματά αμέσως, χωρίς να δει
+    /// ολόκληρο το πελατολόγιο.</summary>
+    private void Rebuild()
     {
-        get
+        var matches = CustomerStore.MatcherFor(Search);
+        var source = SortByFrequency ? ByFrequency : _all;
+        var rows = new List<CustomerRowViewModel>(MaxRows);
+        foreach (var c in source)
         {
-            var filtered = _all.Where(c => CustomerStore.Matches(c, Search));
-            var sorted = SortMode == "frequency"
-                ? filtered.OrderBy(AvgIntervalDays).ThenByDescending(c => c.OrderCount)
-                : filtered.OrderByDescending(c => c.TotalRevenue).ThenByDescending(c => c.OrderCount);
-            return sorted.Select(c => new CustomerRowViewModel { Customer = c }).ToList();
+            if (!matches(c))
+                continue;
+            rows.Add(new CustomerRowViewModel { Customer = c });
+            if (rows.Count == MaxRows)
+                break;
         }
+        Customers = rows;
+        CountLabel = _all.Count == 0
+            ? ""
+            : rows.Count == MaxRows
+                ? $"οι πρώτοι {MaxRows} από {_all.Count:N0} — γράψε για αναζήτηση"
+                : $"{rows.Count:N0} από {_all.Count:N0}";
     }
 
     /// <summary>Μέσος αριθμός ημερών ανάμεσα στις παραγγελίες· άπειρο αν λείπει ιστορικό (πάει τελευταίος).</summary>
@@ -173,8 +217,9 @@ public partial class CustomersViewModel : ObservableObject
 
     private void Refresh()
     {
-        _all = CustomerStore.Instance.All.ToList();
-        OnPropertyChanged(nameof(Customers));
+        _all = CustomerStore.Instance.All;
+        _byFrequency = null;
+        Rebuild();
         OnPropertyChanged(nameof(NoCustomers));
         OnPropertyChanged(nameof(NothingSelected));
     }

@@ -447,8 +447,12 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
     private OrderType? _orderType;
 
-    /// <summary>ΤΡΑΠΕΖΙ/ΠΑΡΑΛΑΒΗ/ΕΦΑΡΜΟΓΕΣ δεν έχουν σχόλια πελάτη στο Βήμα 2 — δίνε κουμπί σχολίων μέσα στα Προϊόντα.</summary>
-    public bool ShowOrderNoteButton => SkipsStep2;
+    /// <summary>Το κουμπί «💬 ΣΧΟΛΙΑ ΠΑΡΑΓΓΕΛΙΑΣ» μέσα στα Προϊόντα υπάρχει σε <b>ΚΑΘΕ</b> είδος
+    /// παραγγελίας (ζητήθηκε ρητά — πριν το είχαν μόνο όσα δεν έχουν Βήμα 2, δηλαδή
+    /// ΤΡΑΠΕΖΙ/ΟΡΘΙΟΣ/ΕΦΑΡΜΟΓΕΣ). Γράφει στο ίδιο <see cref="CustomerNotes"/> με το Βήμα 2, οπότε σε
+    /// ΔΙΑΝΟΜΗ/BOX βλέπεις εκεί ό,τι έχει ήδη γραφτεί και μπορείς να το συμπληρώσεις — δεν υπάρχουν
+    /// δύο διαφορετικά σχόλια.</summary>
+    public bool ShowOrderNoteButton => true;
 
     /// <summary>Βήμα 2 για ΔΙΑΝΟΜΗ, και για BOX (βλ. SelectAppMethod) — οι δύο περιπτώσεις που πραγματικά
     /// χρειάζονται στοιχεία πελάτη (όνομα/διεύθυνση), γιατί τις παραδίδει δικός μας διανομέας. Ο τρόπος
@@ -1536,6 +1540,9 @@ public partial class OrderWizardViewModel : ObservableObject
         Step2Validated = false;
         SaveCustomer();
         Products.SetRepeatableOrder(FindLastOrderLines(CustomerName));
+        // Σχόλιο γραμμένο ήδη στο Βήμα 2 (ή σταθερό σχόλιο του πελάτη): το κουτί ανοίγει μόνο του στα
+        // Προϊόντα, αλλιώς το κουμπί σχολίων θα έδειχνε κλειστό ενώ από κάτω υπάρχει κείμενο.
+        Products.ShowNoteField = CustomerNotes.Trim().Length > 0;
         AdvanceTo(3);
     }
 

@@ -596,6 +596,16 @@ public class CustomerStore
     /// </summary>
     public static bool Matches(Customer c, string query) => Matches(c, query.Trim(), DigitsOnly(query));
 
+    /// <summary>Έτοιμο φίλτρο για ΜΙΑ σάρωση λίστας — τα ψηφία του ερωτήματος υπολογίζονται μία φορά
+    /// και όχι ξανά σε κάθε πελάτη. Το χρησιμοποιεί το παράθυρο ΠΕΛΑΤΕΣ, που σαρώνει δεκάδες χιλιάδες
+    /// εγγραφές σε κάθε πλήκτρο (βλ. CustomersViewModel.Rebuild).</summary>
+    public static Func<Customer, bool> MatcherFor(string query)
+    {
+        var q = query.Trim();
+        var qDigits = DigitsOnly(q);
+        return c => Matches(c, q, qDigits);
+    }
+
     /// <summary>Ίδιο με το παραπάνω, με τα ψηφία του ερωτήματος ΕΤΟΙΜΑ — για σάρωση δεκάδων χιλιάδων
     /// πελατών σε κάθε πλήκτρο, όπου ο υπολογισμός τους ανά πελάτη ήταν σκέτη σπατάλη.</summary>
     private static bool Matches(Customer c, string q, string qDigits) =>

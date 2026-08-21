@@ -144,15 +144,9 @@
 
                 <!-- selected order: dispatch -->
                 <StackPanel Grid.Row="0" Margin="18,22" Visibility="{Binding HasSelectedOrder, Converter={StaticResource BoolToVis}}">
-                    <TextBlock FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}" Margin="0,0,0,6">
-                        <Run Text="ΠΑΡΑΓΓΕΛΙΑ #"/><Run Text="{Binding SelectedOrder.DisplayNumber, Mode=OneWay}"/>
-                    </TextBlock>
-                    <!-- Ίδια σειρά με τη λίστα (διεύθυνση πάνω, όνομα κάτω) και μικρότερα γράμματα με
-                         αναδίπλωση: στα 22 το ονοματεπώνυμο έβγαινε έξω από τη στήλη και κοβόταν στη μέση. -->
-                    <TextBlock Text="{Binding SelectedOrder.AddressOrName}" FontSize="14" FontWeight="ExtraBold"
-                               Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding SelectedOrder.NameUnderAddress}" FontSize="11.5"
-                               Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,2,0,4"/>
+                    <!-- ΧΩΡΙΣ επικεφαλίδα με αριθμό/διεύθυνση/όνομα (ζητήθηκε ρητά να φύγει): η ίδια η
+                         γραμμή μένει τονισμένη στη λίστα αριστερά και τα έγραφε ήδη όλα — εδώ ξαναγράφονταν
+                         δεύτερη φορά, δίπλα-δίπλα, χωρίς να προσθέτουν τίποτα. -->
                     <!-- Πραγματική διαγραφή — π.χ. ο πελάτης ακύρωσε πριν προλάβει να περάσει σε κανάλι.
                          Μόνο με ονομαστικό κωδικό (βλ. CancelPendingOrder_Click), ίδια λογική με το τραπέζι. -->
                     <Button Content="✕ ΑΚΥΡΩΣΗ ΠΑΡΑΓΓΕΛΙΑΣ" FontSize="11" FontWeight="ExtraBold" Padding="10,6"

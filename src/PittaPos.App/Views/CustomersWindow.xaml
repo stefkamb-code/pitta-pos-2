@@ -91,7 +91,7 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
-                                <Button Content="Συχνότητα" FontSize="12" FontWeight="ExtraBold" Padding="12,6"
+                                <Button Content="Συχνότητα" FontSize="12" FontWeight="ExtraBold" Padding="12,6" Margin="0,0,10,0"
                                         HorizontalContentAlignment="Center"
                                         Command="{Binding SetSortCommand}" CommandParameter="frequency">
                                     <Button.Style>
@@ -107,6 +107,10 @@
                                         </Style>
                                     </Button.Style>
                                 </Button>
+                                <!-- Πόσοι δείχνονται από πόσους — η λίστα κόβεται στους πρώτους 200
+                                     επίτηδες (βλ. CustomersViewModel.MaxRows). -->
+                                <TextBlock Text="{Binding CountLabel}" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
