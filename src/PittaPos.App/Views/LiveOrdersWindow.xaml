@@ -367,12 +367,12 @@
                                     <DockPanel LastChildFill="True">
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="12.5" FontWeight="ExtraBold"
                                                    Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                        <!-- ΜΙΑ γραμμή πάντα: με αναδίπλωση, το «Διανομέας» άφηνε το τελικό «ς»
-                                             μόνο του από κάτω μόλις μεγάλωναν τα νούμερα δίπλα. Αν ποτέ δεν
-                                             χωρέσει, κόβεται με αποσιωπητικά αντί να σπάσει η λέξη. -->
+                                        <!-- WrapWithOverflow, ΟΧΙ σκέτο Wrap: αλλάζει γραμμή μόνο σε ΚΕΝΟ, ώστε
+                                             το «Κάρτα Διανομέα» να πέφτει κανονικά σε δύο γραμμές, αλλά το
+                                             «Διανομέας» να μη σπάει ΜΕΣΑ στη λέξη αφήνοντας το τελικό «ς»
+                                             μόνο του από κάτω. -->
                                         <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
-                                                   VerticalAlignment="Center" TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis">
+                                                   VerticalAlignment="Center" TextWrapping="WrapWithOverflow">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{Binding Brush}"/>
