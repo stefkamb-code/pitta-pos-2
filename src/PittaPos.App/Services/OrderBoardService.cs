@@ -604,7 +604,15 @@ public partial class OrderBoardService : ObservableObject
         sb.AppendLine("ΔΙΑΝΟΜΕΑΣ · " + (evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ"));
         sb.AppendLine(DateTime.Now.ToString("dd/MM/yyyy · HH:mm", greek));
         sb.AppendLine(new string('=', DriverReportWidth));
-        sb.AppendLine(DriverRow($"ΜΕΤΡΗΤΑ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
+        // Πρώτα ο τζίρος — αυτά είναι τα λεφτά που πρέπει να γυρίσουν πίσω. Από κάτω σπασμένος στα δύο
+        // κανάλια μετρητών, ώστε να ξεκαθαρίζει τι εισπράχθηκε από δική μας διανομή και τι από BOX.
+        // Και τα δύο γράφονται ΠΑΝΤΑ, ακόμα και με μηδέν: «κανένα BOX σήμερα» είναι κι αυτό απάντηση
+        // όταν κάθεσαι να βγάλεις άκρη με τα λεφτά.
+        var ownDelivery = orders.Where(o => o.SentVia == "Διανομέας").ToList();
+        var box = orders.Where(o => o.SentVia == "BOX Μετρητά").ToList();
+        sb.AppendLine(DriverRow($"ΣΥΝΟΛΟ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
+        sb.AppendLine(DriverRow($"ΔΙΑΝΟΜΕΑΣ ({ownDelivery.Count})", Order.FormatPrice(ownDelivery.Sum(o => o.Total))));
+        sb.AppendLine(DriverRow($"BOX ΜΕΤΡΗΤΑ ({box.Count})", Order.FormatPrice(box.Sum(o => o.Total))));
         sb.AppendLine(new string('=', DriverReportWidth));
 
         foreach (var o in orders)
