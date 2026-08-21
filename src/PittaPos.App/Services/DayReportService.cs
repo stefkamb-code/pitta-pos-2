@@ -168,6 +168,23 @@ public static class DayReportService
         AppendBox("ΕΦΑΡΜΟΓΕΣ", orders.Where(o => o.Type == Core.Models.OrderType.Apps));
     }
 
+    /// <summary>
+    /// Πόση α' ύλη έφυγε — «σήμερα πουλήθηκαν 12,40 κιλά κοτόπουλο». Βγαίνει από τα γραμμάρια που έχει
+    /// δηλωμένα κάθε προϊόν (βλ. <see cref="ConsumptionService"/>) και <b>λείπει εντελώς</b> όσο δεν έχει
+    /// δηλωθεί τίποτα — καλύτερα να μη γράφεται καθόλου παρά να τυπώνεται ένα άδειο μπλοκ.
+    /// </summary>
+    private static void AppendConsumption(StringBuilder sb, List<CompletedOrder> orders)
+    {
+        var totals = ConsumptionService.For(orders);
+        if (totals.Count == 0)
+            return;
+
+        sb.AppendLine("ΚΑΤΑΝΑΛΩΣΗ");
+        foreach (var t in totals)
+            sb.AppendLine($"  {t.Name,-20} {t.AmountLabel,12}");
+        sb.AppendLine();
+    }
+
     /// <summary>Χτίζει αναλυτική αναφορά όλης της ημέρας από τα στατιστικά — για email και τοπικό backup.</summary>
     public static string Build()
     {
@@ -193,6 +210,8 @@ public static class DayReportService
         foreach (var p in products)
             sb.AppendLine($"  {p.Qty,4} × {p.Name,-34} {Order.FormatPrice(p.Rev)}");
         sb.AppendLine();
+
+        AppendConsumption(sb, orders);
 
         sb.AppendLine("ΠΑΡΑΓΓΕΛΙΕΣ ΑΝΑΛΥΤΙΚΑ");
         sb.AppendLine(new string('-', 48));
@@ -226,6 +245,7 @@ public static class DayReportService
         AppendPrintSummary(sb, orders);
         AppendAwaitingPrint(sb, SalesStatsService.Instance.AwaitingChannelOrders);
         AppendPrintPerChannel(sb, orders);
+        AppendConsumption(sb, orders);
         return sb.ToString();
     }
 

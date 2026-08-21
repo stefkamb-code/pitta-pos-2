@@ -1,0 +1,155 @@
+<Window x:Class="PittaPos.App.Views.ConsumptionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:PittaPos.App.Controls"
+        xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        xmlns:svc="clr-namespace:PittaPos.App.Services"
+        Title="ΚΑΤΑΝΑΛΩΣΕΙΣ" Height="820" Width="1180"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <ctl:ScaleHost DesignWidth="1164" DesignHeight="781">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
+                       Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock DockPanel.Dock="Left" Text="ΚΑΤΑΝΑΛΩΣΕΙΣ" FontWeight="ExtraBold" FontSize="14"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Button DockPanel.Dock="Right" Content="ΑΠΟΘΗΚΕΥΣΗ" FontSize="11.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="14,6" VerticalAlignment="Center"
+                        Command="{Binding SaveCommand}"/>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" FontSize="12" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Accent700}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ό,τι τρώει κάθε προϊόν -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="18,16,10,24">
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ConsumptionGroupViewModel}">
+                            <StackPanel Margin="0,0,0,22">
+                                <!-- Η «βάση» δεν αποθηκεύεται πουθενά — είναι το νούμερο που γεμίζει με
+                                     μια κίνηση όσα προϊόντα της κατηγορίας είναι ακόμα άδεια. -->
+                                <DockPanel Margin="0,0,0,8">
+                                    <Button DockPanel.Dock="Right" Content="ΣΥΜΠΛΗΡΩΣΕ ΤΑ ΑΔΕΙΑ" FontSize="10.5"
+                                            FontWeight="ExtraBold" Style="{StaticResource FlatButton}" Padding="10,4"
+                                            VerticalAlignment="Center" Command="{Binding FillCommand}"/>
+                                    <TextBlock DockPanel.Dock="Right" Text="γρ." FontSize="11"
+                                               Foreground="{DynamicResource Neutral500}"
+                                               VerticalAlignment="Center" Margin="4,0,10,0"/>
+                                    <TextBox DockPanel.Dock="Right" Style="{StaticResource PosTextBox}" Width="58" Height="26"
+                                             FontSize="12" Padding="6,2" VerticalAlignment="Center"
+                                             Text="{Binding BaseGrams, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock DockPanel.Dock="Right" Text="βάση" FontSize="11"
+                                               Foreground="{DynamicResource Neutral500}"
+                                               VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                    <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                                </DockPanel>
+
+                                <ItemsControl ItemsSource="{Binding Rows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:ConsumptionRowViewModel}">
+                                            <DockPanel Margin="0,0,0,5">
+                                                <TextBlock Text="{Binding Title}" Width="230" FontSize="12"
+                                                           Foreground="{DynamicResource Ink}" TextWrapping="Wrap"
+                                                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                <Button DockPanel.Dock="Right" Content="+" Width="26" Height="26"
+                                                        FontSize="14" Style="{StaticResource GlyphButton}"
+                                                        Foreground="{DynamicResource Ink}" VerticalAlignment="Top"
+                                                        ToolTip="Δεύτερο υλικό στο ίδιο προϊόν"
+                                                        Command="{Binding AddCommand}"/>
+                                                <ItemsControl ItemsSource="{Binding Materials}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:MaterialLineViewModel}">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                                <TextBox Style="{StaticResource PosTextBox}" Width="170" Height="26"
+                                                                         FontSize="12" Padding="7,2"
+                                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                <TextBox Style="{StaticResource PosTextBox}" Width="62" Height="26"
+                                                                         FontSize="12" Padding="7,2" Margin="6,0,0,0"
+                                                                         Text="{Binding Grams, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                <TextBlock Text="γρ." FontSize="11" Foreground="{DynamicResource Neutral500}"
+                                                                           VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                                                <Button Content="✕" FontSize="12" Style="{StaticResource GlyphButton}"
+                                                                        Foreground="{DynamicResource Neutral500}" Margin="4,0,0,0"
+                                                                        Command="{Binding RemoveCommand}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- τι έφυγε σήμερα -->
+            <Border Grid.Column="1" BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0" Padding="18,18">
+                <StackPanel>
+                    <TextBlock Text="ΕΦΥΓΑΝ ΣΗΜΕΡΑ" FontSize="12" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Neutral600}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Γράψε τι τρώει κάθε προϊόν και πάτα ΑΠΟΘΗΚΕΥΣΗ — από κει και πέρα το σύνολο βγαίνει μόνο του."
+                               FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasToday}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Today}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:MaterialTotal}">
+                                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="0,8">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding AmountLabel}" FontSize="14"
+                                                       FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="ExtraBold"
+                                                       Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding PiecesLabel}" FontSize="10.5"
+                                                   Foreground="{DynamicResource Neutral500}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+    </ctl:ScaleHost>
+</Window>

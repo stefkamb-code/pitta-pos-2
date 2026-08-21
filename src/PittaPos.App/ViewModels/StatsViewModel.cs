@@ -389,6 +389,11 @@ public partial class StatsViewModel : ObservableObject
     public bool NoData { get; private set; } = true;
     public bool HasData => !NoData;
 
+    /// <summary>Πόσα κιλά α' ύλης έφυγαν σήμερα — κοτόπουλο, χοιρινό, μπιφτέκι. Άδειο όσο δεν έχει
+    /// δηλωθεί κατανάλωση σε κανένα προϊόν (βλ. ConsumptionService, οθόνη ΚΑΤΑΝΑΛΩΣΕΙΣ).</summary>
+    public IReadOnlyList<MaterialTotal> Consumption { get; private set; } = [];
+    public bool HasConsumption => Consumption.Count > 0;
+
     /// <summary>Το όνομα του προϊόντος όπως το λέει ο ΚΑΤΑΛΟΓΟΣ — καθαρό, χωρίς ψωμί και «ΔΙΠΛΗ ΠΙΤΑ»
     /// μπροστά. Αν το προϊόν έχει διαγραφεί (ή η παραγγελία είναι παλιά, χωρίς ProductId), πέφτει πίσω
     /// στο όνομα που πουλήθηκε περισσότερο — κάτι είναι πάντα καλύτερο από κενή γραμμή.</summary>
@@ -569,7 +574,10 @@ public partial class StatsViewModel : ObservableObject
         HasPending = awaiting.Count > 0;
 
         NoData = orders.Count == 0;
+        Consumption = ConsumptionService.For(orders);
 
+        OnPropertyChanged(nameof(Consumption));
+        OnPropertyChanged(nameof(HasConsumption));
         OnPropertyChanged(nameof(RevenueLabel));
         OnPropertyChanged(nameof(AvgOrderLabel));
         OnPropertyChanged(nameof(ProductStats));

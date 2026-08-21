@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctl="clr-namespace:PittaPos.App.Controls"
         xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
+        xmlns:svc="clr-namespace:PittaPos.App.Services"
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
         xmlns:lvcore="clr-namespace:LiveChartsCore;assembly=LiveChartsCore"
         Title="ΣΤΑΤΙΣΤΙΚΑ ΠΩΛΗΣΕΩΝ" Height="800" Width="1280"
@@ -310,6 +311,35 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
             </ItemsControl>
+
+            <!-- Πόσο κρέας έφυγε. Ολόκληρο το μπλοκ λείπει όσο δεν έχει δηλωθεί κατανάλωση σε κανένα
+                 προϊόν (οθόνη ΚΑΤΑΝΑΛΩΣΕΙΣ στη Διαχείριση) — δεν υπάρχει τίποτα να πει ακόμα. -->
+            <StackPanel Visibility="{Binding HasConsumption, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="ΚΑΤΑΝΑΛΩΣΗ ΗΜΕΡΑΣ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <ItemsControl ItemsSource="{Binding Consumption}" Margin="0,0,-14,26">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="6"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type svc:MaterialTotal}">
+                            <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}"
+                                    BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,14,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Neutral600}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding AmountLabel}" FontSize="16" FontWeight="ExtraBold"
+                                               Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding PiecesLabel}" FontSize="10"
+                                               Foreground="{DynamicResource Neutral500}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
 
             </StackPanel>
 

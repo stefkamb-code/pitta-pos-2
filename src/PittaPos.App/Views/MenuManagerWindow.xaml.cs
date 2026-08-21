@@ -24,6 +24,10 @@ public partial class MenuManagerWindow : Window
     private void ManageExtras_Click(object sender, RoutedEventArgs e) =>
         new ManageExtrasWindow((MenuManagerViewModel)DataContext) { Owner = this }.ShowDialog();
 
+    /// <summary>Πόσο κρέας τρώει κάθε προϊόν — από κει βγαίνει το «τι έφυγε σήμερα».</summary>
+    private void Consumption_Click(object sender, RoutedEventArgs e) =>
+        new ConsumptionWindow { Owner = this }.ShowDialog();
+
     /// <summary>Σειρά προϊόντων με σύρσιμο από την ειδική λαβή «⠿» — ξεκινά αμέσως, χωρίς κατώφλι απόστασης.</summary>
     private void DragHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

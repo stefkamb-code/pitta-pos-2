@@ -40,6 +40,9 @@
                 <Button DockPanel.Dock="Right" Content="ΕΞΤΡΑ" FontSize="11.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="12,6" Margin="0,0,10,0"
                         VerticalAlignment="Center" Click="ManageExtras_Click"/>
+                <Button DockPanel.Dock="Right" Content="ΚΑΤΑΝΑΛΩΣΕΙΣ" FontSize="11.5" FontWeight="ExtraBold"
+                        Style="{StaticResource FlatButton}" Padding="12,6" Margin="0,0,10,0"
+                        VerticalAlignment="Center" Click="Consumption_Click"/>
                 <Border/>
             </DockPanel>
         </Border>
