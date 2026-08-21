@@ -299,7 +299,7 @@ public static class DayReportService
         // Σε background thread — το SmtpClient.Send είναι συγχρονισμένη κλήση δικτύου (έως ~100 δλ.
         // default timeout)· αν έτρεχε εδώ θα πάγωνε ολόκληρο το ταμείο (το CloseDay καλείται και από
         // το DispatcherTimer αυτόματου κλεισίματος, πάνω στο UI thread) όσο δεν απαντά ο SMTP server.
-        _ = Task.Run(() => TrySendEmail(report));
+        _ = Task.Run(() => SendOrQueue(report));
         ReceiptPrinter.PrintDayReport(BuildPrintSummary());
         SalesStatsService.Instance.Clear();
         CancellationLogService.Instance.Clear();
@@ -338,15 +338,101 @@ public static class DayReportService
         }
     }
 
+    /// <summary>Ο φάκελος με τις αποθηκευμένες αναφορές.</summary>
+    private static string ReportsDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder, "reports");
+
     /// <summary>Αποθηκεύει την αναφορά τοπικά (backup) και επιστρέφει τη διαδρομή.</summary>
     public static string SaveToDisk(string report)
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            AppIdentity.DataFolder, "reports");
-        Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, "anafora-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".txt");
+        Directory.CreateDirectory(ReportsDir);
+        var path = Path.Combine(ReportsDir, "anafora-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".txt");
         File.WriteAllText(path, report, new UTF8Encoding(true));
         return path;
+    }
+
+    /// <summary>
+    /// Στέλνει την αναφορά και, αν <b>δεν φύγει</b>, την κρατάει για να ξαναδοκιμάσει μόνο του.
+    ///
+    /// <para>Το κλείσιμο ημέρας γίνεται στις 5 το πρωί ή μόλις ανοίξει το ταμείο την επόμενη μέρα —
+    /// ώρες που κανείς δεν κοιτάει την οθόνη. Αν εκείνη τη στιγμή δεν υπάρχει internet (σβηστό ρούτερ,
+    /// πεσμένη γραμμή), το email <b>χανόταν σιωπηλά για πάντα</b>: το αποτέλεσμα του TrySendEmail δεν
+    /// το κοίταζε κανείς. Τώρα η αναφορά μένει σε αρχείο «pending-*» και φεύγει με την πρώτη ευκαιρία,
+    /// χωρίς να χρειαστεί να κάνει κανείς τίποτα.</para>
+    /// </summary>
+    private static void SendOrQueue(string report)
+    {
+        var s = SettingsStore.Instance.Settings;
+        if (s.SmtpUser.Length == 0 || s.SmtpPassword.Length == 0)
+        {
+            // Δεν έχει ρυθμιστεί καθόλου email — δεν έχει νόημα ουρά που δεν θα φύγει ποτέ.
+            AppLog.Write("email", "Η αναφορά ημέρας δεν στάλθηκε: δεν έχει ρυθμιστεί email (Ρυθμίσεις → EMAIL ΑΝΑΦΟΡΑΣ).");
+            return;
+        }
+
+        var (ok, error) = TrySendEmail(report);
+        if (ok)
+            return;
+
+        try
+        {
+            Directory.CreateDirectory(ReportsDir);
+            File.WriteAllText(Path.Combine(ReportsDir, "pending-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".txt"),
+                report, new UTF8Encoding(true));
+            AppLog.Write("email", $"Η αναφορά ημέρας ΔΕΝ στάλθηκε ({error}) — μπήκε σε αναμονή και θα ξαναδοκιμάσει μόνη της.");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("email", $"Η αναφορά ημέρας ΔΕΝ στάλθηκε ({error}) και δεν μπόρεσε ούτε να μπει σε αναμονή: {ex.Message}");
+        }
+    }
+
+    /// <summary>Ξαναστέλνει ό,τι έμεινε σε αναμονή. Σιωπηλό: αν πάλι δεν φύγει, μένει εκεί για την
+    /// επόμενη φορά — ο ταμίας δεν έχει τίποτα να κάνει με αυτή την πληροφορία μέσα στη βάρδια.</summary>
+    public static void RetryPendingEmail()
+    {
+        List<string> pending;
+        try
+        {
+            if (!Directory.Exists(ReportsDir))
+                return;
+            pending = [.. Directory.GetFiles(ReportsDir, "pending-*.txt").OrderBy(f => f)];
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        var s = SettingsStore.Instance.Settings;
+        if (pending.Count == 0 || s.SmtpUser.Length == 0 || s.SmtpPassword.Length == 0)
+            return;
+
+        foreach (var file in pending)
+        {
+            try
+            {
+                var (ok, _) = TrySendEmail(File.ReadAllText(file));
+                if (!ok)
+                    return; // δεν παίζει το δίκτυο τώρα — άσε και τα υπόλοιπα για την επόμενη φορά
+                File.Delete(file);
+                AppLog.Write("email", $"Η αναφορά «{Path.GetFileName(file)}» που είχε μείνει σε αναμονή στάλθηκε.");
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>Ξεκινά την αυτόματη επανάληψη: μία φορά τώρα (άνοιγμα ταμείου) και μετά κάθε δέκα
+    /// λεπτά. Καλείται από το <c>App.OnStartup</c>. Πάντα σε background thread — το SmtpClient.Send
+    /// είναι συγχρονισμένη κλήση δικτύου και θα πάγωνε το ταμείο.</summary>
+    public static void StartEmailRetry()
+    {
+        _ = Task.Run(RetryPendingEmail);
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        timer.Tick += (_, _) => Task.Run(RetryPendingEmail);
+        timer.Start();
     }
 
     /// <summary>Στέλνει την αναφορά με email. Επιστρέφει (επιτυχία, μήνυμα λάθους).</summary>

@@ -68,6 +68,10 @@ public partial class App : Application
             SalesStatsService.Instance.Orders.Any(o =>
                 o.Type == Core.Models.OrderType.Table && o.Who == "Τραπέζι " + table && o.PlacedAt >= since));
 
+        // Αναφορά ημέρας που δεν πρόλαβε να φύγει με email (π.χ. έκλεισε η μέρα στις 5 το πρωί χωρίς
+        // internet): ξαναδοκιμάζει τώρα και μετά κάθε δέκα λεπτά, σιωπηλά.
+        DayReportService.StartEmailRetry();
+
         // API για την εφαρμογή κινητού του σερβιτόρου (μόνο μέσα στο WiFi του μαγαζιού)
         WaiterApiService.Start();
 
