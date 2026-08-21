@@ -134,6 +134,7 @@ public partial class ConsumptionViewModel : ObservableObject
     [RelayCommand]
     public void Save()
     {
+        var changed = false;
         foreach (var group in Groups)
             foreach (var row in group.Rows)
             {
@@ -142,15 +143,41 @@ public partial class ConsumptionViewModel : ObservableObject
                     .Select(m => new MaterialUse { Name = m.Name.Trim(), Grams = TryGrams(m.Grams, out var g) ? g : 0 })
                     .ToList();
                 var value = uses.Count > 0 ? uses : null;
+                var current = row.Product?.Materials ?? row.Extra?.Materials;
+                if (Same(current, value))
+                    continue;
+
+                changed = true;
                 if (row.Product is { } product)
                     product.Materials = value;
                 else if (row.Extra is { } extra)
                     extra.Materials = value;
             }
 
+        // Χωρίς αλλαγή δεν γράφεται ο κατάλογος: το κλείσιμο του παραθύρου αποθηκεύει μόνο του (βλ.
+        // ConsumptionWindow), και ένα σκέτο άνοιγμα-κλείσιμο θα ξανάγραφε το menu.json και θα έστελνε
+        // σε όλα τα ανοιχτά παράθυρα «ο κατάλογος άλλαξε» — και στο δεύτερο ταμείο ολόκληρο τον
+        // κατάλογο μέσω δικτύου — για το τίποτα.
+        if (!changed)
+            return;
+
         MenuStore.Instance.Save();
         RefreshToday();
         Status = "✓ Αποθηκεύτηκε";
+    }
+
+    /// <summary>Ίδιες καταναλώσεις; Κενό και <c>null</c> μετράνε το ίδιο — και τα δύο σημαίνουν
+    /// «αυτό το προϊόν δεν μετράει πουθενά».</summary>
+    private static bool Same(List<MaterialUse>? a, List<MaterialUse>? b)
+    {
+        if (a is null || a.Count == 0)
+            return b is null || b.Count == 0;
+        if (b is null || a.Count != b.Count)
+            return false;
+        for (var i = 0; i < a.Count; i++)
+            if (!string.Equals(a[i].Name, b[i].Name, StringComparison.Ordinal) || a[i].Grams != b[i].Grams)
+                return false;
+        return true;
     }
 
     /// <summary>Δέχεται και «100» και «0,5» και «0.5» — ο ταμίας δεν πρέπει να σκέφτεται την υποδιαστολή.</summary>

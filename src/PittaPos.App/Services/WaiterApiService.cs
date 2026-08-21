@@ -477,7 +477,7 @@ public static class WaiterApiService
         // Φθηνός έλεγχος «άλλαξε τίποτα;» — ένας αριθμός. Το δεύτερο ταμείο ρωτάει αυτό συχνά και
         // κατεβάζει ολόκληρο τον πελατολόγιο (που μπορεί να είναι δεκάδες MB) μόνο όταν χρειάζεται.
         app.MapGet("/api/sync/customers/version", () => Results.Json(OnUi(() => CustomerStore.Instance.Stamp)));
-        app.MapGet("/api/sync/customers", () => Results.Json(OnUi(() => CustomerStore.Instance.All.ToList())));
+        app.MapGet("/api/sync/customers", () => Results.Json(OnUi(CustomerStore.Instance.Snapshot)));
         app.MapPost("/api/sync/customers/upsert", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<CustomerUpsertRequest>();
