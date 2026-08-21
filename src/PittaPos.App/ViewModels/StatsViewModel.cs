@@ -574,7 +574,9 @@ public partial class StatsViewModel : ObservableObject
         HasPending = awaiting.Count > 0;
 
         NoData = orders.Count == 0;
-        Consumption = ConsumptionService.For(orders);
+        // ΟΛΕΣ οι σημερινές, όχι μόνο όσες πέρασαν σε κανάλι (βλ. ConsumptionService.Today):
+        // το κρέας φεύγει από το ψυγείο μόλις χτυπηθεί η παραγγελία, όχι όταν αποφασιστεί το κανάλι.
+        Consumption = ConsumptionService.Today();
 
         OnPropertyChanged(nameof(Consumption));
         OnPropertyChanged(nameof(HasConsumption));

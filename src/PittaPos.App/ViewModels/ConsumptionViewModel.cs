@@ -98,7 +98,14 @@ public partial class ConsumptionViewModel : ObservableObject
 
         Groups = groups;
         RefreshToday();
+        // Το «ΕΦΥΓΑΝ ΣΗΜΕΡΑ» είναι ζωντανό νούμερο: η οθόνη ανοίγει από την κεφαλίδα της αρχικής και
+        // μπορεί να μείνει ανοιχτή όλη τη βάρδια — χωρίς αυτό θα έδειχνε τα κιλά της στιγμής που άνοιξε.
+        SalesStatsService.Instance.Changed += RefreshToday;
     }
+
+    /// <summary>Ξεκολλάει από τα στατιστικά όταν κλείνει το παράθυρο — αλλιώς κάθε παραγγελία θα
+    /// ξανακτύπαγε τον υπολογισμό για ένα παράθυρο που δεν υπάρχει πια, μία φορά για κάθε άνοιγμα.</summary>
+    public void Detach() => SalesStatsService.Instance.Changed -= RefreshToday;
 
     private static ConsumptionRowViewModel Build(ConsumptionRowViewModel row, List<MaterialUse>? materials)
     {
@@ -125,7 +132,7 @@ public partial class ConsumptionViewModel : ObservableObject
     /// <summary>Γράφει τα πάντα πίσω στον κατάλογο. Άδειο όνομα ή μηδενικά γραμμάρια = η γραμμή δεν
     /// υπάρχει· προϊόν χωρίς γραμμές μένει με <c>null</c>, δηλαδή «δεν μετράει πουθενά».</summary>
     [RelayCommand]
-    private void Save()
+    public void Save()
     {
         foreach (var group in Groups)
             foreach (var row in group.Rows)
@@ -158,12 +165,18 @@ public partial class ConsumptionViewModel : ObservableObject
     {
         var n = Fold(productName);
 
-        // Καλαμάκι/μπιφτέκι: μετρώνται σε ΤΕΜΑΧΙΑ. Πόσα μπαίνουν το λέει το μέγεθος της κατηγορίας.
+        // Καλαμάκι και μπιφτέκι μετρώνται σε ΤΕΜΑΧΙΑ, όχι σε γραμμάρια: το καλαμάκι ζυγίζει 110 και το
+        // μπιφτέκι 180, και αυτό που αλλάζει είναι ΠΟΣΑ μπαίνουν.
+        //
+        // Πιάνει ΜΟΝΟ στις τρεις γνωστές βάσεις (60 μικρή, 100 μεγάλη, 200 μερίδα) — και όχι σε
+        // «μικρότερο/μεγαλύτερο από». Με εύρη, η κατηγορία ΚΑΛΑΜΑΚΙΑ (όπου η φυσική βάση είναι το ίδιο
+        // το 110) έπεφτε στο «μέχρι 200» και έβγαζε 330 γραμμάρια για ΕΝΑ καλαμάκι. Ό,τι άλλο νούμερο
+        // γράψει ο χρήστης το εννοεί κυριολεκτικά και μπαίνει ως έχει.
         double? piece = null;
         if (n.Contains("καλαμακι") || n.Contains("σουβλακι"))
-            piece = 110 * (basis <= 60 ? 1 : basis <= 100 ? 2 : basis <= 200 ? 3 : 1);
+            piece = basis switch { 60 => 110, 100 => 220, 200 => 330, _ => null };
         else if (n.Contains("μπιφτεκι"))
-            piece = 180 * (basis <= 60 ? 0.5 : basis <= 100 ? 1 : basis <= 200 ? 2 : 1);
+            piece = basis switch { 60 => 90, 100 => 180, 200 => 360, _ => null };
 
         var grams = piece ?? basis;
 

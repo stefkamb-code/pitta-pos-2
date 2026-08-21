@@ -173,9 +173,9 @@ public static class DayReportService
     /// δηλωμένα κάθε προϊόν (βλ. <see cref="ConsumptionService"/>) και <b>λείπει εντελώς</b> όσο δεν έχει
     /// δηλωθεί τίποτα — καλύτερα να μη γράφεται καθόλου παρά να τυπώνεται ένα άδειο μπλοκ.
     /// </summary>
-    private static void AppendConsumption(StringBuilder sb, List<CompletedOrder> orders)
+    private static void AppendConsumption(StringBuilder sb)
     {
-        var totals = ConsumptionService.For(orders);
+        var totals = ConsumptionService.Today();
         if (totals.Count == 0)
             return;
 
@@ -211,7 +211,7 @@ public static class DayReportService
             sb.AppendLine($"  {p.Qty,4} × {p.Name,-34} {Order.FormatPrice(p.Rev)}");
         sb.AppendLine();
 
-        AppendConsumption(sb, orders);
+        AppendConsumption(sb);
 
         sb.AppendLine("ΠΑΡΑΓΓΕΛΙΕΣ ΑΝΑΛΥΤΙΚΑ");
         sb.AppendLine(new string('-', 48));
@@ -245,7 +245,7 @@ public static class DayReportService
         AppendPrintSummary(sb, orders);
         AppendAwaitingPrint(sb, SalesStatsService.Instance.AwaitingChannelOrders);
         AppendPrintPerChannel(sb, orders);
-        AppendConsumption(sb, orders);
+        AppendConsumption(sb);
         return sb.ToString();
     }
 
