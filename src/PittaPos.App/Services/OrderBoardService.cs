@@ -570,11 +570,10 @@ public partial class OrderBoardService : ObservableObject
     /// παλιές γραμμές των ~43 χαρακτήρων («#01 · Κάρτα Διανομέα · Κωνσταντίνος   12,40») η αναφορά
     /// έβγαινε στο μισό μέγεθος και δεν διαβαζόταν.</para>
     ///
-    /// <para><b>Το 24 ήταν υπερβολή</b> — στο μαγαζί βγήκαν τεράστια γράμματα. Στους 34 χαρακτήρες
-    /// μένουν αισθητά μεγαλύτερα από την αναφορά ημέρας (48 χαρακτήρες) χωρίς να καταπίνουν το ρολό,
-    /// και οι διευθύνσεις χωράνε συνήθως σε μία γραμμή. Αν προσθέσεις στοιχείο, σπάσ' το σε δεύτερη
-    /// γραμμή — μη φαρδύνεις άλλο τη γραμμή.</para></summary>
-    private const int DriverReportWidth = 34;
+    /// <para><b>Το 24 ήταν υπερβολή</b> — στο μαγαζί βγήκαν τεράστια γράμματα. Στους 40 χαρακτήρες
+    /// μένουν μεγαλύτερα από την αναφορά ημέρας (48 χαρακτήρες) και ταυτόχρονα χωράει δίπλα-δίπλα ό,τι
+    /// πριν έπιανε δύο γραμμές: το χαρτί είχε κενό δεξιά ενώ η λίστα τράβαγε σε μάκρος.</para></summary>
+    private const int DriverReportWidth = 40;
 
     /// <summary>Αναλυτική αναφορά διανομέα — όλες οι παραγγελίες που πέρασαν σήμερα σε κανάλι διανομέα
     /// (μετρητά/κάρτα, ΔΙΑΝΟΜΗ ή BOX), μία-μία με διεύθυνση, και σύνολο τζίρου στην κορυφή. Για εκτύπωση
@@ -598,9 +597,9 @@ public partial class OrderBoardService : ObservableObject
 
         var sb = new StringBuilder();
         sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ");
-        sb.AppendLine("ΔΙΑΝΟΜΕΑΣ");
-        // Η βάρδια γράφεται στο χαρτί: δύο αναφορές της ίδιας μέρας είναι αλλιώς αξεχώριστες.
-        sb.AppendLine(evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ");
+        // Η βάρδια γράφεται στο χαρτί (δύο αναφορές της ίδιας μέρας είναι αλλιώς αξεχώριστες), αλλά
+        // ΔΙΠΛΑ στον «ΔΙΑΝΟΜΕΑ» και όχι σε δική της γραμμή — δύο μισοάδειες γραμμές είναι σκέτο ρολό.
+        sb.AppendLine("ΔΙΑΝΟΜΕΑΣ · " + (evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ"));
         sb.AppendLine(DateTime.Now.ToString("dd/MM/yyyy · HH:mm", greek));
         sb.AppendLine(new string('=', DriverReportWidth));
         sb.AppendLine(DriverRow($"ΣΥΝΟΛΟ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
@@ -610,15 +609,19 @@ public partial class OrderBoardService : ObservableObject
 
         foreach (var o in orders)
         {
-            // ΜΙΑ κενή γραμμή ΠΡΙΝ από κάθε παραγγελία: αρκεί για να ξεχωρίζει πού τελειώνει η μία
-            // διεύθυνση. Με δύο, το χαρτί έβγαινε μισό κενό και η λίστα δεν χωρούσε σε μια ματιά.
+            // ΜΙΑ κενή γραμμή ΠΡΙΝ από κάθε παραγγελία: είναι το λιγότερο που μπορεί να μπει σε
+            // μονόχωρο κείμενο και αρκεί για να ξεχωρίζει πού τελειώνει η μία διεύθυνση. Το χαρτί
+            // μαζεύεται από τις ΓΡΑΜΜΕΣ της κάθε παραγγελίας (δύο, όχι τρεις), όχι από το κενό.
             sb.AppendLine();
             // ΜΕΤΡΗΤΑ ή ΚΑΡΤΑ με το όνομά του, όχι το κανάλι: το «Διανομέας» και το «Κάρτα Διανομέα»
             // είναι εσωτερικά ονόματα καναλιών — αυτό που θέλει να ξέρει είναι αν θα εισπράξει.
-            sb.AppendLine(DriverRow($"#{o.DisplayNumber} {(IsCashChannel(o.SentVia) ? "ΜΕΤΡΗΤΑ" : "ΚΑΡΤΑ")}", o.TotalLabel));
+            var head = $"#{o.DisplayNumber} {(IsCashChannel(o.SentVia) ? "ΜΕΤΡΗΤΑ" : "ΚΑΡΤΑ")}";
+            // Το όνομα ΔΙΠΛΑ στον αριθμό, στον χώρο που περίσσευε δεξιά — πριν έπαιρνε δική του γραμμή
+            // και κάθε παραγγελία έτρωγε τρεις. Κόβεται αν δεν χωράει: η διεύθυνση από κάτω είναι αυτή
+            // που οδηγεί τον διανομέα, το όνομα το θέλει μόνο για να φωνάξει στο κουδούνι.
+            var name = Clip(o.NameUnderAddress, DriverReportWidth - head.Length - o.TotalLabel.Length - 4);
+            sb.AppendLine(DriverRow(name.Length > 0 ? head + " · " + name : head, o.TotalLabel));
             foreach (var line in WrapPlain(o.AddressOrName))
-                sb.AppendLine(line);
-            foreach (var line in WrapPlain(o.NameUnderAddress))
                 sb.AppendLine(line);
         }
         return sb.ToString();
@@ -627,6 +630,20 @@ public partial class OrderBoardService : ObservableObject
     /// <summary>Μετρητά ή κάρτα, από το ίδιο το κανάλι — τα δύο κανάλια «Διανομέας»/«BOX Μετρητά» ΕΙΝΑΙ
     /// τα μετρητά (βλ. ChannelInfo.All).</summary>
     private static bool IsCashChannel(string? sentVia) => sentVia is "Διανομέας" or "BOX Μετρητά";
+
+    /// <summary>Κόβει το κείμενο ώστε να χωρέσει σε <paramref name="room"/> χαρακτήρες, κατά προτίμηση
+    /// σε κενό (ολόκληρο το μικρό όνομα παρά μισό επώνυμο). Κάτω από 5 χαρακτήρες δεν μπαίνει καθόλου —
+    /// ένα «Κωνσ» δεν λέει τίποτα σε κανέναν.</summary>
+    private static string Clip(string text, int room)
+    {
+        var t = text.Trim();
+        if (room < 5 || t.Length == 0)
+            return "";
+        if (t.Length <= room)
+            return t;
+        var cut = t.LastIndexOf(' ', room);
+        return cut >= 5 ? t[..cut] : t[..room].TrimEnd();
+    }
 
     /// <summary>Ετικέτα αριστερά, ποσό δεξιά στην άκρη του χαρτιού. Αν δεν χωρέσουν μαζί, μένει ένα
     /// κενό ανάμεσά τους — καλύτερα στριμωγμένο παρά να αναδιπλωθεί και να μικρύνει όλη η αναφορά.</summary>
