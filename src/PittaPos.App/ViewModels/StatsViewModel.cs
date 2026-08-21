@@ -466,9 +466,12 @@ public partial class StatsViewModel : ObservableObject
     /// έτσι η ίδια οθόνη απαντά και «πόσο έκαναν οι ΜΕΡΙΔΕΣ» και «ποια μερίδα τράβηξε».</summary>
     private static List<ProductStatViewModel> BuildCategoryStats(List<CompletedOrder> orders, decimal revenue)
     {
-        var categoryOf = MenuStore.Instance.Categories
-            .SelectMany(c => c.Products.Select(p => (p.Id, Category: c.Name)))
-            .ToDictionary(x => x.Id, x => x.Category);
+        // TryAdd και όχι ToDictionary: ένας διπλός κωδικός προϊόντος (κατάλογος από αλλού, χειροκίνητη
+        // επέμβαση) θα έριχνε ολόκληρη την οθόνη Στατιστικών με «απρόσμενο σφάλμα».
+        var categoryOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var category in MenuStore.Instance.Categories)
+            foreach (var product in category.Products)
+                categoryOf.TryAdd(product.Id, category.Name);
 
         return orders
             .SelectMany(o => o.Lines)

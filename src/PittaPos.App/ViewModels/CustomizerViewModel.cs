@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
@@ -138,6 +138,14 @@ public partial class CustomizerViewModel : ObservableObject
     /// <summary>ΣΚΕΤΟ — όλα τα υλικά αφαιρεμένα.</summary>
     public bool IsSketo => Ingredients.All(i => i.IsRemoved);
 
+    private Dictionary<string, int> BuildExtras()
+    {
+        var chosen = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var extra in Extras.Where(e => e.Quantity > 0))
+            chosen[extra.Name] = chosen.GetValueOrDefault(extra.Name) + extra.Quantity;
+        return chosen;
+    }
+
     public decimal UnitPriceWithExtras =>
         BasePrice + Extras.Sum(e => e.Quantity * e.Item.Price) + (IsDoublePita ? DoublePitaPrice : 0m);
     public decimal Total => NoCharge ? 0m : Quantity * UnitPriceWithExtras;
@@ -187,7 +195,9 @@ public partial class CustomizerViewModel : ObservableObject
         {
             Bread = Breads.FirstOrDefault(b => b.IsSelected)?.Name ?? MenuSeed.BreadOptions[0],
             Removed = Ingredients.Where(i => i.IsRemoved).Select(i => i.Name).ToList(),
-            Extras = Extras.Where(e => e.Quantity > 0).ToDictionary(e => e.Name, e => e.Quantity),
+            // Ανθεκτικά σε διπλό όνομα έξτρα: με ToDictionary, το ΠΡΟΣΘΗΚΗ θα έσκαγε και ο ταμίας δεν
+            // θα μπορούσε να περάσει το προϊόν καθόλου.
+            Extras = BuildExtras(),
             Note = Note.Trim(),
             DoublePita = IsDoublePita,
         };

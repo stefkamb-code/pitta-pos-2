@@ -236,7 +236,7 @@ public static class WaiterApiService
 
         // ---- διάταξη τραπεζιών (κάτοψη) ----
         app.MapGet("/api/sync/table-layout", () =>
-            Results.Json(OnUi(() => Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount)
+            Results.Json(OnUi(() => TableNumbers()
                 .ToDictionary(n => n, n => { var p = TableLayoutService.Instance.GetPosition(n); return new[] { p.X, p.Y }; }))));
         app.MapPost("/api/sync/table-layout", async (HttpContext ctx) =>
         {
@@ -588,7 +588,7 @@ public static class WaiterApiService
         var openSince = TableStatusService.Instance.OpenSince;
 
         var list = new List<TableDto>();
-        foreach (var n in Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount))
+        foreach (var n in TableNumbers())
         {
             var isOpen = openSince.TryGetValue(n, out var since);
             var mine = isOpen
@@ -640,9 +640,20 @@ public static class WaiterApiService
         // ήρθε χωρίς δικά του υλικά· τα ανά προϊόν υλικά ταξιδεύουν πλέον στο MenuProductDto.Ingredients.
         MenuStore.Instance.Ingredients,
         MenuStore.Instance.Extras.Select(e => new ExtraOptionDto(e.Name, e.Price)).ToList(),
-        MenuStore.Instance.Categories.Where(c => MenuStore.Instance.SupportsDoublePita(c.Name))
-            .ToDictionary(c => c.Name, c => MenuStore.Instance.DoublePitaPriceFor(c.Name)),
+        DoublePitaPrices(),
         MenuSeed.BreadOptions.ToDictionary(b => b, MenuSeed.BreadAbbreviation));
+
+    /// <summary>Η χρέωση «διπλή πίττα» ανά κατηγορία, ανθεκτικά σε διπλό όνομα κατηγορίας: με
+    /// ToDictionary, ένας κατάλογος με δύο ίδια ονόματα θα έριχνε ΟΛΟ το endpoint και το κινητό δεν θα
+    /// μπορούσε καν να ανοίξει προϊόν. Η Διαχείριση Καταλόγου δεν τα επιτρέπει· εδώ δεν βασιζόμαστε.</summary>
+    private static Dictionary<string, decimal> DoublePitaPrices()
+    {
+        var prices = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        foreach (var category in MenuStore.Instance.Categories)
+            if (MenuStore.Instance.SupportsDoublePita(category.Name))
+                prices.TryAdd(category.Name, MenuStore.Instance.DoublePitaPriceFor(category.Name));
+        return prices;
+    }
 
     /// <summary>Ό,τι έχει ήδη παραγγελθεί στο τραπέζι από τότε που άνοιξε — για την οθόνη λεπτομερειών του κινητού.</summary>
     private static List<TableOrderDto> GetTableOrders(int table)
@@ -815,18 +826,44 @@ public static class WaiterApiService
     /// <summary><paramref name="req"/> → έτοιμη παραγγελία. Το <c>Persons</c> που επιστρέφεται είναι
     /// παράλληλο με τις γραμμές της παραγγελίας (ΟΧΙ με τις γραμμές του αιτήματος — κάποιες μπορεί να
     /// αγνοηθούν) και λέει σε ποιο άτομο χρεώνεται η καθεμιά.</summary>
+    /// <summary>
+    /// Ποιοι αριθμοί τραπεζιού ισχύουν τώρα: 1..TableCount <b>και ό,τι είναι ΑΝΟΙΧΤΟ πέρα από αυτά</b>.
+    ///
+    /// <para>Αν μειωθεί ο αριθμός τραπεζιών στις Ρυθμίσεις ενώ ένα είναι ανοιχτό, εκείνο δεν επιτρέπεται
+    /// να εξαφανιστεί: ο σερβιτόρος δεν θα το έβλεπε στο κινητό και μια παραγγελία προς αυτό γυρνούσε
+    /// «Άκυρο τραπέζι» — με τα λεφτά του να κρέμονται. Ίδιος κανόνας με το ταμείο, βλ.
+    /// OrderWizardViewModel.RebuildTableNumbers.</para>
+    /// </summary>
+    private static List<int> TableNumbers() =>
+        [.. Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount)
+            .Concat(TableStatusService.Instance.OpenSince.Keys)
+            .Distinct()
+            .Order()];
+
     private static (int Status, object Body, CompletedOrder? Order, List<int?> Persons) BuildTableOrder(SubmitOrderRequest req)
     {
         if (!SettingsStore.Instance.VerifyPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" }, null, []);
-        if (req.Table < 1 || req.Table > SettingsStore.Instance.Settings.TableCount)
+        if (req.Table < 1 || !TableNumbers().Contains(req.Table))
             return (400, new { error = "Άκυρο τραπέζι" }, null, []);
 
-        var products = MenuStore.Instance.Categories.SelectMany(c => c.Products).ToDictionary(p => p.Id);
-        var categoryOf = MenuStore.Instance.Categories
-            .SelectMany(c => c.Products.Select(p => (p.Id, Category: c.Name)))
-            .ToDictionary(x => x.Id, x => x.Category);
-        var extraPrices = MenuStore.Instance.Extras.ToDictionary(e => e.Name, e => e.Price);
+        // ΑΝΘΕΚΤΙΚΑ ΣΕ ΔΙΠΛΟΕΓΓΡΑΦΗ. Το ToDictionary πετάει εξαίρεση σε διπλό κλειδί: ένας διπλός
+        // κωδικός προϊόντος ή δύο έξτρα με το ίδιο όνομα (χειροκίνητα πειραγμένο menu.json, ή κατάλογος
+        // που ήρθε από αλλού) θα έριχναν ΟΛΟΚΛΗΡΗ την υποβολή παραγγελίας από το κινητό με σφάλμα 500 —
+        // ο σερβιτόρος δεν θα μπορούσε να περάσει τίποτα και δεν θα υπήρχε πουθενά μήνυμα να εξηγήσει
+        // γιατί. Η Διαχείριση Καταλόγου δεν επιτρέπει διπλά ονόματα· εδώ απλώς δεν βασιζόμαστε σε αυτό.
+        var products = new Dictionary<string, Product>(StringComparer.Ordinal);
+        var categoryOf = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var category in MenuStore.Instance.Categories)
+            foreach (var product in category.Products)
+            {
+                products.TryAdd(product.Id, product);
+                categoryOf.TryAdd(product.Id, category.Name);
+            }
+
+        var extraPrices = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        foreach (var extra in MenuStore.Instance.Extras)
+            extraPrices.TryAdd(extra.Name, extra.Price);
         var lines = new List<SoldLine>();
         var persons = new List<int?>();
         var skipped = 0;
