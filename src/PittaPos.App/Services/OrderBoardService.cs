@@ -561,10 +561,6 @@ public partial class OrderBoardService : ObservableObject
         Changed?.Invoke();
     }
 
-    /// <summary>Τα κανάλια που παραδίδει ο δικός μας διανομέας — βλ. ChannelInfo.All· e-food/Wolt δεν
-    /// μπαίνουν εδώ, τα παραδίδει η ίδια η πλατφόρμα.</summary>
-    private static readonly string[] DriverChannels = ["Διανομέας", "Κάρτα Διανομέα", "BOX Μετρητά", "BOX Κάρτα"];
-
     /// <summary>Πόσοι χαρακτήρες πλάτος γράφεται η αναφορά διανομέα.
     ///
     /// <para>ΑΥΤΟΣ ο αριθμός καθορίζει πόσο ΜΕΓΑΛΑ βγαίνουν τα γράμματα στο χαρτί: το DayReportWindow
@@ -578,9 +574,17 @@ public partial class OrderBoardService : ObservableObject
     /// πριν έπιανε δύο γραμμές: το χαρτί είχε κενό δεξιά ενώ η λίστα τράβαγε σε μάκρος.</para></summary>
     private const int DriverReportWidth = 40;
 
-    /// <summary>Αναλυτική αναφορά διανομέα — όλες οι παραγγελίες που πέρασαν σήμερα σε κανάλι διανομέα
-    /// (μετρητά/κάρτα, ΔΙΑΝΟΜΗ ή BOX), μία-μία με διεύθυνση, και σύνολο τζίρου στην κορυφή. Για εκτύπωση
-    /// πριν βγει ο διανομέας — βλ. ReceiptPrinter.PrintDriverReport.</summary>
+    /// <summary>
+    /// Αναφορά διανομέα: <b>ΜΟΝΟ ΜΕΤΡΗΤΑ</b> — «Διανομέας» και «BOX Μετρητά», μία-μία με διεύθυνση και
+    /// το σύνολο στην κορυφή. Για εκτύπωση πριν βγει ο διανομέας, βλ. ReceiptPrinter.PrintDriverReport.
+    ///
+    /// <para>Οι πληρωμένες με ΚΑΡΤΑ έμεναν έξω κατόπιν ρητού αιτήματος: αυτό το χαρτί υπάρχει για να
+    /// ξεκαθαρίσουν τα λεφτά που θα φέρει πίσω ο διανομέας, και σε αυτές δεν εισπράττει τίποτα — ήταν
+    /// μισή σελίδα θόρυβος ανάμεσα σε αυτά που τον αφορούν.</para>
+    ///
+    /// <para>Όσες κάθονται ακόμα στην ΑΝΑΜΟΝΗ δεν μπαίνουν ποτέ: δεν έχουν περάσει σε κανάλι, δηλαδή
+    /// κανείς δεν έχει αναλάβει να τις πάει (<c>SentVia is null</c>).</para>
+    /// </summary>
     public string BuildDriverReport()
     {
         var greek = CultureInfo.GetCultureInfo("el-GR");
@@ -589,14 +593,9 @@ public partial class OrderBoardService : ObservableObject
         // είχε εισπράξει ποτέ. Ίδιος κανόνας με τα ταμπελάκια των καναλιών (βλ. LiveOrdersViewModel).
         var evening = SettingsStore.Instance.Settings.IsEveningShift;
         var orders = Orders
-            .Where(o => o.SentVia is not null && DriverChannels.Contains(o.SentVia) && o.IsEveningShift == evening)
+            .Where(o => IsCashChannel(o.SentVia) && o.IsEveningShift == evening)
             .OrderBy(o => o.SentAt ?? o.PlacedAt)
             .ToList();
-
-        // Μετρητά/κάρτα βγαίνουν κατευθείαν από το SentVia (το ίδιο το κανάλι λέει ήδη ποιο είναι) —
-        // δεν χρειάζεται να ξαναφιλτράρουμε με βάση PaymentMethod, DriverChannels ήδη τα καλύπτει όλα.
-        var cash = orders.Where(o => IsCashChannel(o.SentVia)).ToList();
-        var card = orders.Where(o => !IsCashChannel(o.SentVia)).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine("ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ");
@@ -605,9 +604,7 @@ public partial class OrderBoardService : ObservableObject
         sb.AppendLine("ΔΙΑΝΟΜΕΑΣ · " + (evening ? "ΒΡΑΔΙΝΗ ΒΑΡΔΙΑ" : "ΠΡΩΙΝΗ ΒΑΡΔΙΑ"));
         sb.AppendLine(DateTime.Now.ToString("dd/MM/yyyy · HH:mm", greek));
         sb.AppendLine(new string('=', DriverReportWidth));
-        sb.AppendLine(DriverRow($"ΣΥΝΟΛΟ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
-        sb.AppendLine(DriverRow($"ΜΕΤΡΗΤΑ ({cash.Count})", Order.FormatPrice(cash.Sum(o => o.Total))));
-        sb.AppendLine(DriverRow($"ΚΑΡΤΑ ({card.Count})", Order.FormatPrice(card.Sum(o => o.Total))));
+        sb.AppendLine(DriverRow($"ΜΕΤΡΗΤΑ ({orders.Count})", Order.FormatPrice(orders.Sum(o => o.Total))));
         sb.AppendLine(new string('=', DriverReportWidth));
 
         foreach (var o in orders)
@@ -616,9 +613,9 @@ public partial class OrderBoardService : ObservableObject
             // μονόχωρο κείμενο και αρκεί για να ξεχωρίζει πού τελειώνει η μία διεύθυνση. Το χαρτί
             // μαζεύεται από τις ΓΡΑΜΜΕΣ της κάθε παραγγελίας (δύο, όχι τρεις), όχι από το κενό.
             sb.AppendLine();
-            // ΜΕΤΡΗΤΑ ή ΚΑΡΤΑ με το όνομά του, όχι το κανάλι: το «Διανομέας» και το «Κάρτα Διανομέα»
-            // είναι εσωτερικά ονόματα καναλιών — αυτό που θέλει να ξέρει είναι αν θα εισπράξει.
-            var head = $"#{o.DisplayNumber} {(IsCashChannel(o.SentVia) ? "ΜΕΤΡΗΤΑ" : "ΚΑΡΤΑ")}";
+            // Χωρίς τη λέξη «ΜΕΤΡΗΤΑ» σε κάθε γραμμή: ΟΛΕΣ όσες μπαίνουν εδώ είναι μετρητά, το λέει
+            // ήδη η επικεφαλίδα. Ο χώρος που γλιτώνει πάει στο όνομα.
+            var head = $"#{o.DisplayNumber}";
             // Το όνομα ΔΙΠΛΑ στον αριθμό, στον χώρο που περίσσευε δεξιά — πριν έπαιρνε δική του γραμμή
             // και κάθε παραγγελία έτρωγε τρεις. Κόβεται αν δεν χωράει: η διεύθυνση από κάτω είναι αυτή
             // που οδηγεί τον διανομέα, το όνομα το θέλει μόνο για να φωνάξει στο κουδούνι.
@@ -630,8 +627,9 @@ public partial class OrderBoardService : ObservableObject
         return sb.ToString();
     }
 
-    /// <summary>Μετρητά ή κάρτα, από το ίδιο το κανάλι — τα δύο κανάλια «Διανομέας»/«BOX Μετρητά» ΕΙΝΑΙ
-    /// τα μετρητά (βλ. ChannelInfo.All).</summary>
+    /// <summary>Είναι κανάλι ΜΕΤΡΗΤΩΝ; Τα δύο κανάλια «Διανομέας»/«BOX Μετρητά» ΕΙΝΑΙ τα μετρητά (βλ.
+    /// ChannelInfo.All). Το <c>null</c> σημαίνει «σε αναμονή, χωρίς κανάλι» και δεν είναι μετρητά:
+    /// κανείς δεν την έχει αναλάβει ακόμα.</summary>
     private static bool IsCashChannel(string? sentVia) => sentVia is "Διανομέας" or "BOX Μετρητά";
 
     /// <summary>Κόβει το κείμενο ώστε να χωρέσει σε <paramref name="room"/> χαρακτήρες, κατά προτίμηση

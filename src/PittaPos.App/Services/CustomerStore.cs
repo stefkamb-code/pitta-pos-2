@@ -14,7 +14,13 @@ public class CustomerStore
 {
     public static CustomerStore Instance { get; } = new();
 
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+    /// <summary>
+    /// <b>ΧΩΡΙΣ στοίχιση, σε αντίθεση με τα υπόλοιπα αρχεία.</b> Το πελατολόγιο είναι το μόνο που
+    /// μετριέται σε δεκάδες MB (135.000 πελάτες) και δεν το διαβάζει ποτέ άνθρωπος. Η στοίχιση
+    /// πρόσθετε κενά και αλλαγές γραμμής σε κάθε πεδίο κάθε πελάτη: περίπου το ένα τρίτο του αρχείου
+    /// ήταν αέρας, που γραφόταν στον δίσκο ξανά και ξανά με κάθε παραγγελία.
+    /// </summary>
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = false };
 
     private readonly string _path;
     private List<Customer> _customers = [];
@@ -325,7 +331,13 @@ public class CustomerStore
 
         if (_saveTimer is null)
         {
-            _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            // ΤΡΙΑΝΤΑ δευτερόλεπτα, όχι δύο. Κάθε αποθήκευση ξαναγράφει ΟΛΟΚΛΗΡΟ το πελατολόγιο —
+            // δεκάδες MB — και μεταβολή είναι κάθε ολοκληρωμένη διανομή. Στα δύο δευτερόλεπτα, μια
+            // γεμάτη βραδιά έγραφε γιγαμπάιτ στον δίσκο χωρίς λόγο· σε βάθος χρόνου αυτό είναι σκέτη
+            // φθορά. Ό,τι εκκρεμεί γράφεται ούτως ή άλλως στο κλείσιμο της εφαρμογής (βλ.
+            // App.OnExit → FlushPendingSave), και το περιεχόμενο είναι ΠΑΡΑΓΩΓΟ των παραγγελιών: ακόμα
+            // και στη χειρότερη περίπτωση, ο πελάτης ξαναγράφεται με την επόμενη παραγγελία του.
+            _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
             _saveTimer.Tick += (_, _) => FlushPendingSave(background: true);
         }
         _saveTimer.Stop();

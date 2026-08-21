@@ -1,3 +1,4 @@
+﻿using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
@@ -33,13 +34,45 @@ public partial class CustomersViewModel : ObservableObject
     public CustomersViewModel()
     {
         Refresh();
-        CustomerStore.Instance.Changed += Refresh;
+        CustomerStore.Instance.Changed += OnCustomersChanged;
+    }
+
+    /// <summary>
+    /// Μεταβολή πελατών ενώ το παράθυρο είναι ανοιχτό — <b>με φρένο ενός δευτερολέπτου</b>.
+    ///
+    /// <para>Μεταβολή είναι και κάθε ολοκληρωμένη διανομή. Χωρίς το φρένο, με το παράθυρο ΠΕΛΑΤΕΣ
+    /// ανοιχτό μέσα στη βάρδια, κάθε παραγγελία ξανα-ταξινομούσε <b>και τους 135.000</b> πάνω στο νήμα
+    /// της οθόνης — δηλαδή το ταμείο κοκάλωνε για λίγο σε κάθε παραγγελία. Τώρα μια ριπή παραγγελιών
+    /// καταλήγει σε ΜΙΑ ανανέωση, και η λίστα εξακολουθεί να δείχνει τους νέους αμέσως.</para>
+    /// </summary>
+    private void OnCustomersChanged()
+    {
+        _refreshTimer ??= CreateRefreshTimer();
+        _refreshTimer.Stop();
+        _refreshTimer.Start();
+    }
+
+    private DispatcherTimer? _refreshTimer;
+
+    private DispatcherTimer CreateRefreshTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            Refresh();
+        };
+        return timer;
     }
 
     /// <summary>Ξεκολλάει από το CustomerStore όταν κλείνει το παράθυρο — αλλιώς κάθε ολοκληρωμένη
     /// παραγγελία ξανάχτιζε τη λίστα των 135.000 για ένα παράθυρο που δεν υπάρχει πια, και μάλιστα
     /// μία φορά για κάθε φορά που άνοιξε το παράθυρο μέσα στη μέρα.</summary>
-    public void Detach() => CustomerStore.Instance.Changed -= Refresh;
+    public void Detach()
+    {
+        CustomerStore.Instance.Changed -= OnCustomersChanged;
+        _refreshTimer?.Stop();
+    }
 
     [ObservableProperty]
     private string _search = "";
