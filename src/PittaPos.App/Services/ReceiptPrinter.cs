@@ -85,7 +85,7 @@ public static class ReceiptPrinter
             // πραγματικά τυπώθηκε. Κρατάμε το πλάτος του driver (ήδη σωστά ρυθμισμένο για το ρολό) αλλά
             // περιορίζουμε το ύψος στο πραγματικό ύψος περιεχομένου της απόδειξης.
             var width = ticket.PageMediaSize?.Width ?? receiptSource.ReceiptCard.ActualWidth;
-            ticket.PageMediaSize = new PageMediaSize(width, receiptSource.ReceiptCard.ActualHeight);
+            ticket.PageMediaSize = new PageMediaSize(width, FullHeight(receiptSource.ReceiptCard));
 
             // Η στοίχιση της απόδειξης προκύπτει ΟΛΗ από αυτά τα νούμερα, που τα δίνει ο οδηγός του
             // εκτυπωτή του κάθε μηχανήματος. Ίδιος κώδικας σε δύο υπολογιστές έβγαλε τέλεια απόδειξη
@@ -110,6 +110,29 @@ public static class ReceiptPrinter
     /// <summary>Κάθε απόδειξη που ΔΕΝ τυπώθηκε αφήνει ίχνος. Πριν, όλες οι αποτυχίες ήταν εντελώς
     /// σιωπηλές: ο ταμίας νόμιζε ότι τυπώθηκε και δεν υπήρχε πουθενά τρόπος να διαπιστωθεί γιατί
     /// «δεν βγήκε χαρτί» — ούτε καν ότι έγινε καν προσπάθεια.</summary>
+    /// <summary>
+    /// Το ΠΛΗΡΕΣ ύψος του περιεχομένου — και το επιβάλλει κιόλας στο visual πριν τυπωθεί.
+    ///
+    /// <para><b>Γιατί υπάρχει:</b> και τα δύο παράθυρα εκτύπωσης (ReceiptWindow, DayReportWindow) είναι
+    /// <c>SizeToContent="WidthAndHeight"</c>, και τα Windows ΔΕΝ αφήνουν ένα τέτοιο παράθυρο να ξεπεράσει
+    /// το ύψος της οθόνης. Μια μεγάλη παραγγελία σταμάταγε να «μεγαλώνει» γύρω στις 1000 μονάδες: το WPF
+    /// τοποθετούσε την κάρτα σε μικρότερο χώρο απ' όσο ήθελε και της έβαζε <i>layout clip</i>, οπότε το
+    /// PrintVisual τύπωνε την <b>απόδειξη κομμένη στη μέση</b> — και μάλιστα σε ακριβώς εκείνες τις
+    /// παραγγελίες που έχουν τα περισσότερα προϊόντα.</para>
+    ///
+    /// <para>Μετράμε λοιπόν την κάρτα μόνοι μας με ΑΠΕΙΡΟ διαθέσιμο ύψος και την τοποθετούμε στο ύψος που
+    /// ζήτησε. Έτσι φεύγει το clip και το χαρτί βγαίνει ολόκληρο, όσο μεγάλη κι αν είναι η παραγγελία.
+    /// <b>Καμία κλήση UpdateLayout από δω και κάτω</b>: θα ξανατοποθετούσε την κάρτα στο στριμωγμένο
+    /// ύψος του παραθύρου και θα επέστρεφε το πρόβλημα.</para>
+    /// </summary>
+    private static double FullHeight(FrameworkElement card)
+    {
+        var width = double.IsNaN(card.Width) ? card.ActualWidth : card.Width;
+        card.Measure(new Size(width, double.PositiveInfinity));
+        card.Arrange(new Rect(0, 0, width, card.DesiredSize.Height));
+        return card.DesiredSize.Height;
+    }
+
     /// <summary>
     /// Περιθώρια ανάλογα με το ΠΡΑΓΜΑΤΙΚΟ πλάτος του χαρτιού, ώστε να δουλεύει σε κάθε εκτυπωτή χωρίς
     /// χειροκίνητη ρύθμιση. Το σταθερό 24 του σχεδίου ήταν λογικό στις 420 μονάδες της οθόνης (~6%),
@@ -312,7 +335,9 @@ public static class ReceiptPrinter
                 textSource.UpdateLayout();
             }
             var width = ticket.PageMediaSize?.Width ?? textSource.ReportCard.ActualWidth;
-            ticket.PageMediaSize = new PageMediaSize(width, textSource.ReportCard.ActualHeight);
+            // Ίδιο με την απόδειξη: με πολλές παραγγελίες η αναφορά ξεπερνάει το ύψος της οθόνης και
+            // τυπωνόταν κομμένη (βλ. FullHeight).
+            ticket.PageMediaSize = new PageMediaSize(width, FullHeight(textSource.ReportCard));
 
             var dialog = new PrintDialog { PrintQueue = queue, PrintTicket = ticket };
             dialog.PrintVisual(textSource.ReportCard, title);

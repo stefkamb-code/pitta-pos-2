@@ -209,17 +209,22 @@
                 </StackPanel>
 
                 <!-- selected channel: orders in channel -->
-                <Grid Grid.Row="0" Margin="18,22" Visibility="{Binding HasSelectedChannel, Converter={StaticResource BoolToVis}}">
+                <Grid Grid.Row="0" Visibility="{Binding HasSelectedChannel, Converter={StaticResource BoolToVis}}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,18">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="18,22,18,18">
                         <Button Content="←" FontSize="16" Style="{StaticResource GlyphButton}" Command="{Binding ClearChannelCommand}"/>
                         <TextBlock Text="{Binding SelectedChannel}" FontSize="12" FontWeight="Bold"
                                    Foreground="{DynamicResource Ink}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <!-- Η μπάρα κύλισης θέλει ΔΙΚΗ ΤΗΣ λωρίδα στην άκρη της στήλης. Πριν, το περιθώριο
+                         ήταν πάνω στο Grid, οπότε η μπάρα καθόταν 18 μονάδες πιο μέσα — μέσα στις ίδιες
+                         τις παραγγελίες, τρώγοντας τη διεύθυνση και το ποσό μόλις εμφανιζόταν. Τώρα το
+                         περιθώριο μπήκε ως Padding του ScrollViewer: η μπάρα πάει τέρμα δεξιά, το
+                         περιεχόμενο κρατάει τη θέση του. -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="18,0,8,22">
                         <StackPanel>
                             <TextBlock Text="Καμία παραγγελία σε αυτό το κανάλι" FontSize="10.5" Foreground="{DynamicResource Neutral500}"
                                        Margin="0,24" Visibility="{Binding NoChannelOrders, Converter={StaticResource BoolToVis}}"/>
@@ -353,11 +358,16 @@
                     <ItemsControl ItemsSource="{Binding ChannelStats}" Margin="12,10,12,22">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:ChannelButtonViewModel}">
+                                <!-- ΟΡΙΖΟΝΤΙΑ κάρτα: όνομα αριστερά, νούμερα δεξιά. Στοιβαγμένα το ένα πάνω
+                                     στο άλλο, κάθε κανάλι έπιανε διπλάσιο ύψος και η στήλη δεν χωρούσε
+                                     όλα τα κανάλια χωρίς κύλιση. -->
                                 <Button Command="{Binding Command}" Style="{StaticResource FlatButton}"
-                                        Padding="8,15" Margin="0,0,0,11" HorizontalContentAlignment="Center">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="ExtraBold"
-                                                   HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
+                                        Padding="9,8" Margin="0,0,0,7" HorizontalContentAlignment="Stretch">
+                                    <DockPanel LastChildFill="True">
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="13" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="7,0,0,0"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{Binding Brush}"/>
@@ -372,9 +382,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Text="{Binding CountSumLabel}" FontSize="16" FontWeight="ExtraBold"
-                                                   Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
-                                    </StackPanel>
+                                    </DockPanel>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
