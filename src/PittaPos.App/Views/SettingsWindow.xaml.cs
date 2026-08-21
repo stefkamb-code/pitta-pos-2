@@ -123,6 +123,28 @@ public partial class SettingsWindow : Window
     /// αυτόματα στις 5πμ (βλ. SalesStatsService.CheckAutoClose/DayReportService.CloseDay).</summary>
     private void CloseDay_Click(object sender, RoutedEventArgs e) => DayReportService.PrintCurrentReport();
 
+    /// <summary>
+    /// Στέλνει ΤΩΡΑ την αναλυτική αναφορά της μέρας με email — για το μαγαζί που σβήνει τον υπολογιστή
+    /// πριν τις 5, οπότε το αυτόματο κλείσιμο (και το email του) θα γίνει την επόμενη μέρα.
+    ///
+    /// <para><b>Δεν κλείνει και δεν μηδενίζει τίποτα</b>, επίτηδες: το πάτημα ενός κουμπιού που σβήνει
+    /// τη μέρα είναι πολύ εύκολο να γίνει κατά λάθος στη μέση της βάρδιας. Ο μηδενισμός μένει
+    /// αποκλειστικά στο αυτόματο κλείσιμο (βλ. SalesStatsService.CheckAutoClose).</para>
+    /// </summary>
+    private async void SendReport_Click(object sender, RoutedEventArgs e)
+    {
+        SendReportStatus.SetResourceReference(ForegroundProperty, "Neutral500");
+        SendReportStatus.Text = "Στέλνω…";
+
+        // Η αναφορά ΧΤΙΖΕΤΑΙ εδώ, στο UI thread: διαβάζει τις ζωντανές συλλογές του ταμείου. Μόνο η
+        // αποστολή φεύγει στο παρασκήνιο — το SmtpClient.Send μπλοκάρει μέχρι και ~100 δευτερόλεπτα.
+        var report = DayReportService.Build();
+        var (ok, error) = await Task.Run(() => DayReportService.TrySendEmail(report));
+
+        SendReportStatus.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
+        SendReportStatus.Text = ok ? "✓ Η αναφορά στάλθηκε." : "✕ " + error;
+    }
+
     private void RefreshUi()
     {
         Highlight(LightBtn, _store.Settings.Theme == "light");
