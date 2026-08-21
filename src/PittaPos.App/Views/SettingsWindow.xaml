@@ -109,7 +109,7 @@
                 <Button Content="ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ ΣΤΟ EMAIL" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
                         HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
                         HorizontalContentAlignment="Center" Click="SendReport_Click"/>
-                <TextBlock Text="Στέλνει τώρα την αναλυτική αναφορά της μέρας στο email — για όταν ο υπολογιστής θα είναι κλειστός στις 5:00. Δεν μηδενίζει και δεν κλείνει τίποτα, μπορείς να το πατήσεις όσες φορές θες."
+                <TextBlock Text="Ο ΜΟΝΟΣ τρόπος να φύγει η αναφορά με email — το κλείσιμο ημέρας δεν στέλνει τίποτα μόνο του. Δεν μηδενίζει και δεν κλείνει τίποτα, μπορείς να το πατήσεις όσες φορές θες."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,4"/>
                 <TextBlock x:Name="SendReportStatus" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,26"
                            Foreground="{DynamicResource Neutral500}"/>
@@ -120,7 +120,7 @@
                 <Button Content="EMAIL ΑΝΑΦΟΡΑΣ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
                         HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
                         HorizontalContentAlignment="Center" Click="OpenEmail_Click"/>
-                <TextBlock Text="Σε ποιο mail θα φτάνει η αναλυτική αναφορά ημέρας στο κλείσιμο, και από ποιον λογαριασμό θα στέλνεται."
+                <TextBlock Text="Σε ποιο mail θα φτάνει η αναλυτική αναφορά ημέρας όταν πατάς «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ ΣΤΟ EMAIL», και από ποιον λογαριασμό θα στέλνεται."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
                 <!-- theme -->

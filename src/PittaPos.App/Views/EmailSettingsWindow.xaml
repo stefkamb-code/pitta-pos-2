@@ -1,4 +1,4 @@
-<Window x:Class="PittaPos.App.Views.EmailSettingsWindow"
+﻿<Window x:Class="PittaPos.App.Views.EmailSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctl="clr-namespace:PittaPos.App.Controls"
@@ -34,7 +34,7 @@
 
                 <TextBlock Text="ΠΟΥ ΘΑ ΕΡΧΕΤΑΙ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
-                <TextBlock Text="Η αναλυτική αναφορά ημέρας φεύγει στο αυτόματο κλείσιμο (5:00 το πρωί, ή μόλις ανοίξεις το ταμείο την επόμενη μέρα αν ο υπολογιστής ήταν σβηστός). Αν δεν υπάρχει internet εκείνη τη στιγμή, ξαναδοκιμάζει μόνη της."
+                <TextBlock Text="Η αναλυτική αναφορά ημέρας φεύγει ΜΟΝΟ όταν πατήσεις «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ ΣΤΟ EMAIL» στις Ρυθμίσεις — ποτέ μόνη της. Αν δεν υπάρχει internet εκείνη τη στιγμή, ξαναδοκιμάζει μόνη της μέχρι να φύγει."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,12"/>
                 <TextBox x:Name="ReportEmailBox" Style="{StaticResource PosTextBox}" Height="46" FontSize="14"
                          Width="380" HorizontalAlignment="Left" Margin="0,0,0,26"/>

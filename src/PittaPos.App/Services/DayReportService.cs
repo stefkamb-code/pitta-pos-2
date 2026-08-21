@@ -296,10 +296,11 @@ public static class DayReportService
             HistoryArchiveService.ArchiveDay(group.Key, group.ToList(), cancellations);
         }
 
-        // Σε background thread — το SmtpClient.Send είναι συγχρονισμένη κλήση δικτύου (έως ~100 δλ.
-        // default timeout)· αν έτρεχε εδώ θα πάγωνε ολόκληρο το ταμείο (το CloseDay καλείται και από
-        // το DispatcherTimer αυτόματου κλεισίματος, πάνω στο UI thread) όσο δεν απαντά ο SMTP server.
-        _ = Task.Run(() => SendOrQueue(report));
+        // ΚΑΝΕΝΑ EMAIL ΕΔΩ — ζητήθηκε ρητά. Η αναφορά φεύγει ΜΟΝΟ με το κουμπί «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ
+        // ΣΤΟ EMAIL» (Ρυθμίσεις → ΤΑΜΕΙΟ), όταν το πατήσει ο χρήστης και βλέπει το αποτέλεσμα. Το
+        // αυτόματο κλείσιμο συμβαίνει στις 5 το πρωί ή στο επόμενο άνοιγμα, ώρες που δεν κοιτάει
+        // κανείς — ένα email που φεύγει μόνο του τότε δεν το περιμένει κανείς. Το χαρτί και το τοπικό
+        // αντίγραφο (SaveToDisk παραπάνω) βγαίνουν κανονικά, οπότε τίποτα δεν χάνεται.
         ReceiptPrinter.PrintDayReport(BuildPrintSummary());
         SalesStatsService.Instance.Clear();
         CancellationLogService.Instance.Clear();
@@ -352,38 +353,56 @@ public static class DayReportService
     }
 
     /// <summary>
-    /// Στέλνει την αναφορά και, αν <b>δεν φύγει</b>, την κρατάει για να ξαναδοκιμάσει μόνο του.
+    /// Στέλνει την αναφορά ΤΩΡΑ και, αν <b>δεν φύγει</b>, την κρατάει για να ξαναδοκιμάσει μόνη της.
+    /// Καλείται μόνο από το κουμπί «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ ΣΤΟ EMAIL» — το κλείσιμο ημέρας δεν στέλνει
+    /// τίποτα (βλ. CloseDay).
     ///
-    /// <para>Το κλείσιμο ημέρας γίνεται στις 5 το πρωί ή μόλις ανοίξει το ταμείο την επόμενη μέρα —
-    /// ώρες που κανείς δεν κοιτάει την οθόνη. Αν εκείνη τη στιγμή δεν υπάρχει internet (σβηστό ρούτερ,
-    /// πεσμένη γραμμή), το email <b>χανόταν σιωπηλά για πάντα</b>: το αποτέλεσμα του TrySendEmail δεν
-    /// το κοίταζε κανείς. Τώρα η αναφορά μένει σε αρχείο «pending-*» και φεύγει με την πρώτη ευκαιρία,
-    /// χωρίς να χρειαστεί να κάνει κανείς τίποτα.</para>
+    /// <para>Η αναμονή υπάρχει για το πεσμένο internet της στιγμής: ο χρήστης βλέπει αμέσως «δεν
+    /// στάλθηκε», αλλά δεν χρειάζεται να θυμηθεί να ξαναπατήσει — φεύγει μόνη της μόλις επανέλθει η
+    /// γραμμή. <b>Κρατιέται ΜΙΑ μόνο αναφορά σε αναμονή</b>: αν πατηθεί το κουμπί τρεις φορές χωρίς
+    /// δίκτυο, δεν θα έρθουν αργότερα τρία ίδια email.</para>
     /// </summary>
-    private static void SendOrQueue(string report)
+    public static (bool ok, string error) SendReportNow(string report)
     {
-        var s = SettingsStore.Instance.Settings;
-        if (s.SmtpUser.Length == 0 || s.SmtpPassword.Length == 0)
-        {
-            // Δεν έχει ρυθμιστεί καθόλου email — δεν έχει νόημα ουρά που δεν θα φύγει ποτέ.
-            AppLog.Write("email", "Η αναφορά ημέρας δεν στάλθηκε: δεν έχει ρυθμιστεί email (Ρυθμίσεις → EMAIL ΑΝΑΦΟΡΑΣ).");
-            return;
-        }
+        var settings = SettingsStore.Instance.Settings;
+        if (settings.SmtpUser.Length == 0 || settings.SmtpPassword.Length == 0)
+            return (false, "Δεν έχει ρυθμιστεί το email αποστολής (Ρυθμίσεις → EMAIL ΑΝΑΦΟΡΑΣ).");
 
         var (ok, error) = TrySendEmail(report);
         if (ok)
-            return;
+        {
+            ClearPending();
+            return (true, "");
+        }
 
         try
         {
             Directory.CreateDirectory(ReportsDir);
+            ClearPending();
             File.WriteAllText(Path.Combine(ReportsDir, "pending-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".txt"),
                 report, new UTF8Encoding(true));
-            AppLog.Write("email", $"Η αναφορά ημέρας ΔΕΝ στάλθηκε ({error}) — μπήκε σε αναμονή και θα ξαναδοκιμάσει μόνη της.");
+            AppLog.Write("email", $"Η αναφορά ΔΕΝ στάλθηκε ({error}) — μπήκε σε αναμονή και θα ξαναδοκιμάσει μόνη της.");
         }
         catch (Exception ex)
         {
-            AppLog.Write("email", $"Η αναφορά ημέρας ΔΕΝ στάλθηκε ({error}) και δεν μπόρεσε ούτε να μπει σε αναμονή: {ex.Message}");
+            AppLog.Write("email", $"Η αναφορά ΔΕΝ στάλθηκε ({error}) και δεν μπόρεσε ούτε να μπει σε αναμονή: {ex.Message}");
+        }
+        return (false, error);
+    }
+
+    /// <summary>Σβήνει ό,τι περιμένει — μία αναφορά σε αναμονή, ποτέ σωρός από ίδια email.</summary>
+    private static void ClearPending()
+    {
+        try
+        {
+            if (!Directory.Exists(ReportsDir))
+                return;
+            foreach (var file in Directory.GetFiles(ReportsDir, "pending-*.txt"))
+                File.Delete(file);
+        }
+        catch (Exception)
+        {
+            // Αν δεν σβήνει, το χειρότερο είναι μια διπλή αποστολή — δεν αξίζει να σκάσει τίποτα γι' αυτό.
         }
     }
 

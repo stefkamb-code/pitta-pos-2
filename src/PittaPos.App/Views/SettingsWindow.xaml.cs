@@ -124,8 +124,9 @@ public partial class SettingsWindow : Window
     private void CloseDay_Click(object sender, RoutedEventArgs e) => DayReportService.PrintCurrentReport();
 
     /// <summary>
-    /// Στέλνει ΤΩΡΑ την αναλυτική αναφορά της μέρας με email — για το μαγαζί που σβήνει τον υπολογιστή
-    /// πριν τις 5, οπότε το αυτόματο κλείσιμο (και το email του) θα γίνει την επόμενη μέρα.
+    /// Στέλνει την αναλυτική αναφορά της μέρας με email. <b>Ο ΜΟΝΟΣ τρόπος να φύγει email</b> — το
+    /// αυτόματο κλείσιμο ημέρας δεν στέλνει τίποτα (ζητήθηκε ρητά, βλ. DayReportService.CloseDay):
+    /// γίνεται στις 5 το πρωί ή στο επόμενο άνοιγμα, ώρες που δεν το περιμένει κανείς.
     ///
     /// <para><b>Δεν κλείνει και δεν μηδενίζει τίποτα</b>, επίτηδες: το πάτημα ενός κουμπιού που σβήνει
     /// τη μέρα είναι πολύ εύκολο να γίνει κατά λάθος στη μέση της βάρδιας. Ο μηδενισμός μένει
@@ -139,10 +140,12 @@ public partial class SettingsWindow : Window
         // Η αναφορά ΧΤΙΖΕΤΑΙ εδώ, στο UI thread: διαβάζει τις ζωντανές συλλογές του ταμείου. Μόνο η
         // αποστολή φεύγει στο παρασκήνιο — το SmtpClient.Send μπλοκάρει μέχρι και ~100 δευτερόλεπτα.
         var report = DayReportService.Build();
-        var (ok, error) = await Task.Run(() => DayReportService.TrySendEmail(report));
+        var (ok, error) = await Task.Run(() => DayReportService.SendReportNow(report));
 
         SendReportStatus.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
-        SendReportStatus.Text = ok ? "✓ Η αναφορά στάλθηκε." : "✕ " + error;
+        SendReportStatus.Text = ok
+            ? "✓ Η αναφορά στάλθηκε."
+            : "✕ " + error + "  (μπήκε σε αναμονή — θα ξαναδοκιμάσει μόνη της)";
     }
 
     private void RefreshUi()
