@@ -240,7 +240,15 @@ public partial class OrderWizardViewModel : ObservableObject
         var openSince = TableStatusService.Instance.OpenSince;
 
         TableNumbers.Clear();
-        foreach (var n in Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount))
+        // Ένα ΑΝΟΙΧΤΟ τραπέζι φαίνεται πάντα, ακόμα κι αν ο αριθμός τραπεζιών μειώθηκε στο μεταξύ από
+        // τις Ρυθμίσεις. Αλλιώς έβγαινε εκτός λίστας με τα λεφτά του μέσα: ο ταμίας δεν μπορούσε ούτε
+        // να το ανοίξει, ούτε να το εξοφλήσει, ούτε να το κλείσει — και το ποσό έμενε «ανεξόφλητο»
+        // στην αναφορά ημέρας χωρίς πουθενά να φαίνεται από πού κρέμεται.
+        var numbers = Enumerable.Range(1, SettingsStore.Instance.Settings.TableCount)
+            .Concat(openSince.Keys)
+            .Distinct()
+            .Order();
+        foreach (var n in numbers)
         {
             var isOpen = openSince.TryGetValue(n, out var since);
             // Μόνο οι γύροι από το τρέχον άνοιγμα του τραπεζιού — όχι παλιότερος πελάτης της ίδιας μέρας

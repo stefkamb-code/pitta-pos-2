@@ -93,9 +93,12 @@ public class TableSettlementService
         {
             AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(Snapshot(), JsonOpts));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Αποτυχία εγγραφής δεν πρέπει να μπλοκάρει το ταμείο
+            // Δεν μπλοκάρει το ταμείο — αλλά ΓΡΑΦΕΤΑΙ. Μια αποτυχία εγγραφής (γεμάτος δίσκος,
+            // κλείδωμα από antivirus, χαλασμένος δίσκος) σήμαινε ότι τα δεδομένα ζούσαν πια μόνο
+            // στη μνήμη και θα χάνονταν στο επόμενο κλείσιμο — χωρίς κανένα ίχνος πουθενά.
+            AppLog.Write("save", $"Δεν γράφτηκε το «{Path.GetFileName(_path)}»: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
