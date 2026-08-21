@@ -76,13 +76,47 @@ public class AppSettings
     public bool ReceiptShowDetails { get; set; } = true;
     // ---- Μεγέθη γραμματοσειράς απόδειξης — ανεξάρτητα ανά ενότητα (βλ. ReceiptWindow), όχι μία
     // κοινή κλίμακα, ώστε π.χ. να μεγαλώνει ο τίτλος χωρίς να μεγαλώνουν οι γραμμές παραγγελίας. ----
-    public double ReceiptTitleFontSize { get; set; } = 15;
+    //
+    // ΤΑ ΟΡΙΑ ΖΟΥΝ ΕΔΩ, στα ίδια τα πεδία. Πριν έμπαιναν μόνο στην οθόνη που τα ρυθμίζει, οπότε μια
+    // τιμή που ερχόταν από αλλού — χαλασμένο ή πειραγμένο settings.json, ή συγχρονισμός από το δεύτερο
+    // ταμείο — περνούσε ανέγγιχτη. Και το μηδέν ΔΕΝ είναι απλώς άσχημο: το WPF δεν δέχεται FontSize 0
+    // και πετάει εξαίρεση, δηλαδή δεν θα τυπωνόταν ΚΑΜΙΑ απόδειξη μέχρι να το βρει κάποιος.
+    private double _receiptTitleFontSize = 15;
+    private double _receiptItemsFontSize = 14;
+    private double _receiptTotalFontSize = 16;
+    private double _receiptMetaFontSize = 13;
+
+    /// <summary>Μέγεθος γραμμάτων που δέχεται σίγουρα το WPF: εκτός ορίων μαζεύεται, και το NaN —
+    /// που ούτε το Math.Clamp το πιάνει, το γυρνάει ως έχει — πέφτει στην προεπιλογή.</summary>
+    private static double SafeFontSize(double value, double min, double max, double fallback) =>
+        double.IsNaN(value) ? fallback : Math.Clamp(value, min, max);
+
+    public double ReceiptTitleFontSize
+    {
+        get => _receiptTitleFontSize;
+        set => _receiptTitleFontSize = SafeFontSize(value, 8, 30, 15);
+    }
+
     /// <summary>Γραμμές προϊόντων (όνομα/τιμή) — οι λεπτομέρειες (ψωμί/έξτρα) ακολουθούν σε μικρότερη αναλογία.</summary>
-    public double ReceiptItemsFontSize { get; set; } = 14;
+    public double ReceiptItemsFontSize
+    {
+        get => _receiptItemsFontSize;
+        set => _receiptItemsFontSize = SafeFontSize(value, 8, 24, 14);
+    }
+
     /// <summary>Ποσό συνόλου — η ετικέτα «ΣΥΝΟΛΟ» ακολουθεί σε μικρότερη αναλογία.</summary>
-    public double ReceiptTotalFontSize { get; set; } = 16;
+    public double ReceiptTotalFontSize
+    {
+        get => _receiptTotalFontSize;
+        set => _receiptTotalFontSize = SafeFontSize(value, 8, 32, 16);
+    }
+
     /// <summary>Λοιπά κείμενα: στοιχεία καταστήματος, αρ. παραγγελίας/ώρα, τύπος/πελάτης, υποσέλιδο.</summary>
-    public double ReceiptMetaFontSize { get; set; } = 13;
+    public double ReceiptMetaFontSize
+    {
+        get => _receiptMetaFontSize;
+        set => _receiptMetaFontSize = SafeFontSize(value, 6, 20, 13);
+    }
 }
 
 /// <summary>Ρυθμίσεις εφαρμογής — JSON στο %AppData%\PittaPos\settings.json.</summary>

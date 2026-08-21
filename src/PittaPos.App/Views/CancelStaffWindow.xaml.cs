@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PittaPos.App.Services;
@@ -66,6 +66,17 @@ public partial class CancelStaffWindow : Window
         if (usedPins.Distinct().Count() != usedPins.Count)
         {
             ShowError("Δύο ονόματα δεν μπορούν να έχουν τον ίδιο κωδικό.");
+            return;
+        }
+
+        // ΟΧΙ ο κωδικός του καταστήματος. Δύο λόγοι, και οι δύο σιωπηλοί:
+        // (α) ο γενικός κωδικός ελέγχεται ΠΡΩΤΟΣ στις ακυρώσεις (βλ. SettingsStore.FindCancelStaffName),
+        //     οπότε ό,τι ακύρωνε αυτός ο υπάλληλος θα γραφόταν στο όνομα του ιδιοκτήτη·
+        // (β) ο ίδιος κωδικός ανοίγει Στατιστικά, Ιστορικό, Κατάλογο και το API του κινητού — δηλαδή ο
+        //     υπάλληλος θα αποκτούσε πλήρη πρόσβαση χωρίς να το πάρει είδηση κανείς.
+        if (usedPins.Any(p => p == SettingsStore.Instance.Settings.Pin))
+        {
+            ShowError("Αυτός είναι ο κωδικός του καταστήματος — δώσε άλλον.");
             return;
         }
 

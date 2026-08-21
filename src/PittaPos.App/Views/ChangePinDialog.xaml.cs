@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using PittaPos.App.Services;
@@ -51,6 +51,15 @@ public partial class ChangePinDialog : Window
                 break;
 
             case Stage.New:
+                // Ο ίδιος έλεγχος από την ανάποδη (βλ. CancelStaffWindow): αν ο νέος κωδικός
+                // καταστήματος είναι ήδη κωδικός ακύρωσης κάποιου υπαλλήλου, εκείνος αποκτά σιωπηλά
+                // πρόσβαση σε Στατιστικά/Ιστορικό/Κατάλογο και οι ακυρώσεις του γράφονται στον ιδιοκτήτη.
+                if (SettingsStore.Instance.Settings.CancelStaffPins.Any(p => p.Pin.Length > 0 && p.Pin == _entered))
+                {
+                    GoTo(Stage.New, "Βάλε νέο κωδικό");
+                    ShowError("Τον έχει ήδη υπάλληλος για ακυρώσεις — διάλεξε άλλον.");
+                    return;
+                }
                 _newPin = _entered;
                 GoTo(Stage.Confirm, "Ξαναβάλε τον νέο κωδικό");
                 break;
