@@ -473,6 +473,10 @@ public static class DayReportService
             {
                 EnableSsl = true,
                 Credentials = new NetworkCredential(s.SmtpUser, s.SmtpPassword),
+                // Το προεπιλεγμένο είναι ΕΚΑΤΟ δευτερόλεπτα: με πεσμένη γραμμή, το κουμπί έμενε στο
+                // «Στέλνω…» για πάνω από ενάμισι λεπτό πριν πει τι έγινε. Είκοσι φτάνουν και με σύνδεση
+                // της πλάκας — αν δεν φύγει, μπαίνει σε αναμονή και ξαναδοκιμάζει μόνη της.
+                Timeout = 20_000,
             };
             client.Send(message);
             return (true, "");

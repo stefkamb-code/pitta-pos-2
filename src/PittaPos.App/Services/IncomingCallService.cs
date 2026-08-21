@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -64,6 +64,10 @@ public partial class IncomingCallService : ObservableObject
     private readonly List<(string Digits, DateTime At)> _recentlySeen = [];
 
     /// <summary>Η πραγματική ουρά — έχει νόημα μόνο στο host· το client τη βλέπει μέσω <see cref="Calls"/>.</summary>
+    /// <summary>Πόσες κλήσεις κρατάει η λίστα της αρχικής. Δώδεκα κάρτες είναι ήδη περισσότερες απ' όσες
+    /// κοιτάει κανείς· πιο πάνω απλώς σκεπάζουν την οθόνη.</summary>
+    private const int MaxQueue = 12;
+
     private readonly List<(int Id, string Phone)> _queue = [];
     private int _nextId = 1;
 
@@ -95,6 +99,14 @@ public partial class IncomingCallService : ObservableObject
         _recentlySeen.Add((digits, now));
 
         _queue.Add((_nextId++, digits));
+        // Η ουρά δεν αδειάζει μόνη της: μια κάρτα φεύγει μόνο όταν πατηθεί, ή όταν η κλήση γίνει
+        // παραγγελία. Λάθος νούμερα, κλεισίματα και «πόσο κάνει η πίτα;» μένουν εκεί όλη τη βραδιά και
+        // στοιβάζονται στην αρχική. Κρατάμε τις πιο πρόσφατες — αυτές έχει νόημα να πάρει κανείς πίσω.
+        while (_queue.Count > MaxQueue)
+        {
+            AppLog.Write("calls", $"Η λίστα κλήσεων γέμισε ({MaxQueue}) — έφυγε η παλαιότερη: {_queue[0].Phone}");
+            _queue.RemoveAt(0);
+        }
         ApplyEntries(Snapshot());
     }
 
