@@ -363,11 +363,11 @@
                                      στο άλλο, κάθε κανάλι έπιανε διπλάσιο ύψος και η στήλη δεν χωρούσε
                                      όλα τα κανάλια χωρίς κύλιση. -->
                                 <Button Command="{Binding Command}" Style="{StaticResource FlatButton}"
-                                        Padding="9,8" Margin="0,0,0,7" HorizontalContentAlignment="Stretch">
+                                        Padding="10,15" Margin="0,0,0,8" HorizontalContentAlignment="Stretch">
                                     <DockPanel LastChildFill="True">
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="12" FontWeight="ExtraBold"
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="13" FontWeight="ExtraBold"
                                                    Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                        <TextBlock Text="{Binding Name}" FontSize="10.5" FontWeight="ExtraBold"
+                                        <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
                                                    VerticalAlignment="Center" TextWrapping="Wrap">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
