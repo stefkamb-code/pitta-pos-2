@@ -51,8 +51,8 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.3*" MinWidth="260"/>
-                <ColumnDefinition Width="1*" MinWidth="200"/>
+                <ColumnDefinition Width="1.3*" MinWidth="230"/>
+                <ColumnDefinition Width="1*" MinWidth="180"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
@@ -316,7 +316,7 @@
 
             <!-- channel rail: κάθετα, τέρμα δεξιά. ΤΟ ΠΛΑΤΟΣ ΕΙΝΑΙ ΜΕΤΡΗΜΕΝΟ: το «Κάρτα Διανομέα»
                  δίπλα στο «3 · €42,50» θέλει ~175 μονάδες. Στις 156 έσπαγε στη μέση της λέξης. -->
-            <Border Grid.Column="2" BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0" Width="186">
+            <Border Grid.Column="2" BorderBrush="{DynamicResource Divider}" BorderThickness="2,0,0,0" Width="205">
                 <DockPanel>
                     <!-- shift toggle: φιλτράρει μόνο τα box e-food / Wolt / BOX -->
                     <StackPanel DockPanel.Dock="Top" Margin="10,14,10,4">
@@ -365,10 +365,14 @@
                                 <Button Command="{Binding Command}" Style="{StaticResource FlatButton}"
                                         Padding="10,15" Margin="0,0,0,8" HorizontalContentAlignment="Stretch">
                                     <DockPanel LastChildFill="True">
-                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="13" FontWeight="ExtraBold"
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountSumLabel}" FontSize="12.5" FontWeight="ExtraBold"
                                                    Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        <!-- ΜΙΑ γραμμή πάντα: με αναδίπλωση, το «Διανομέας» άφηνε το τελικό «ς»
+                                             μόνο του από κάτω μόλις μεγάλωναν τα νούμερα δίπλα. Αν ποτέ δεν
+                                             χωρέσει, κόβεται με αποσιωπητικά αντί να σπάσει η λέξη. -->
                                         <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="ExtraBold"
-                                                   VerticalAlignment="Center" TextWrapping="Wrap">
+                                                   VerticalAlignment="Center" TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{Binding Brush}"/>
