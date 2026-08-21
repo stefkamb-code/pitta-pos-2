@@ -202,6 +202,26 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand] private void SelectOrdersTab() => ActiveTab = HistoryTab.Orders;
     [RelayCommand] private void SelectCancelledTab() => ActiveTab = HistoryTab.Cancelled;
 
+    /// <summary>
+    /// Πόσες παραγγελίες δείχνει το πολύ η λίστα.
+    ///
+    /// <para><b>ΜΗΝ ΤΟ ΒΓΑΛΕΙΣ.</b> Η λίστα δεν είναι εικονικοποιημένη (ItemsControl, βλ.
+    /// HistoryWindow.xaml): κάθε παραγγελία γίνεται ολόκληρη κάρτα. Με άδειες ημερομηνίες το εύρος
+    /// γίνεται «όλες οι μέρες» — σήμερα λίγες χιλιάδες, μετά από δύο χρόνια λειτουργίας εκατό χιλιάδες,
+    /// και το ταμείο θα πάγωνε ακριβώς όπως πάγωνε το παράθυρο ΠΕΛΑΤΕΣ με τους 135.000. Κανείς δεν
+    /// διαβάζει εκατό χιλιάδες κάρτες: ό,τι ψάχνει βγαίνει από την ημερομηνία ή τον αριθμό.</para>
+    ///
+    /// <para>Δουλεύει μαζί με το <c>HistoryArchiveService.OrdersDescending</c>, που διαβάζει τα αρχεία
+    /// τεμπέλικα από την πιο πρόσφατη μέρα προς τα πίσω — έτσι δεν κόβεται απλώς η ΕΜΦΑΝΙΣΗ, δεν
+    /// διαβάζονται καν τα παλιότερα αρχεία.</para>
+    /// </summary>
+    private const int MaxEntries = 300;
+
+    /// <summary>Πόσες δείχνονται — μπαίνει στη λίστα μόνο όταν έχει κοπεί, ώστε να μη νομίζει ο χρήστης
+    /// ότι το ιστορικό του σταματάει εκεί.</summary>
+    public string CountLabel { get; private set; } = "";
+    public bool IsCapped { get; private set; }
+
     public IReadOnlyList<CompletedOrder> Orders { get; private set; } = [];
 
     /// <summary>Ό,τι δείχνει η λίστα: ένα τραπέζι = ΜΙΑ γραμμή με όλα του τα άτομα μέσα.</summary>
@@ -614,15 +634,25 @@ public partial class HistoryViewModel : ObservableObject
         // υπολογιστής κοιμήθηκε και προσπέρασε την ώρα κλεισίματος) και εμφανιζόταν σαν ΣΗΜΕΡΙΝΗ.
         static bool InRange(DateTime day, DateTime from, DateTime to) => day >= from.Date && day <= to.Date;
 
-        var archivedOrders = HistoryArchiveService.LoadOrders(from, to)
+        // ΤΕΜΠΕΛΙΚΑ και από την πιο πρόσφατη μέρα προς τα πίσω, ώστε το Take() παρακάτω να σταματήσει
+        // την ανάγνωση μόλις γεμίσει η λίστα — τα παλιότερα αρχεία δεν ανοίγονται καν.
+        var archivedOrders = HistoryArchiveService.OrdersDescending(from, to)
             .Where(o => SalesStatsService.BusinessDay(o.PlacedAt) != today);
+        // Οι σημερινές είναι λίγες και οι πιο πρόσφατες — μπαίνουν πρώτες, ταξινομημένες.
         var liveOrders = _stats.Orders
-            .Where(o => InRange(SalesStatsService.BusinessDay(o.PlacedAt), from, to));
-        var allOrders = archivedOrders.Concat(liveOrders);
+            .Where(o => InRange(SalesStatsService.BusinessDay(o.PlacedAt), from, to))
+            .OrderByDescending(o => o.PlacedAt);
+        var allOrders = liveOrders.Concat(archivedOrders);
         Orders = (searching ? Matching(allOrders, search) : ApplyChannelFilter(allOrders))
-            .OrderByDescending(o => o.PlacedAt).ToList();
+            .Take(MaxEntries)
+            .OrderByDescending(o => o.PlacedAt)
+            .ToList();
         Entries = BuildEntries(Orders);
         NoOrders = Entries.Count == 0;
+        IsCapped = Orders.Count >= MaxEntries;
+        CountLabel = IsCapped
+            ? $"δείχνονται οι {MaxEntries} πιο πρόσφατες — στένεψε τις ημερομηνίες ή ψάξε με αριθμό"
+            : "";
         if (SelectedOrder is not null && !Orders.Contains(SelectedOrder))
             SelectedOrder = Orders.FirstOrDefault(o => o.OrderNumber == SelectedOrder.OrderNumber);
         SyncSelectedEntry();
@@ -652,6 +682,7 @@ public partial class HistoryViewModel : ObservableObject
                 Lines = g.ToList(),
             })
             .OrderByDescending(c => c.CancelledAt)
+            .Take(MaxEntries)
             .ToList();
         NoCancelledEntries = CancelledEntries.Count == 0;
 
@@ -664,5 +695,7 @@ public partial class HistoryViewModel : ObservableObject
         OnPropertyChanged(nameof(NothingSelected));
         OnPropertyChanged(nameof(CancelledEntries));
         OnPropertyChanged(nameof(NoCancelledEntries));
+        OnPropertyChanged(nameof(CountLabel));
+        OnPropertyChanged(nameof(IsCapped));
     }
 }

@@ -334,6 +334,11 @@
                             <TextBlock Text="{Binding NoOrdersLabel}" FontSize="12.5" Foreground="{DynamicResource Neutral500}"
                                        HorizontalAlignment="Center" Margin="0,24"
                                        Visibility="{Binding NoOrders, Converter={StaticResource BoolToVis}}"/>
+                            <!-- Φαίνεται ΜΟΝΟ όταν η λίστα έχει κοπεί στις 300 (βλ. HistoryViewModel.MaxEntries) —
+                                 αλλιώς θα έμοιαζε σαν να τελειώνει εκεί το ιστορικό. -->
+                            <TextBlock Text="{Binding CountLabel}" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
+                                       HorizontalAlignment="Center" Margin="0,10,0,2"
+                                       Visibility="{Binding IsCapped, Converter={StaticResource BoolToVis}}"/>
                             <!-- ΜΙΑ γραμμή ανά λογαριασμό: το τραπέζι της παρέας είναι ένα, ακόμα κι αν
                                  κόβει τέσσερις αποδείξεις (τα άτομα φαίνονται μέσα, δεξιά). -->
                             <ItemsControl ItemsSource="{Binding Entries}">

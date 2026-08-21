@@ -81,17 +81,165 @@ public static class HistoryArchiveService
             // ίχνος: εδώ χάνεται ιστορικό ημέρας, δεν είναι κάτι που θέλουμε να περάσει σιωπηλά.
             AppLog.Write("archive", $"Αποτυχία αρχειοθέτησης {businessDay:yyyy-MM-dd}: {ex}");
         }
+        // Και στην αποτυχία: η σύνοψη ξανακοιτάζει τον φάκελο αντί να εμπιστευτεί ό,τι θυμόταν.
+        InvalidateSummaries();
+    }
+
+    // ================= ΣΥΝΟΨΗ ΑΝΑ ΜΕΡΑ =================
+    //
+    // Το διάγραμμα των Στατιστικών ήθελε τον τζίρο κάθε μέρας ενός μήνα, ενός χρόνου ή μιας ΔΕΚΑΕΤΙΑΣ.
+    // Τον έβγαζε ανοίγοντας και αποκωδικοποιώντας ΟΛΑ τα αρχεία της περιόδου — κάθε φορά που ζωγράφιζε,
+    // δηλαδή και σε κάθε νέα παραγγελία όσο το παράθυρο ήταν ανοιχτό. Με δύο εβδομάδες αρχείου δεν
+    // φαίνεται· με τρία χρόνια είναι χίλια αρχεία και εκατοντάδες MB JSON ανά παραγγελία.
+    //
+    // ΜΙΑ ΜΕΡΑ ΠΟΥ ΕΚΛΕΙΣΕ ΔΕΝ ΑΛΛΑΖΕΙ. Οπότε ο τζίρος της υπολογίζεται ΜΙΑ φορά στη ζωή της και
+    // γράφεται σε ένα μικρό αρχείο σύνοψης δίπλα στο αρχείο — ένας αριθμός ανά μέρα, δηλαδή μερικές
+    // δεκάδες KB για μια δεκαετία. Από κει και πέρα το διάγραμμα δεν ανοίγει ΚΑΝΕΝΑ αρχείο ημέρας.
+
+    /// <summary>Τι κρατάμε για κάθε αρχειοθετημένη μέρα χωρίς να την ανοίξουμε.</summary>
+    /// <param name="Stamp">Μέγεθος + ώρα εγγραφής του αρχείου. Μια μέρα μπορεί να ξαναγραφτεί (βλ.
+    /// ArchiveDay: συγχωνεύει καθυστερημένες παραγγελίες) — έτσι η σύνοψη ξαναϋπολογίζεται μόνο τότε.</param>
+    public sealed record DaySummary(decimal Revenue, int Orders, long Stamp);
+
+    private static readonly object SummaryGate = new();
+    private static Dictionary<string, DaySummary>? _summaries;
+    private static Dictionary<DateTime, DaySummary>? _byDay;
+    /// <summary>Χρειάζεται ξανασάρωμα του φακέλου; Μόνο όταν όντως γράφτηκε/κατέβηκε μέρα — αλλιώς
+    /// σερβίρεται ό,τι έχουμε ήδη, χωρίς να αγγιχτεί ο δίσκος.</summary>
+    private static bool _summariesStale = true;
+
+    private static string SummaryPath => Path.Combine(ArchiveDir, "day-summary.json");
+
+    /// <summary>Τζίρος και πλήθος παραγγελιών κάθε αρχειοθετημένης μέρας. Δεν διαβάζει αρχεία ημερών
+    /// παρά μόνο για μέρες που δεν έχουν ξαναϋπολογιστεί (ή ξαναγράφτηκαν στο μεταξύ).</summary>
+    public static IReadOnlyDictionary<DateTime, DaySummary> DailySummaries()
+    {
+        lock (SummaryGate)
+        {
+            if (!_summariesStale && _byDay is not null)
+                return _byDay;
+
+            _summaries ??= ReadFileAs<Dictionary<string, DaySummary>>(SummaryPath) ?? [];
+
+            var changed = false;
+            var present = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var (day, path) in ArchiveFiles("orders"))
+            {
+                var key = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                present.Add(key);
+                long stamp;
+                try
+                {
+                    var info = new FileInfo(path);
+                    stamp = info.Length ^ info.LastWriteTimeUtc.Ticks;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                if (_summaries.TryGetValue(key, out var known) && known.Stamp == stamp)
+                    continue;
+
+                var orders = ReadFile<CompletedOrder>(path);
+                _summaries[key] = new DaySummary(orders.Sum(o => o.Total), orders.Count, stamp);
+                changed = true;
+            }
+
+            // Μέρα που σβήστηκε με το χέρι δεν πρέπει να μείνει στη σύνοψη και να φαντάζει στο διάγραμμα.
+            foreach (var gone in _summaries.Keys.Where(k => !present.Contains(k)).ToList())
+            {
+                _summaries.Remove(gone);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                try
+                {
+                    AtomicFile.WriteAllText(SummaryPath, JsonSerializer.Serialize(_summaries, JsonOpts));
+                }
+                catch (Exception ex)
+                {
+                    // Χωρίς το αρχείο απλώς θα ξαναϋπολογιστεί στο επόμενο άνοιγμα — τίποτα δεν χάνεται.
+                    AppLog.Write("archive", $"Δεν γράφτηκε η σύνοψη ημερών: {ex.Message}");
+                }
+            }
+
+            _byDay = _summaries.ToDictionary(
+                kv => DateTime.ParseExact(kv.Key, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                kv => kv.Value);
+            _summariesStale = false;
+            return _byDay;
+        }
+    }
+
+    /// <summary>Κάτι γράφτηκε/κατέβηκε στο αρχείο — η σύνοψη ξανακοιτάζει τον φάκελο την επόμενη φορά.</summary>
+    private static void InvalidateSummaries()
+    {
+        lock (SummaryGate)
+            _summariesStale = true;
+    }
+
+    private static T? ReadFileAs<T>(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<T>(File.ReadAllText(path)) : default;
+        }
+        catch (Exception)
+        {
+            return default;
+        }
     }
 
     private static List<CompletedOrder> ReadOrders(DateTime businessDay) => ReadFile<CompletedOrder>(OrdersPath(businessDay));
 
     private static List<CancelledLine> ReadCancellations(DateTime businessDay) => ReadFile<CancelledLine>(CancellationsPath(businessDay));
 
+    /// <summary>Πόσα αρχεία ημέρας κρατιούνται διαβασμένα στη μνήμη. Το Ιστορικό ξαναχτίζεται σε κάθε
+    /// νέα παραγγελία όσο είναι ανοιχτό, και ξαναδιάβαζε από τον δίσκο τα ΙΔΙΑ αρχεία κάθε φορά —
+    /// με μεγάλο εύρος ημερομηνιών αυτό μεγαλώνει για πάντα. Σαράντα μέρες είναι πολύ περισσότερο
+    /// απ' όσο κοιτάει κανείς μαζί, και πιάνουν λίγα MB.</summary>
+    private const int MaxCachedFiles = 40;
+
+    private static readonly object FileCacheGate = new();
+    private static readonly Dictionary<string, (long Stamp, object Items, long Used)> FileCache = new(StringComparer.OrdinalIgnoreCase);
+    private static long _useCounter;
+
+    /// <summary>Διαβάζει ένα αρχείο ημέρας — από τη μνήμη αν δεν έχει αλλάξει από την τελευταία φορά.
+    /// Η σφραγίδα (μέγεθος + ώρα εγγραφής) φροντίζει ώστε μια μέρα που ξαναγράφτηκε να ξαναδιαβαστεί.</summary>
     private static List<T> ReadFile<T>(string path)
     {
         try
         {
-            return File.Exists(path) ? JsonSerializer.Deserialize<List<T>>(File.ReadAllText(path)) ?? [] : [];
+            if (!File.Exists(path))
+                return [];
+
+            var info = new FileInfo(path);
+            var stamp = info.Length ^ info.LastWriteTimeUtc.Ticks;
+
+            lock (FileCacheGate)
+            {
+                if (FileCache.TryGetValue(path, out var hit) && hit.Stamp == stamp && hit.Items is List<T> cached)
+                {
+                    FileCache[path] = (stamp, hit.Items, ++_useCounter);
+                    // Αντίγραφο της λίστας: ο καλών δεν πρέπει να μπορεί να πειράξει ό,τι κρατάμε.
+                    return [.. cached];
+                }
+            }
+
+            var items = JsonSerializer.Deserialize<List<T>>(File.ReadAllText(path)) ?? [];
+            lock (FileCacheGate)
+            {
+                FileCache[path] = (stamp, items, ++_useCounter);
+                if (FileCache.Count > MaxCachedFiles)
+                    foreach (var oldest in FileCache.OrderBy(kv => kv.Value.Used)
+                                 .Take(FileCache.Count - MaxCachedFiles)
+                                 .Select(kv => kv.Key)
+                                 .ToList())
+                        FileCache.Remove(oldest);
+            }
+            return [.. items];
         }
         catch (Exception)
         {
@@ -102,6 +250,24 @@ public static class HistoryArchiveService
     /// <summary>Παραγγελίες αρχειοθετημένων ημερών μέσα στο εύρος (χωρίς τη σημερινή — αυτή έρχεται ζωντανή από το SalesStatsService).</summary>
     public static List<CompletedOrder> LoadOrders(DateTime from, DateTime to) =>
         LoadRange<CompletedOrder>("orders", from, to);
+
+    /// <summary>
+    /// Παραγγελίες αρχειοθετημένων ημερών, <b>τεμπέλικα και από την πιο πρόσφατη μέρα προς τα πίσω</b>.
+    ///
+    /// <para>Ο καλών σταματά όποτε έχει δει όσα χρειάζεται, και τα υπόλοιπα αρχεία <b>δεν ανοίγονται
+    /// καν</b>. Χωρίς αυτό, ένα εύρος «όλες οι ημερομηνίες» στο Ιστορικό φόρτωνε ΟΛΟ το αρχείο του
+    /// μαγαζιού στη μνήμη — μετά από χρόνια λειτουργίας, εκατοντάδες χιλιάδες παραγγελίες μονομιάς.</para>
+    /// </summary>
+    public static IEnumerable<CompletedOrder> OrdersDescending(DateTime from, DateTime to)
+    {
+        var days = ArchiveFiles("orders")
+            .Where(f => f.Day >= from.Date && f.Day <= to.Date)
+            .OrderByDescending(f => f.Day)
+            .ToList();
+        foreach (var (_, path) in days)
+            foreach (var order in ReadFile<CompletedOrder>(path).OrderByDescending(o => o.PlacedAt))
+                yield return order;
+    }
 
     /// <summary>Ακυρωμένα αρχειοθετημένων ημερών μέσα στο εύρος.</summary>
     public static List<CancelledLine> LoadCancellations(DateTime from, DateTime to) =>
@@ -272,6 +438,7 @@ public static class HistoryArchiveService
         {
             AtomicFile.WriteAllText(OrdersPath(businessDay), JsonSerializer.Serialize(content.Orders, JsonOpts));
             AtomicFile.WriteAllText(CancellationsPath(businessDay), JsonSerializer.Serialize(content.Cancellations, JsonOpts));
+            InvalidateSummaries();
             return true;
         }
         catch (Exception ex)
