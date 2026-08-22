@@ -628,6 +628,11 @@ public static class WaiterApiService
     /// Ονόματα που δεν υπάρχουν πια στον κατάλογο πετιούνται — το κινητό αντλεί τιμές από εκεί.</summary>
     private static List<string> ExtraNamesFor(Product product)
     {
+        // Ίδιος κανόνας με το ταμείο (βλ. CustomizerViewModel): έξτρα δείχνει ΜΟΝΟ ό,τι είναι
+        // τσεκαρισμένο «τροποποιήσιμο». Τα υλικά ανοίγουν χωριστά, αρκεί να έχει δικά του.
+        if (!product.Customizable)
+            return [];
+
         var catalog = MenuStore.Instance.Extras;
         return product.ExtraNames is { } names
             ? names.Where(n => catalog.Any(e => e.Name == n)).ToList()

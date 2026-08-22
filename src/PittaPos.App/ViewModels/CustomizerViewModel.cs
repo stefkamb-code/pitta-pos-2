@@ -38,10 +38,21 @@ public partial class CustomizerViewModel : ObservableObject
         // Η ΣΕΙΡΑ είναι του προϊόντος, όχι του κοινού καταλόγου: το ExtraNames είναι λίστα με σειρά, την
         // οποία ορίζει ο ταμίας σέρνοντας μέσα στο προϊόν (βλ. MenuManagerViewModel.MoveExtraTo). Πριν
         // φιλτραριζόταν ο κοινός κατάλογος, οπότε η σειρά έβγαινε ίδια παντού όσο κι αν την άλλαζες.
+        //
+        // ΔΥΟ ΞΕΧΩΡΙΣΤΟΙ ΔΙΑΚΟΠΤΕΣ, μη τους ξαναενώσεις:
+        //   «έχει δικά του βασικά υλικά»  -> ανοίγει ΥΛΙΚΑ (βλ. MenuStore.OpensIngredients)
+        //   «τροποποιήσιμο» στη Διαχείριση -> δείχνει ΚΑΙ ΕΞΤΡΑ
+        // Για μια στιγμή τα είχα ενώσει, και το «τροποποιήσιμο» έπαψε να κλείνει τα έξτρα: μια σαλάτα
+        // άνοιγε σωστά τα υλικά της αλλά από δίπλα πρόσφερε μπέικον και γκούντα, και δεν υπήρχε πια
+        // τρόπος να σταματήσει. Τώρα η σαλάτα δείχνει ΜΟΝΟ υλικά όσο το κουτάκι είναι σβηστό.
         var catalogExtras = MenuStore.Instance.Extras;
-        var allowedExtras = product.ExtraNames is null
-            ? catalogExtras
-            : product.ExtraNames
+        List<ExtraItem> allowedExtras;
+        if (!product.Customizable)
+            allowedExtras = [];
+        else if (product.ExtraNames is null)
+            allowedExtras = [.. catalogExtras];
+        else
+            allowedExtras = product.ExtraNames
                 .Select(n => catalogExtras.FirstOrDefault(e => e.Name == n))
                 .Where(e => e is not null)
                 .Select(e => e!)
