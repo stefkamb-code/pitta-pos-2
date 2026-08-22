@@ -394,24 +394,6 @@ public partial class StatsViewModel : ObservableObject
     public IReadOnlyList<MaterialTotal> Consumption { get; private set; } = [];
     public bool HasConsumption => Consumption.Count > 0;
 
-    /// <summary>Το όνομα του προϊόντος όπως το λέει ο ΚΑΤΑΛΟΓΟΣ — καθαρό, χωρίς ψωμί και «ΔΙΠΛΗ ΠΙΤΑ»
-    /// μπροστά. Αν το προϊόν έχει διαγραφεί (ή η παραγγελία είναι παλιά, χωρίς ProductId), πέφτει πίσω
-    /// στο όνομα που πουλήθηκε περισσότερο — κάτι είναι πάντα καλύτερο από κενή γραμμή.</summary>
-    private static string ProductDisplayName(IEnumerable<SoldLine> lines)
-    {
-        var list = lines.ToList();
-        var id = list[0].ProductId;
-        if (id.Length > 0)
-        {
-            var product = MenuStore.Instance.Categories
-                .SelectMany(c => c.Products)
-                .FirstOrDefault(p => p.Id == id);
-            if (product is not null)
-                return product.Name;
-        }
-        return list.GroupBy(l => l.Name).OrderByDescending(g => g.Sum(l => l.Quantity)).First().Key;
-    }
-
     /// <summary>Πώς γράφεται μια παραλλαγή: ό,τι διαφέρει από το σκέτο όνομα του προϊόντος (π.χ. «ΕΛ.»,
     /// «ΔΙΠΛΗ ΠΙΤΑ») μπροστά, και μετά οι λεπτομέρειες (χωρίς κρεμμύδι, + αλλαντικά).</summary>
     private static string VariantLabel(string lineName, string details, string productName)
@@ -463,28 +445,10 @@ public partial class StatsViewModel : ObservableObject
     }
 
     /// <summary>Πωλήσεις ανά κατηγορία καταλόγου. Η ανάλυση από κάτω είναι τα ΠΡΟΪΟΝΤΑ της κατηγορίας —
-    /// έτσι η ίδια οθόνη απαντά και «πόσο έκαναν οι ΜΕΡΙΔΕΣ» και «ποια μερίδα τράβηξε».</summary>
-    private static List<ProductStatViewModel> BuildCategoryStats(List<CompletedOrder> orders, decimal revenue)
-    {
-        // TryAdd και όχι ToDictionary: ένας διπλός κωδικός προϊόντος (κατάλογος από αλλού, χειροκίνητη
-        // επέμβαση) θα έριχνε ολόκληρη την οθόνη Στατιστικών με «απρόσμενο σφάλμα».
-        var categoryOf = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var category in MenuStore.Instance.Categories)
-            foreach (var product in category.Products)
-                categoryOf.TryAdd(product.Id, category.Name);
-
-        return orders
-            .SelectMany(o => o.Lines)
-            .GroupBy(l => categoryOf.GetValueOrDefault(l.ProductId, "— ΕΚΤΟΣ ΚΑΤΑΛΟΓΟΥ —"))
-            .Select(g => (
-                Name: g.Key,
-                Quantity: g.Sum(l => l.Quantity),
-                Revenue: g.Sum(l => l.Revenue),
-                Products: g.GroupBy(l => l.ProductId.Length > 0 ? l.ProductId : l.Name)
-                    .Select(p => (Name: ProductDisplayName(p), Quantity: p.Sum(l => l.Quantity), Revenue: p.Sum(l => l.Revenue)))
-                    .OrderByDescending(p => p.Quantity)
-                    .ToList()))
-            .OrderByDescending(c => c.Revenue)
+    /// έτσι η ίδια οθόνη απαντά και «πόσο έκαναν οι ΜΕΡΙΔΕΣ» και «ποια μερίδα τράβηξε». Τα νούμερα
+    /// βγαίνουν από το <see cref="SalesBreakdown"/>, το ίδιο που τροφοδοτεί και την αναφορά/email.</summary>
+    private static List<ProductStatViewModel> BuildCategoryStats(List<CompletedOrder> orders, decimal revenue) =>
+        SalesBreakdown.ByCategory(orders)
             .Select((c, i) => new ProductStatViewModel
             {
                 Rank = i + 1,
@@ -500,7 +464,6 @@ public partial class StatsViewModel : ObservableObject
                 }).ToList(),
             })
             .ToList();
-    }
 
     private void Refresh()
     {
@@ -524,7 +487,7 @@ public partial class StatsViewModel : ObservableObject
             {
                 // Μία φορά ανά προϊόν: το ProductDisplayName σαρώνει ολόκληρο τον κατάλογο, δεν έχει
                 // νόημα να ξανατρέξει για κάθε παραλλαγή της ίδιας γραμμής.
-                var name = ProductDisplayName(g);
+                var name = SalesBreakdown.ProductDisplayName(g);
                 return (
                     Name: name,
                     Quantity: g.Sum(l => l.Quantity),

@@ -67,6 +67,7 @@ public static class DayReportService
         sb.AppendLine("ΣΥΝΟΨΗ");
         sb.AppendLine($"  Παραγγελίες : {orders.Count}");
         sb.AppendLine($"  Τζίρος      : {Order.FormatPrice(revenue)}");
+        AppendMoneySplit(sb, orders);
         sb.AppendLine($"  Τεμάχια     : {items}");
         sb.AppendLine($"  Μέση αξία   : {Order.FormatPrice(orders.Count == 0 ? 0 : revenue / orders.Count)}");
         sb.AppendLine();
@@ -82,6 +83,20 @@ public static class DayReportService
         sb.AppendLine("ΣΥΝΟΨΗ");
         sb.AppendLine($"  Τζίρος      : {Order.FormatPrice(revenue)}");
 
+        AppendMoneySplit(sb, orders);
+
+        sb.AppendLine($"  Παραγγελίες : {orders.Count}");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Πού πήγαν τα λεφτά του τζίρου — μετρητά, κάρτα, όρθιος, εφαρμογές, ανεξόφλητα. Μπαίνει και στο
+    /// χαρτί και στο email: ο διαχωρισμός είναι το πρώτο πράγμα που κοιτάει κανείς και δεν έχει νόημα
+    /// να τον βλέπει μόνο όποιος στέκεται μπροστά στον εκτυπωτή. Ζούσε μέσα στο AppendPrintSummary.
+    /// </summary>
+    private static void AppendMoneySplit(StringBuilder sb, List<CompletedOrder> orders)
+    {
+        var revenue = orders.Sum(o => o.Total);
         // ΔΙΑΝΟΜΗ/BOX κρατούν τον τρόπο πληρωμής πάνω στην παραγγελία· τα ΤΡΑΠΕΖΙΑ πληρώνονται τμηματικά
         // (ο καθένας τα δικά του, με διαφορετικό τρόπο ο καθένας), οπότε καταγράφονται ξεχωριστά ανά
         // είσπραξη — βλ. TablePaymentsService. Εδώ αθροίζονται και τα δύο στον ίδιο διαχωρισμό.
@@ -130,9 +145,6 @@ public static class DayReportService
             if (unsettled != 0)
                 sb.AppendLine($"    Ανεξόφλητα: {Order.FormatPrice(unsettled)}");
         }
-
-        sb.AppendLine($"  Παραγγελίες : {orders.Count}");
-        sb.AppendLine();
     }
 
     private static void AppendPerChannel(StringBuilder sb, List<CompletedOrder> orders)
@@ -185,7 +197,59 @@ public static class DayReportService
         sb.AppendLine();
     }
 
-    /// <summary>Χτίζει αναλυτική αναφορά όλης της ημέρας από τα στατιστικά — για email και τοπικό backup.</summary>
+    /// <summary>Τι πουλήθηκε, <b>μόνο ανά κατηγορία</b> καταλόγου: «ΠΙΤΤΕΣ  148 τεμ.». Ζητήθηκε ρητά
+    /// στη θέση της παλιάς λίστας ανά προϊόν — 124 γραμμές που κανείς δεν διαβάζει σε ένα email, ενώ οι
+    /// δεκαπέντε γραμμές των κατηγοριών λένε αμέσως πού πήγε η μέρα. Τα νούμερα βγαίνουν από το
+    /// <see cref="SalesBreakdown"/>, την ίδια πηγή με την οθόνη Στατιστικών, ώστε να μη λέει άλλα το
+    /// email και άλλα η οθόνη.</summary>
+    private static void AppendPerCategory(StringBuilder sb, List<CompletedOrder> orders)
+    {
+        sb.AppendLine("ΑΝΑ ΚΑΤΗΓΟΡΙΑ");
+        foreach (var c in SalesBreakdown.ByCategory(orders))
+            sb.AppendLine($"  {c.Name,-22} {c.Quantity,4} τεμ. · {Order.FormatPrice(c.Revenue)}");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Ποιος ακύρωσε και τι — μία γραμμή ανά υπάλληλο, και από κάτω σπασμένο ανά κανάλι
+    /// («Κώστας: 3 × e-food · 2 × ΟΡΘΙΟΣ»). Το όνομα το δίνει ο ονομαστικός κωδικός που ζητιέται σε κάθε
+    /// ακύρωση (βλ. StaffPinDialog.RequireName), το κανάλι γράφεται τη στιγμή της ακύρωσης
+    /// (<see cref="CancelledLine.Channel"/>) γιατί μετά η παραγγελία δεν υπάρχει πουθενά να ρωτηθεί.
+    ///
+    /// <para>Λείπει ολόκληρο το μπλοκ όταν δεν ακυρώθηκε τίποτα — όπως και η ΚΑΤΑΝΑΛΩΣΗ, καλύτερα καμία
+    /// γραμμή παρά ένας άδειος τίτλος.</para>
+    /// </summary>
+    private static void AppendCancellations(StringBuilder sb)
+    {
+        // Φίλτρο ημέρας: το log καθαρίζει στο κλείσιμο (CloseDay), αλλά μια παλιά μέρα που
+        // αρχειοθετήθηκε μέσα στη βάρδια αφήνει για λίγο και τις δικές της εγγραφές — η αναφορά
+        // μιλάει ΜΟΝΟ για τη σημερινή.
+        var today = SalesStatsService.BusinessDay(DateTime.Now);
+        var cancelled = CancellationLogService.Instance.Entries
+            .Where(c => SalesStatsService.BusinessDay(c.CancelledAt) == today)
+            .ToList();
+        if (cancelled.Count == 0)
+            return;
+
+        sb.AppendLine("ΑΚΥΡΩΣΕΙΣ ΑΝΑ ΥΠΑΛΛΗΛΟ");
+        foreach (var staff in cancelled.GroupBy(c => c.CancelledByLabel).OrderByDescending(g => g.Sum(c => c.Revenue)))
+        {
+            sb.AppendLine($"  {staff.Key,-22} {staff.Count(),3} ακυρ. · {staff.Sum(c => c.Quantity),4} τεμ. · {Order.FormatPrice(staff.Sum(c => c.Revenue))}");
+            var channels = staff.GroupBy(c => c.ChannelLabel)
+                .OrderByDescending(g => g.Count())
+                .Select(g => $"{g.Count()} × {g.Key}");
+            sb.AppendLine("      " + string.Join(" · ", channels));
+        }
+        // Σύνολο μόνο όταν ακύρωσαν πολλοί: με έναν υπάλληλο η γραμμή θα έλεγε δεύτερη φορά τα ίδια νούμερα.
+        if (cancelled.Select(c => c.CancelledByLabel).Distinct().Count() > 1)
+            sb.AppendLine($"  ΣΥΝΟΛΟ                 {cancelled.Count,3} ακυρ. · {cancelled.Sum(c => c.Quantity),4} τεμ. · {Order.FormatPrice(cancelled.Sum(c => c.Revenue))}");
+        sb.AppendLine();
+    }
+
+    /// <summary>Η αναφορά της ημέρας για email και τοπικό backup: ΟΛΑ τα στατιστικά — σύνοψη με τον
+    /// διαχωρισμό των χρημάτων, ανά κανάλι, ανά κατηγορία, κατανάλωση α' ύλης και ακυρώσεις ανά
+    /// υπάλληλο. Καμία λίστα ανά προϊόν και καμία ανά παραγγελία: ζητήθηκε ρητά να μη γεμίζει το email
+    /// με εκατοντάδες γραμμές που δεν διαβάζει κανείς.</summary>
     public static string Build()
     {
         // Ο τζίρος και οι αναλύσεις του μετράνε ΜΟΝΟ ό,τι έχει περάσει σε κανάλι — όσες περιμένουν
@@ -201,33 +265,13 @@ public static class DayReportService
         AppendSummary(sb, orders);
         AppendAwaiting(sb, awaiting);
         AppendPerChannel(sb, orders);
-
-        sb.AppendLine("ΑΝΑ ΠΡΟΪΟΝ");
-        var products = orders.SelectMany(o => o.Lines)
-            .GroupBy(l => l.Name)
-            .Select(g => (Name: g.Key, Qty: g.Sum(l => l.Quantity), Rev: g.Sum(l => l.Revenue)))
-            .OrderByDescending(p => p.Qty);
-        foreach (var p in products)
-            sb.AppendLine($"  {p.Qty,4} × {p.Name,-34} {Order.FormatPrice(p.Rev)}");
-        sb.AppendLine();
-
+        AppendPerCategory(sb, orders);
         AppendConsumption(sb);
+        AppendCancellations(sb);
 
-        sb.AppendLine("ΠΑΡΑΓΓΕΛΙΕΣ ΑΝΑΛΥΤΙΚΑ");
-        sb.AppendLine(new string('-', 48));
-        foreach (var o in orders)
-        {
-            sb.AppendLine($"#{o.OrderNumber} · {o.TimeLabel} · {o.TypeLabel}"
-                + (o.Who.Length > 0 ? " · " + o.Who : "") + $"   {Order.FormatPrice(o.Total)}");
-            foreach (var l in o.Lines)
-            {
-                sb.AppendLine($"    {l.Quantity} × {l.Name}   {Order.FormatPrice(l.Revenue)}");
-                if (l.Details.Length > 0)
-                    sb.AppendLine($"        {l.Details}");
-            }
-            sb.AppendLine();
-        }
-
+        // ΔΕΝ ακολουθεί λίστα με τις παραγγελίες μία-μία. Η αναφορά είναι ΤΑ ΣΤΑΤΙΣΤΙΚΑ της μέρας:
+        // 137 παραγγελίες × τις γραμμές τους είναι χίλιες σειρές που δεν διαβάζει κανείς σε email, και
+        // ό,τι χρειαστεί ποτέ ψάξιμο ανά παραγγελία υπάρχει ούτως ή άλλως στο Ιστορικό του ταμείου.
         return sb.ToString();
     }
 

@@ -12,6 +12,16 @@ public sealed record CancelledLine(int OrderNumber, string Who, string Name, int
     public string RevenueLabel => Order.FormatPrice(Revenue);
     /// <summary>Ποιος ακύρωσε (ονομαστικός κωδικός) — «—» για παλιές εγγραφές πριν από αυτό το feature.</summary>
     public string CancelledByLabel => CancelledBy.Length > 0 ? CancelledBy : "—";
+
+    /// <summary>Από ποιο κανάλι ήταν η παραγγελία («e-food», «ΟΡΘΙΟΣ», «ΔΙΑΝΟΜΗ»…) — το TypeLabel της
+    /// τη στιγμή της ακύρωσης. Χρειάζεται στην αναφορά ημέρας, που δείχνει τις ακυρώσεις κάθε υπαλλήλου
+    /// σπασμένες ανά κανάλι («Κώστας: 3 e-food, 2 ΟΡΘΙΟΣ»): μετά την ακύρωση η παραγγελία δεν υπάρχει
+    /// πουθενά αλλού για να ρωτηθεί. Ιδιότητα με αρχική τιμή, ΟΧΙ θέση στον constructor — έτσι οι παλιές
+    /// εγγραφές του cancellations.json, που δεν έχουν το πεδίο, διαβάζονται κανονικά με κενό κανάλι.</summary>
+    public string Channel { get; init; } = "";
+
+    /// <summary>Το κανάλι για τις λίστες — «—» για τις παλιές εγγραφές που δεν το κατέγραφαν.</summary>
+    public string ChannelLabel => Channel.Length > 0 ? Channel : "—";
 }
 
 /// <summary>

@@ -497,7 +497,8 @@ public class SalesStatsService
 
         var removed = lines[lineIndex];
         CancellationLogService.Instance.Log(new CancelledLine(
-            order.OrderNumber, order.WhoLabel, removed.Name, removed.Quantity, removed.Revenue, cancelledAt ?? DateTime.Now, cancelledBy));
+            order.OrderNumber, order.WhoLabel, removed.Name, removed.Quantity, removed.Revenue, cancelledAt ?? DateTime.Now, cancelledBy)
+            { Channel = order.TypeLabel });
 
         lines.RemoveAt(lineIndex);
         if (lines.Count == 0)
@@ -693,7 +694,8 @@ public class SalesStatsService
         var cancelledAt = DateTime.Now;
         foreach (var l in order.Lines)
             CancellationLogService.Instance.Log(new CancelledLine(
-                order.OrderNumber, order.WhoLabel, l.Name, l.Quantity, l.Revenue, cancelledAt, cancelledBy));
+                order.OrderNumber, order.WhoLabel, l.Name, l.Quantity, l.Revenue, cancelledAt, cancelledBy)
+                { Channel = order.TypeLabel });
 
         _orders.Remove(orderNumber);
         Save();
