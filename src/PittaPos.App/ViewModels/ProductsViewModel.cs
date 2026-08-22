@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
@@ -107,7 +107,7 @@ public partial class ProductsViewModel : ObservableObject
             // Αντίγραφο, ΟΧΙ το ίδιο αντικείμενο: αλλιώς μια επεξεργασία της νέας γραμμής θα άλλαζε
             // αναδρομικά τις ιδιαιτερότητες της παλιάς, καταγεγραμμένης παραγγελίας στο ιστορικό.
             var customization = Clone(soldLine.Customization)
-                ?? (product.Customizable ? new LineCustomization() : null);
+                ?? (MenuStore.OpensIngredients(product) ? new LineCustomization() : null);
             var (name, unitPrice, desc1, desc2) = Describe(product, category, customization);
 
             // Χωρίς ιδιαιτερότητες (π.χ. αναψυκτικά): ενώνονται σε μία γραμμή με άθροιση ποσότητας.
@@ -346,7 +346,7 @@ public partial class ProductsViewModel : ObservableObject
 
         Tiles.Clear();
         foreach (var p in item.Category.Products)
-            Tiles.Add(new ProductTileViewModel(p, p.Customizable, PriceOf(p)));
+            Tiles.Add(new ProductTileViewModel(p, MenuStore.OpensIngredients(p), PriceOf(p)));
         RefreshTileQuantities();
         OnPropertyChanged(nameof(ActiveCategoryName));
         OnPropertyChanged(nameof(ProductCountLabel));

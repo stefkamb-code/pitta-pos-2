@@ -615,7 +615,7 @@ public static class WaiterApiService
     // δεν χρειάζεται να ξέρει τον κανόνα προεπιλογής και μια μελλοντική αλλαγή του δεν θα απαιτεί νέο APK.
     private static List<MenuCategoryDto> GetMenu() =>
         MenuStore.Instance.Categories.Select(c => new MenuCategoryDto(c.Id, c.Name,
-            c.Products.Select(p => new MenuProductDto(p.Id, p.Name, p.NameEn, p.Price, p.Customizable,
+            c.Products.Select(p => new MenuProductDto(p.Id, p.Name, p.NameEn, p.Price, MenuStore.OpensIngredients(p),
                 MenuStore.Instance.IngredientsFor(p), ExtraNamesFor(p))).ToList(),
             MenuStore.Instance.HasBreadChoice(c.Name),
             MenuStore.Instance.FuseBreadIntoName(c.Name),
@@ -894,7 +894,7 @@ public static class WaiterApiService
             // προϊόντος να παίρνει κι αυτό κανονικά το ψωμί μπροστά και τη «ΔΙΠΛΗ ΠΙΤΑ».
             string Compose(string baseName) => doublePita
                 ? MenuSeed.ComposeDoublePitaName(baseName, category, bread)
-                : p.Customizable && MenuStore.Instance.HasBreadChoice(category) && MenuStore.Instance.FuseBreadIntoName(category)
+                : MenuStore.OpensIngredients(p) && MenuStore.Instance.HasBreadChoice(category) && MenuStore.Instance.FuseBreadIntoName(category)
                     ? MenuSeed.ComposeCustomizedName(baseName, bread)
                     : baseName;
 
@@ -1075,7 +1075,7 @@ public static class WaiterApiService
     private static string BuildDetails(Product p, OrderLineRequest l, List<KeyValuePair<string, int>> extras,
         string category, string bread)
     {
-        if (!p.Customizable)
+        if (!MenuStore.OpensIngredients(p))
             return "";
 
         var note = l.Note?.Trim() ?? "";
