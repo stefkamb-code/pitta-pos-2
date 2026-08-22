@@ -918,12 +918,14 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="Διεύθυνση" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource PosTextBox}" Height="38" CharacterCasing="Upper"
+                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
+                                                     Tag="{Binding MissingNewAddressStreet}"
                                                      Text="{Binding NewAddressStreet, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <TextBlock Text="Αριθμός" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource PosTextBox}" Height="38" CharacterCasing="Upper"
+                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
+                                                     Tag="{Binding MissingNewAddressNumber}"
                                                      Text="{Binding NewAddressNumber, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
@@ -957,7 +959,8 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="Περιοχή" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource PosTextBox}" Height="38" CharacterCasing="Upper"
+                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
+                                                     Tag="{Binding MissingNewAddressArea}"
                                                      Text="{Binding NewAddressArea, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
@@ -967,8 +970,10 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="4">
                                             <TextBlock Text="Όροφος" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
-                                                     Text="{Binding NewAddressFloor, UpdateSourceTrigger=PropertyChanged}"/>
+                                            <ComboBox Style="{StaticResource RequiredComboBox}" Height="38" FontSize="13"
+                                                      IsEditable="True" ItemsSource="{Binding FloorOptions}"
+                                                      Tag="{Binding MissingNewAddressFloor}"
+                                                      Text="{Binding NewAddressFloor, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
                                     <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,10"

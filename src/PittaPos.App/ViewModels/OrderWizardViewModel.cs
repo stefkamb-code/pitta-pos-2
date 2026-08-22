@@ -1305,8 +1305,40 @@ public partial class OrderWizardViewModel : ObservableObject
     private void ShowAddCustomerAddressForm()
     {
         NewAddressStreet = NewAddressNumber = NewAddressArea = NewAddressPostalCode = NewAddressFloor = "";
+        NewAddressValidated = false;
         IsAddingCustomerAddress = true;
     }
+
+    /// <summary>
+    /// Η μικρή φόρμα ζητάει τα ΙΔΙΑ υποχρεωτικά με την παραγγελία (οδός, αριθμός, περιοχή, όροφος· ο
+    /// Τ.Κ. είναι προαιρετικός και εκεί) — ανάβει με το πρώτο «Αποθήκευση» που βρήκε κενό, ακριβώς όπως
+    /// το ΣΥΝΕΧΕΙΑ του Βήματος 2.
+    ///
+    /// <para>Δεν είναι αυστηρότητα για την αυστηρότητα: μια διεύθυνση αποθηκευμένη χωρίς περιοχή <b>δεν
+    /// ταιριάζει</b> με την παραγγελία που φεύγει προς τα εκεί (βλ. CustomerStore.SameAddress, που
+    /// συγκρίνει οδό ΚΑΙ περιοχή), οπότε με την ολοκλήρωση γραφόταν ΔΕΥΤΕΡΗ φορά στην καρτέλα — ο ίδιος
+    /// δρόμος δύο φορές στα κουμπάκια «Αποθηκευμένες», και η μισή τους άδεια. Και χωρίς όροφο, η ίδια
+    /// διεύθυνση διαλεγμένη αργότερα άδειαζε τον όροφο της επόμενης παραγγελίας.</para>
+    /// </summary>
+    [ObservableProperty]
+    private bool _newAddressValidated;
+
+    public bool MissingNewAddressStreet => NewAddressValidated && NewAddressStreet.Trim().Length == 0;
+    public bool MissingNewAddressNumber => NewAddressValidated && NewAddressNumber.Trim().Length == 0;
+    public bool MissingNewAddressArea => NewAddressValidated && NewAddressArea.Trim().Length == 0;
+    public bool MissingNewAddressFloor => NewAddressValidated && NewAddressFloor.Trim().Length == 0;
+
+    /// <summary>Ξεκοκκινίζουν καθώς γράφονται, χωρίς να ξαναπατηθεί η Αποθήκευση.</summary>
+    private void NotifyNewAddressValidation()
+    {
+        OnPropertyChanged(nameof(MissingNewAddressStreet));
+        OnPropertyChanged(nameof(MissingNewAddressNumber));
+        OnPropertyChanged(nameof(MissingNewAddressArea));
+        OnPropertyChanged(nameof(MissingNewAddressFloor));
+    }
+
+    partial void OnNewAddressValidatedChanged(bool value) => NotifyNewAddressValidation();
+    partial void OnNewAddressFloorChanged(string value) => NotifyNewAddressValidation();
 
     [RelayCommand]
     private void CancelAddCustomerAddress() => IsAddingCustomerAddress = false;
@@ -1320,7 +1352,7 @@ public partial class OrderWizardViewModel : ObservableObject
     [RelayCommand]
     private void ConfirmAddCustomerAddress()
     {
-        if (_addressOptionsCustomer is not { } customer || NewAddressStreet.Trim().Length == 0)
+        if (_addressOptionsCustomer is not { } customer)
             return;
         var street = NewAddressStreet.Trim();
         var number = NewAddressNumber.Trim();
@@ -1328,27 +1360,32 @@ public partial class OrderWizardViewModel : ObservableObject
         var postalCode = NewAddressPostalCode.Trim();
         var floor = NewAddressFloor.Trim();
 
+        // Λείπει κάτι: κοκκινίζουν τα κουτιά της ίδιας της φόρμας — είναι μπροστά στα μάτια του ταμία,
+        // δεν χρειάζεται μήνυμα. (Πριν, η Αποθήκευση με κενή οδό απλώς δεν έκανε ΤΙΠΟΤΑ.)
+        if (street.Length == 0 || number.Length == 0 || area.Length == 0 || floor.Length == 0)
+        {
+            NewAddressValidated = true;
+            return;
+        }
+        NewAddressValidated = false;
+
         CustomerStore.Instance.AddOtherAddress(customer, street, number, area, postalCode, floor);
         LoadCustomerAddressOptions(customer);
         IsAddingCustomerAddress = false;
 
-        // ΜΟΝΟ ό,τι γράφτηκε πραγματικά στη φόρμα. Πριν περνούσαν και τα κενά, οπότε μια νέα διεύθυνση
-        // γραμμένη χωρίς Περιοχή/Όροφος (η μικρή φόρμα δεν τα ζητάει με κόκκινο) ΑΔΕΙΑΖΕ τα αντίστοιχα
-        // κουτιά της παραγγελίας από πάνω — και το ΣΥΝΕΧΕΙΑ σταματούσε σε πεδία που ο ταμίας δεν είχε
-        // αγγίξει καν, μακριά πάνω στη σελίδα: «δεν προχωράει, κόλλησε».
-        // Ό,τι λείπει από τη διεύθυνση συμπληρώνεται μόνο του όταν ολοκληρωθεί η παραγγελία
-        // (βλ. CustomerStore.Upsert, που γεμίζει την αποθηκευμένη διεύθυνση από τα στοιχεία της).
+        // Η νέα διεύθυνση γίνεται ΚΑΙ η διεύθυνση αυτής της παραγγελίας. Ο μόνος Τ.Κ. που περνάει είναι
+        // γραμμένος: είναι το μόνο προαιρετικό πεδίο εδώ, και ένα κενό δεν πρέπει να σβήσει τον Τ.Κ. που
+        // ίσως έχει ήδη η παραγγελία. Τα υπόλοιπα είναι υποχρεωτικά παραπάνω, οπότε έρχονται γεμάτα —
+        // παλιότερα περνούσαν και κενά και ΑΔΕΙΑΖΑΝ την Περιοχή/τον Όροφο της παραγγελίας, με το
+        // ΣΥΝΕΧΕΙΑ να σταματάει μετά σε πεδία που ο ταμίας δεν είχε αγγίξει καν.
         _suppressSuggestions = true;
         CustomerAddress = street;
-        if (area.Length > 0)
-            CustomerArea = area;
+        CustomerArea = area;
         _suppressSuggestions = false;
-        if (number.Length > 0)
-            CustomerStreetNumber = number;
+        CustomerStreetNumber = number;
         if (postalCode.Length > 0)
             CustomerPostalCode = postalCode;
-        if (floor.Length > 0)
-            CustomerFloor = floor;
+        CustomerFloor = floor;
     }
 
     // ---- προτάσεις για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια πηγή με τα πεδία της παραγγελίας (ό,τι
@@ -1365,6 +1402,7 @@ public partial class OrderWizardViewModel : ObservableObject
 
     partial void OnNewAddressStreetChanged(string value)
     {
+        NotifyNewAddressValidation();
         if (ForceUpper(value, v => NewAddressStreet = v))
             return;
         FillSuggestions(NewAddressSuggestions,
@@ -1374,6 +1412,7 @@ public partial class OrderWizardViewModel : ObservableObject
 
     partial void OnNewAddressAreaChanged(string value)
     {
+        NotifyNewAddressValidation();
         if (ForceUpper(value, v => NewAddressArea = v))
             return;
         FillSuggestions(NewAreaSuggestions,
@@ -1381,7 +1420,11 @@ public partial class OrderWizardViewModel : ObservableObject
             nameof(HasNewAreaSuggestions));
     }
 
-    partial void OnNewAddressNumberChanged(string value) => ForceUpper(value, v => NewAddressNumber = v);
+    partial void OnNewAddressNumberChanged(string value)
+    {
+        NotifyNewAddressValidation();
+        ForceUpper(value, v => NewAddressNumber = v);
+    }
 
     [RelayCommand]
     private void SelectNewAddressSuggestion(string street)
