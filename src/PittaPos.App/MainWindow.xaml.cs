@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -57,6 +57,7 @@ public partial class MainWindow : Window
         // το WindowState="Maximized" της δήλωσης και το παράθυρο άνοιγε στο μικρό του μέγεθος (μετρημένο).
         Loaded += (_, _) => WindowState = WindowState.Maximized;
         _wizard.AutoPrintRequested += AutoPrintReceipt;
+        _wizard.MissingFieldFocusRequested += FocusFirstMissingStep2Field;
         _wizard.TableDetailRequested += OpenTableDetail;
         _wizard.PersonsAskRequested += table => PersonsDialog.Ask(this, table);
 
@@ -361,6 +362,36 @@ public partial class MainWindow : Window
         {
             _settings.Activate();
         }
+    }
+
+    /// <summary>
+    /// Πατήθηκε ΣΥΝΕΧΕΙΑ στο Βήμα 2 με κάτι κενό. Τα άδεια κουτιά κοκκινίζουν μόνα τους, αλλά η φόρμα
+    /// είναι μακρύτερη από την οθόνη — αν το κόκκινο είναι κύλισμα πιο πάνω (π.χ. ο ταμίας μόλις
+    /// πρόσθεσε νέα διεύθυνση, στο κάτω μέρος της σελίδας), το μόνο που βλέπει είναι ένα κουμπί που δεν
+    /// κάνει τίποτα. Κυλάμε στο πρώτο κόκκινο κουτί και βάζουμε μέσα τον κέρσορα.
+    /// </summary>
+    private void FocusFirstMissingStep2Field()
+    {
+        if (FindMissingField(Step2Scroll) is not { } field)
+            return;
+        field.BringIntoView();
+        field.Focus();
+    }
+
+    /// <summary>Το πρώτο ορατό κουτί που έχει σημαδευτεί ως κενό. Τα ίδια τα κουτιά το λένε: κουβαλούν
+    /// <c>Tag="{Binding Missing…}"</c> για να κοκκινίσουν, οπότε δεν χρειάζεται δεύτερη λίστα πεδίων
+    /// εδώ που θα ξεχνιόταν να ενημερωθεί. Η σειρά του visual tree είναι η σειρά της οθόνης.</summary>
+    private static Control? FindMissingField(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is Control { Tag: true, IsVisible: true } field)
+                return field;
+            if (FindMissingField(child) is { } found)
+                return found;
+        }
+        return null;
     }
 
     /// <summary>Αυτόματη εκτύπωση στον προεπιλεγμένο εκτυπωτή μόλις ολοκληρωθεί παραγγελία, χωρίς dialog.</summary>

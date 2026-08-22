@@ -1332,13 +1332,23 @@ public partial class OrderWizardViewModel : ObservableObject
         LoadCustomerAddressOptions(customer);
         IsAddingCustomerAddress = false;
 
+        // ΜΟΝΟ ό,τι γράφτηκε πραγματικά στη φόρμα. Πριν περνούσαν και τα κενά, οπότε μια νέα διεύθυνση
+        // γραμμένη χωρίς Περιοχή/Όροφος (η μικρή φόρμα δεν τα ζητάει με κόκκινο) ΑΔΕΙΑΖΕ τα αντίστοιχα
+        // κουτιά της παραγγελίας από πάνω — και το ΣΥΝΕΧΕΙΑ σταματούσε σε πεδία που ο ταμίας δεν είχε
+        // αγγίξει καν, μακριά πάνω στη σελίδα: «δεν προχωράει, κόλλησε».
+        // Ό,τι λείπει από τη διεύθυνση συμπληρώνεται μόνο του όταν ολοκληρωθεί η παραγγελία
+        // (βλ. CustomerStore.Upsert, που γεμίζει την αποθηκευμένη διεύθυνση από τα στοιχεία της).
         _suppressSuggestions = true;
         CustomerAddress = street;
-        CustomerArea = area;
+        if (area.Length > 0)
+            CustomerArea = area;
         _suppressSuggestions = false;
-        CustomerStreetNumber = number;
-        CustomerPostalCode = postalCode;
-        CustomerFloor = floor;
+        if (number.Length > 0)
+            CustomerStreetNumber = number;
+        if (postalCode.Length > 0)
+            CustomerPostalCode = postalCode;
+        if (floor.Length > 0)
+            CustomerFloor = floor;
     }
 
     // ---- προτάσεις για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια πηγή με τα πεδία της παραγγελίας (ό,τι
@@ -1555,6 +1565,10 @@ public partial class OrderWizardViewModel : ObservableObject
         if (!Step2ContinueEnabled)
         {
             Step2Validated = true;
+            // Η φόρμα του Βήματος 2 είναι μακρύτερη από την οθόνη: το κόκκινο κουτί μπορεί να είναι
+            // κύλισμα πιο πάνω και ο ταμίας να βλέπει μόνο ένα κουμπί που δεν κάνει τίποτα. Το φέρνουμε
+            // μπροστά του και βάζουμε μέσα τον κέρσορα (βλ. MainWindow.FocusFirstMissingStep2Field).
+            MissingFieldFocusRequested?.Invoke();
             return;
         }
 
@@ -1671,6 +1685,9 @@ public partial class OrderWizardViewModel : ObservableObject
     /// είναι αντίγραφο του κύριου που ανανεώνεται κάθε 3 δευτερόλεπτα, οπότε η μόλις καταχωρημένη δεν
     /// είχε προλάβει να επιστρέψει και τυπωνόταν Η ΠΡΟΗΓΟΥΜΕΝΗ ΠΑΡΑΓΓΕΛΙΑ — λάθος απόδειξη στον πελάτη.
     /// </summary>
+    /// <summary>Το ΣΥΝΕΧΕΙΑ του Βήματος 2 σταμάτησε σε κενό πεδίο — το παράθυρο κυλάει σε αυτό.</summary>
+    public event Action? MissingFieldFocusRequested;
+
     public event Action<CompletedOrder>? AutoPrintRequested;
 
     private void ContinueStep3()

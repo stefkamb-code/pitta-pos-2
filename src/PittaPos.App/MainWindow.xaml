@@ -1,4 +1,4 @@
-<Window x:Class="PittaPos.App.MainWindow"
+﻿<Window x:Class="PittaPos.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:PittaPos.App.Views"
@@ -636,7 +636,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="Step2Scroll" Grid.Row="0" VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="{Binding Step2Header}" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Ink}" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding Step2Sub}" FontSize="13"
@@ -900,7 +900,7 @@
                             <!-- Ξεχωριστό κουμπί/φόρμα για προσθήκη νέας διεύθυνσης στον ήδη γνωστό πελάτη — δικά
                                  της πεδία, ΟΧΙ τα πεδία της τρέχουσας παραγγελίας από πάνω, ώστε να μη μπερδεύεται
                                  ο ταμίας για το ποια διεύθυνση αφορά κάθε πεδίο (βλ. ConfirmAddCustomerAddress). -->
-                            <Button Content="+ Νέα διεύθυνση πελάτη" Style="{StaticResource FlatButton}"
+                            <Button Content="+ Νέα διεύθυνση πελάτη" Style="{StaticResource PrimaryButton}"
                                     FontSize="11.5" Padding="10,6" HorizontalAlignment="Left" Margin="0,0,0,12"
                                     Visibility="{Binding ShowAddCustomerAddressButton, Converter={StaticResource BoolToVis}}"
                                     Command="{Binding ShowAddCustomerAddressFormCommand}"/>
