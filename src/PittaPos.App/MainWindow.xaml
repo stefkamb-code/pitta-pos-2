@@ -813,15 +813,18 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <!-- Ό,τι γράφεται στα κουτιά από κάτω ΕΙΝΑΙ η διεύθυνση της παραγγελίας — και αυτή
-                                     τυπώνεται. Το κουμπί απλώς τα αδειάζει για να γραφτεί η καινούρια από την αρχή
-                                     (βλ. StartNewAddress): ΔΕΝ ανοίγει δεύτερη φόρμα, όπως πριν. Αποθηκεύεται μόνη
-                                     της στον πελάτη με το ΣΥΝΕΧΕΙΑ και εμφανίζεται εδώ την επόμενη φορά. -->
-                                <Button Content="+ Νέα διεύθυνση" Style="{StaticResource PrimaryButton}"
-                                        FontSize="11" Padding="10,5" Margin="0,0,0,6"
-                                        VerticalAlignment="Top"
-                                        Command="{Binding StartNewAddressCommand}"/>
                             </StackPanel>
+                            <!-- Δική του γραμμή, ΟΧΙ δίπλα στα κουμπάκια: με τρεις-τέσσερις αποθηκευμένες
+                                 διευθύνσεις έβγαινε εκτός πλάτους και κοβόταν στη μέση.
+                                 Ό,τι γράφεται στα κουτιά από κάτω ΕΙΝΑΙ η διεύθυνση της παραγγελίας — και αυτή
+                                 τυπώνεται. Το κουμπί απλώς τα αδειάζει για να γραφτεί η καινούρια από την αρχή
+                                 (βλ. StartNewAddress): ΔΕΝ ανοίγει δεύτερη φόρμα, όπως πριν. Αποθηκεύεται μόνη
+                                 της στον πελάτη με το ΣΥΝΕΧΕΙΑ και εμφανίζεται εδώ την επόμενη φορά. -->
+                            <Button Content="+ Νέα διεύθυνση" Style="{StaticResource PrimaryButton}"
+                                    FontSize="11" Padding="10,5" Margin="0,0,0,10"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding ShowAddressPicker, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding StartNewAddressCommand}"/>
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
