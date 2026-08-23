@@ -123,11 +123,45 @@ public class CustomerStore
             // Χαλασμένο αρχείο — ξεκίνα με κενή λίστα αντί να ρίξεις την εφαρμογή
             _customers = [];
         }
+        DedupeOtherAddresses();
         ImportSeedIfPresent();
         // Πρώτο χτίσιμο αμέσως, στο παρασκήνιο: μέχρι να ανοίξει ο ταμίας παραγγελία είναι έτοιμο,
         // και δεν πληρώνεται ποτέ πάνω στο πρώτο πληκτρολόγημα.
         ScheduleIndexRebuild();
     }
+
+    /// <summary>Πετάει διπλοεγγραφές από τις πρόσθετες διευθύνσεις — ίδια οδός+αριθμός+περιοχή γραμμένη
+    /// δύο φορές, ή πρόσθετη που είναι η ίδια η κύρια.
+    ///
+    /// <para><b>Γιατί υπάρχει:</b> στο εισαγόμενο πελατολόγιο (βλ. ImportSeedIfPresent) 13 πελάτες είχαν
+    /// την ίδια διεύθυνση γραμμένη δύο και τρεις φορές — ο ταμίας έβλεπε δύο ολόιδια κουμπάκια στις
+    /// «Αποθηκευμένες» και δεν ήξερε τι διαφέρει. Γίνεται μια φορά, στο άνοιγμα, και μόνο για όσους
+    /// έχουν πρόσθετες διευθύνσεις (δεκάδες, όχι δεκάδες χιλιάδες) — δεν ακουμπάει την ταχύτητα.</para></summary>
+    private void DedupeOtherAddresses()
+    {
+        var changed = false;
+        foreach (var c in _customers)
+        {
+            if (c.OtherAddresses.Count == 0)
+                continue;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                AddressKey(c.Address, c.StreetNumber, c.Area),
+            };
+            var kept = c.OtherAddresses
+                .Where(a => seen.Add(AddressKey(a.Address, a.StreetNumber, a.Area)))
+                .ToList();
+            if (kept.Count == c.OtherAddresses.Count)
+                continue;
+            c.OtherAddresses = kept;
+            changed = true;
+        }
+        if (changed)
+            Save();
+    }
+
+    private static string AddressKey(string address, string streetNumber, string area) =>
+        address.Trim() + "|" + streetNumber.Trim() + "|" + area.Trim();
 
     /// <summary>Τα τελευταία 10 ψηφία — έτσι ταιριάζει το ίδιο νούμερο γραμμένο με 0, με +30 ή σκέτο.</summary>
     private static string PhoneKey(string phone)
