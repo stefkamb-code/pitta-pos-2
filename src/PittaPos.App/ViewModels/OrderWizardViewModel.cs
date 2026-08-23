@@ -1194,9 +1194,8 @@ public partial class OrderWizardViewModel : ObservableObject
 
     /// <summary>Επιλογές αποθηκευμένων διευθύνσεων του τρέχοντος πελάτη (κύρια + τυχόν άλλες, βλ.
     /// Customer.OtherAddresses) — γεμίζει όταν φορτωθεί πελάτης (αναζήτηση ή εισερχόμενη κλήση), άδειο
-    /// για νέο/άγνωστο πελάτη. Το picker φαίνεται μόνο όταν υπάρχει πάνω από μία επιλογή.</summary>
+    /// για νέο/άγνωστο πελάτη (βλ. ShowAddressPicker για το πότε φαίνεται η γραμμή).</summary>
     public ObservableCollection<CustomerAddressOptionViewModel> CustomerAddressOptions { get; } = [];
-    public bool HasMultipleCustomerAddresses => CustomerAddressOptions.Count > 1;
 
     /// <summary>Ο πελάτης που φόρτωσε τελευταία το picker διευθύνσεων — κρατιέται εδώ ώστε το
     /// DeleteCustomerAddressOption να ξέρει σε ποιον να αφαιρέσει τη διεύθυνση (βλ. CustomerStore).</summary>
@@ -1228,8 +1227,7 @@ public partial class OrderWizardViewModel : ObservableObject
                 PostalCode = other.PostalCode, Floor = other.Floor, IsMain = false,
             });
         }
-        OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
-        OnPropertyChanged(nameof(ShowNewAddressHint));
+        OnPropertyChanged(nameof(ShowAddressPicker));
     }
 
     /// <summary>Ο ταμίας πάτησε το × πάνω σε μια αποθηκευμένη διεύθυνση, κατευθείαν στο Βήμα 2 — χωρίς να
@@ -1269,21 +1267,38 @@ public partial class OrderWizardViewModel : ObservableObject
     {
         _addressOptionsCustomer = null;
         CustomerAddressOptions.Clear();
-        OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
-        OnPropertyChanged(nameof(ShowNewAddressHint));
+        OnPropertyChanged(nameof(ShowAddressPicker));
     }
 
-    /// <summary>Η υπόδειξη «γράψ' τη νέα διεύθυνση εδώ» φαίνεται μόνο για ήδη γνωστό πελάτη — σε νέο
-    /// πελάτη κάθε διεύθυνση είναι ούτως ή άλλως καινούρια και η φράση θα ήταν θόρυβος.
+    /// <summary>Η γραμμή διευθύνσεων (αποθηκευμένες + «Νέα διεύθυνση») φαίνεται για κάθε ήδη γνωστό
+    /// πελάτη — ακόμα κι αν έχει μία μόνο διεύθυνση, γιατί ακριβώς τότε χρειάζεται το κουμπί για τη
+    /// δεύτερη, και το κουμπάκι της κύριας είναι το «πίσω» αν πατηθεί κατά λάθος.</summary>
+    public bool ShowAddressPicker => _addressOptionsCustomer is not null;
+
+    /// <summary>«Νέα διεύθυνση»: αδειάζει ΤΑ ΙΔΙΑ πεδία της παραγγελίας για να γραφτεί η καινούρια από
+    /// την αρχή — δεν ανοίγει δεύτερη φόρμα.
     ///
-    /// <para><b>Δεν υπάρχει πια ξεχωριστή φόρμα «νέα διεύθυνση πελάτη».</b> Είχε δικά της κουτιά κάτω
-    /// από τα κουτιά της παραγγελίας, και δικό της κουμπί Αποθήκευσης: όποιος έγραφε εκεί τη διεύθυνση
-    /// και πατούσε κατευθείαν ΣΥΝΕΧΕΙΑ (ή έχανε ένα υποχρεωτικό της κουτί) έστελνε την παραγγελία με
-    /// την ΠΑΛΙΑ διεύθυνση — και αυτή τυπωνόταν στην απόδειξη. Τώρα υπάρχει ΕΝΑ σετ πεδίων: ό,τι
-    /// γράφει ο ταμίας εκεί είναι και η διεύθυνση της παραγγελίας, και αποθηκεύεται μόνο του στον
-    /// πελάτη σαν πρόσθετη διεύθυνση με το ΣΥΝΕΧΕΙΑ (βλ. SaveCustomer → CustomerStore.FindOrCreate,
-    /// που ΔΕΝ πειράζει ποτέ την κύρια).</para></summary>
-    public bool ShowNewAddressHint => _addressOptionsCustomer is not null;
+    /// <para><b>Γιατί όχι ξεχωριστή φόρμα, όπως πριν:</b> είχε δικά της κουτιά κάτω από τα κουτιά της
+    /// παραγγελίας και δικό της κουμπί Αποθήκευσης. Όποιος έγραφε εκεί τη διεύθυνση και πατούσε
+    /// κατευθείαν ΣΥΝΕΧΕΙΑ — ή έχανε ένα από τα υποχρεωτικά της κουτιά, οπότε η Αποθήκευση δεν περνούσε
+    /// τίποτα — έστελνε την παραγγελία με ό,τι ήταν ακόμα πάνω, δηλαδή την ΚΥΡΙΑ διεύθυνση, και αυτή
+    /// τυπωνόταν. Τώρα υπάρχει ΕΝΑ σετ πεδίων: ό,τι γράφεται εκεί είναι η διεύθυνση της παραγγελίας
+    /// και αυτή τυπώνεται. Αποθηκεύεται μόνη της στον πελάτη με το ΣΥΝΕΧΕΙΑ, σαν ΠΡΟΣΘΕΤΗ διεύθυνση
+    /// (βλ. SaveCustomer → CustomerStore.FindOrCreate, που δεν αγγίζει ποτέ την κύρια).</para>
+    ///
+    /// <para>Αδειάζουν ΟΛΑ τα πεδία της διεύθυνσης μαζί: μισοαδειασμένα κουτιά θα άφηναν την περιοχή ή
+    /// τον όροφο της προηγούμενης διεύθυνσης πάνω στη νέα.</para></summary>
+    [RelayCommand]
+    private void StartNewAddress()
+    {
+        _suppressSuggestions = true;
+        CustomerAddress = "";
+        CustomerArea = "";
+        _suppressSuggestions = false;
+        CustomerStreetNumber = "";
+        CustomerPostalCode = "";
+        CustomerFloor = "";
+    }
 
     /// <summary>Ο ταμίας διάλεξε άλλη αποθηκευμένη διεύθυνση από το picker (Βήμα 2).</summary>
     [RelayCommand]

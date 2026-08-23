@@ -784,7 +784,7 @@
                                  Text="{Binding CustomerPhone, UpdateSourceTrigger=PropertyChanged}"/>
                         <StackPanel Visibility="{Binding ShowAddressField, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
-                                        Visibility="{Binding HasMultipleCustomerAddresses, Converter={StaticResource BoolToVis}}">
+                                        Visibility="{Binding ShowAddressPicker, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Αποθηκευμένες:" FontSize="11.5" Foreground="{DynamicResource Neutral600}"
                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <ItemsControl ItemsSource="{Binding CustomerAddressOptions}">
@@ -813,6 +813,14 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <!-- Ό,τι γράφεται στα κουτιά από κάτω ΕΙΝΑΙ η διεύθυνση της παραγγελίας — και αυτή
+                                     τυπώνεται. Το κουμπί απλώς τα αδειάζει για να γραφτεί η καινούρια από την αρχή
+                                     (βλ. StartNewAddress): ΔΕΝ ανοίγει δεύτερη φόρμα, όπως πριν. Αποθηκεύεται μόνη
+                                     της στον πελάτη με το ΣΥΝΕΧΕΙΑ και εμφανίζεται εδώ την επόμενη φορά. -->
+                                <Button Content="+ Νέα διεύθυνση" Style="{StaticResource PrimaryButton}"
+                                        FontSize="11" Padding="10,5" Margin="0,0,0,6"
+                                        VerticalAlignment="Top"
+                                        Command="{Binding StartNewAddressCommand}"/>
                             </StackPanel>
                             <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
@@ -897,13 +905,6 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </Border>
-                            <!-- Νέα διεύθυνση σε γνωστό πελάτη: γράφεται ΕΔΩ, στα ίδια πεδία της παραγγελίας —
-                                 αποθηκεύεται μόνη της στον πελάτη με το ΣΥΝΕΧΕΙΑ (βλ. SaveCustomer) και εμφανίζεται
-                                 από την επόμενη φορά στα κουμπάκια «Αποθηκευμένες». -->
-                            <TextBlock Text="Νέα διεύθυνση; Γράψ' την εδώ πάνω — αποθηκεύεται μόνη της στον πελάτη."
-                                       FontSize="11.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"
-                                       Margin="0,0,0,12"
-                                       Visibility="{Binding ShowNewAddressHint, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="Σχόλια (π.χ. θέλει αναπάντητη)" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
                             <TextBox Style="{StaticResource PosTextBox}" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
                                      VerticalContentAlignment="Top" Padding="8,6" CharacterCasing="Upper"
