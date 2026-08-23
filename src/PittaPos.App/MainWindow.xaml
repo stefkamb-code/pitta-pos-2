@@ -897,112 +897,13 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </Border>
-                            <!-- Ξεχωριστό κουμπί/φόρμα για προσθήκη νέας διεύθυνσης στον ήδη γνωστό πελάτη — δικά
-                                 της πεδία, ΟΧΙ τα πεδία της τρέχουσας παραγγελίας από πάνω, ώστε να μη μπερδεύεται
-                                 ο ταμίας για το ποια διεύθυνση αφορά κάθε πεδίο (βλ. ConfirmAddCustomerAddress). -->
-                            <Button Content="+ Νέα διεύθυνση πελάτη" Style="{StaticResource PrimaryButton}"
-                                    FontSize="11.5" Padding="10,6" HorizontalAlignment="Left" Margin="0,0,0,12"
-                                    Visibility="{Binding ShowAddCustomerAddressButton, Converter={StaticResource BoolToVis}}"
-                                    Command="{Binding ShowAddCustomerAddressFormCommand}"/>
-                            <Border Visibility="{Binding IsAddingCustomerAddress, Converter={StaticResource BoolToVis}}"
-                                    BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10"
-                                    Padding="12" Margin="0,0,0,12" Background="{DynamicResource Bg}">
-                                <StackPanel>
-                                    <TextBlock Text="ΝΕΑ ΔΙΕΥΘΥΝΣΗ ΠΕΛΑΤΗ" FontSize="11" FontWeight="ExtraBold"
-                                               Foreground="{DynamicResource Neutral600}" Margin="0,0,0,10"/>
-                                    <Grid Margin="0,0,0,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="10"/>
-                                            <ColumnDefinition Width="90"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Διεύθυνση" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
-                                                     Tag="{Binding MissingNewAddressStreet}"
-                                                     Text="{Binding NewAddressStreet, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Αριθμός" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
-                                                     Tag="{Binding MissingNewAddressNumber}"
-                                                     Text="{Binding NewAddressNumber, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                    <!-- Ίδιες προτάσεις με το κύριο πεδίο διεύθυνσης παραπάνω, αλλά ξεχωριστή λίστα
-                                         (βλ. NewAddressSuggestions) ώστε να μην ανακατεύεται με τις προτάσεις της
-                                         τρέχουσας παραγγελίας όταν είναι και οι δύο φόρμες ορατές μαζί. -->
-                                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,10"
-                                            Background="{DynamicResource Bg}" Effect="{StaticResource SoftShadowSmall}"
-                                            Visibility="{Binding HasNewAddressSuggestions, Converter={StaticResource BoolToVis}}">
-                                        <ItemsControl ItemsSource="{Binding NewAddressSuggestions}" Margin="4">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Button Style="{StaticResource FlatButton}" BorderThickness="0"
-                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
-                                                            Command="{Binding DataContext.SelectNewAddressSuggestionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}">
-                                                        <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Border>
-                                    <Grid Margin="0,0,0,12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="10"/>
-                                            <ColumnDefinition Width="90"/>
-                                            <ColumnDefinition Width="10"/>
-                                            <ColumnDefinition Width="90"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="Περιοχή" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource RequiredTextBox}" Height="38" CharacterCasing="Upper"
-                                                     Tag="{Binding MissingNewAddressArea}"
-                                                     Text="{Binding NewAddressArea, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Τ.Κ." FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <TextBox Style="{StaticResource PosTextBox}" Height="38"
-                                                     Text="{Binding NewAddressPostalCode, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="4">
-                                            <TextBlock Text="Όροφος" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
-                                            <ComboBox Style="{StaticResource RequiredComboBox}" Height="38" FontSize="13"
-                                                      IsEditable="True" ItemsSource="{Binding FloorOptions}"
-                                                      Tag="{Binding MissingNewAddressFloor}"
-                                                      Text="{Binding NewAddressFloor, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                    <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,10"
-                                            Background="{DynamicResource Bg}" Effect="{StaticResource SoftShadowSmall}"
-                                            Visibility="{Binding HasNewAreaSuggestions, Converter={StaticResource BoolToVis}}">
-                                        <ItemsControl ItemsSource="{Binding NewAreaSuggestions}" Margin="4">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Button Style="{StaticResource FlatButton}" BorderThickness="0"
-                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8"
-                                                            Command="{Binding DataContext.SelectNewAreaSuggestionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}">
-                                                        <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold"
-                                                                   Foreground="{DynamicResource Ink}" TextWrapping="Wrap"/>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Border>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="Αποθήκευση" Style="{StaticResource PrimaryButton}"
-                                                FontSize="12" Padding="16,8" Margin="0,0,8,0"
-                                                Command="{Binding ConfirmAddCustomerAddressCommand}"/>
-                                        <Button Content="Άκυρο" Style="{StaticResource FlatButton}"
-                                                FontSize="12" Padding="16,8"
-                                                Command="{Binding CancelAddCustomerAddressCommand}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
+                            <!-- Νέα διεύθυνση σε γνωστό πελάτη: γράφεται ΕΔΩ, στα ίδια πεδία της παραγγελίας —
+                                 αποθηκεύεται μόνη της στον πελάτη με το ΣΥΝΕΧΕΙΑ (βλ. SaveCustomer) και εμφανίζεται
+                                 από την επόμενη φορά στα κουμπάκια «Αποθηκευμένες». -->
+                            <TextBlock Text="Νέα διεύθυνση; Γράψ' την εδώ πάνω — αποθηκεύεται μόνη της στον πελάτη."
+                                       FontSize="11.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"
+                                       Margin="0,0,0,12"
+                                       Visibility="{Binding ShowNewAddressHint, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="Σχόλια (π.χ. θέλει αναπάντητη)" FontSize="12" Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
                             <TextBox Style="{StaticResource PosTextBox}" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
                                      VerticalContentAlignment="Top" Padding="8,6" CharacterCasing="Upper"

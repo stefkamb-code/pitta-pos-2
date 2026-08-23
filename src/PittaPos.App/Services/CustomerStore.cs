@@ -471,61 +471,6 @@ public class CustomerStore
         Changed?.Invoke();
     }
 
-    /// <summary>Προσθήκη μιας διεύθυνσης στον πελάτη χωρίς να χρειάζεται να περάσει παραγγελία πρώτα —
-    /// ο ταμίας τη γράφει κατευθείαν στα πεδία του Βήματος 2 και πατάει «Προσθήκη». Ίδια λογική
-    /// ταιριάσματος με το FindOrCreate (βλ. εκεί): αν είναι ίδια με την κύρια ή με ήδη αποθηκευμένη
-    /// «άλλη» διεύθυνση, ενημερώνει επιτόπου αντί να δημιουργήσει διπλότυπο.</summary>
-    public void AddOtherAddress(Customer customer, string address, string streetNumber, string area,
-        string postalCode, string floor)
-    {
-        if (address.Trim().Length == 0)
-            return;
-        if (RemoteSync.IsClient)
-        {
-            _ = SyncThenRefreshAsync("/api/sync/customers/add-address", new
-            {
-                customer.Name, customer.Phone, customer.Address,
-                NewAddress = address, NewNumber = streetNumber, NewArea = area, NewPostalCode = postalCode, NewFloor = floor,
-            });
-            return;
-        }
-
-        if (customer.Address.Length == 0 || SameAddress(customer.Address, customer.Area, address, area))
-        {
-            customer.Address = address;
-            if (streetNumber.Length > 0) customer.StreetNumber = streetNumber;
-            if (area.Length > 0) customer.Area = area;
-            if (postalCode.Length > 0) customer.PostalCode = postalCode;
-            if (floor.Length > 0) customer.Floor = floor;
-            Save();
-            Changed?.Invoke();
-            return;
-        }
-
-        var match = customer.OtherAddresses.FirstOrDefault(a => SameAddress(a.Address, a.Area, address, area));
-        if (match is not null)
-        {
-            match.Address = address;
-            match.Label = address;
-            if (streetNumber.Length > 0) match.StreetNumber = streetNumber;
-            if (area.Length > 0) match.Area = area;
-            if (postalCode.Length > 0) match.PostalCode = postalCode;
-            if (floor.Length > 0) match.Floor = floor;
-        }
-        else
-        {
-            customer.OtherAddresses.Add(new CustomerAddress
-            {
-                Label = address, Address = address, StreetNumber = streetNumber, Area = area,
-                PostalCode = postalCode, Floor = floor,
-            });
-            while (customer.OtherAddresses.Count > MaxOtherAddresses)
-                customer.OtherAddresses.RemoveAt(0);
-        }
-        Save();
-        Changed?.Invoke();
-    }
-
     private static bool ExactSameAddress(CustomerAddress a, CustomerAddress b) =>
         string.Equals(a.Address.Trim(), b.Address.Trim(), StringComparison.OrdinalIgnoreCase)
         && string.Equals(a.StreetNumber.Trim(), b.StreetNumber.Trim(), StringComparison.OrdinalIgnoreCase)

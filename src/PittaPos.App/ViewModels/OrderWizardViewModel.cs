@@ -1205,7 +1205,6 @@ public partial class OrderWizardViewModel : ObservableObject
     private void LoadCustomerAddressOptions(Customer customer)
     {
         _addressOptionsCustomer = customer;
-        IsAddingCustomerAddress = false;
         CustomerAddressOptions.Clear();
         if (customer.Address.Length > 0)
         {
@@ -1230,8 +1229,7 @@ public partial class OrderWizardViewModel : ObservableObject
             });
         }
         OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
-        OnPropertyChanged(nameof(CanAddCustomerAddress));
-        OnPropertyChanged(nameof(ShowAddCustomerAddressButton));
+        OnPropertyChanged(nameof(ShowNewAddressHint));
     }
 
     /// <summary>Ο ταμίας πάτησε το × πάνω σε μια αποθηκευμένη διεύθυνση, κατευθείαν στο Βήμα 2 — χωρίς να
@@ -1271,183 +1269,21 @@ public partial class OrderWizardViewModel : ObservableObject
     {
         _addressOptionsCustomer = null;
         CustomerAddressOptions.Clear();
-        IsAddingCustomerAddress = false;
         OnPropertyChanged(nameof(HasMultipleCustomerAddresses));
-        OnPropertyChanged(nameof(CanAddCustomerAddress));
-        OnPropertyChanged(nameof(ShowAddCustomerAddressButton));
+        OnPropertyChanged(nameof(ShowNewAddressHint));
     }
 
-    /// <summary>Το κουμπί «+ Νέα διεύθυνση» φαίνεται μόνο για ήδη γνωστό πελάτη (βρέθηκε με τηλέφωνο/
-    /// όνομα) — για εντελώς νέο πελάτη δεν υπάρχει ακόμα Customer object να προστεθεί η διεύθυνση,
-    /// δημιουργείται μόνο όταν ολοκληρωθεί η παραγγελία (βλ. CustomerStore.Upsert).</summary>
-    public bool CanAddCustomerAddress => _addressOptionsCustomer is not null;
-    /// <summary>Το κουμπί κρύβεται όσο είναι ήδη ανοιχτή η φόρμα προσθήκης (βλ. παρακάτω).</summary>
-    public bool ShowAddCustomerAddressButton => CanAddCustomerAddress && !IsAddingCustomerAddress;
-
-    // ---- μικρή, ξεχωριστή φόρμα «νέα διεύθυνση πελάτη» (Βήμα 2) — δικά της πεδία, ΟΧΙ τα πεδία της
-    // τρέχουσας παραγγελίας, ώστε να μην μπερδεύεται ο ταμίας για το ποια διεύθυνση επεξεργάζεται. ----
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowAddCustomerAddressButton))]
-    private bool _isAddingCustomerAddress;
-    [ObservableProperty]
-    private string _newAddressStreet = "";
-    [ObservableProperty]
-    private string _newAddressNumber = "";
-    [ObservableProperty]
-    private string _newAddressArea = "";
-    [ObservableProperty]
-    private string _newAddressPostalCode = "";
-    [ObservableProperty]
-    private string _newAddressFloor = "";
-
-    [RelayCommand]
-    private void ShowAddCustomerAddressForm()
-    {
-        NewAddressStreet = NewAddressNumber = NewAddressArea = NewAddressPostalCode = NewAddressFloor = "";
-        NewAddressValidated = false;
-        IsAddingCustomerAddress = true;
-    }
-
-    /// <summary>
-    /// Η μικρή φόρμα ζητάει τα ΙΔΙΑ υποχρεωτικά με την παραγγελία (οδός, αριθμός, περιοχή, όροφος· ο
-    /// Τ.Κ. είναι προαιρετικός και εκεί) — ανάβει με το πρώτο «Αποθήκευση» που βρήκε κενό, ακριβώς όπως
-    /// το ΣΥΝΕΧΕΙΑ του Βήματος 2.
+    /// <summary>Η υπόδειξη «γράψ' τη νέα διεύθυνση εδώ» φαίνεται μόνο για ήδη γνωστό πελάτη — σε νέο
+    /// πελάτη κάθε διεύθυνση είναι ούτως ή άλλως καινούρια και η φράση θα ήταν θόρυβος.
     ///
-    /// <para>Δεν είναι αυστηρότητα για την αυστηρότητα: μια διεύθυνση αποθηκευμένη χωρίς περιοχή <b>δεν
-    /// ταιριάζει</b> με την παραγγελία που φεύγει προς τα εκεί (βλ. CustomerStore.SameAddress, που
-    /// συγκρίνει οδό ΚΑΙ περιοχή), οπότε με την ολοκλήρωση γραφόταν ΔΕΥΤΕΡΗ φορά στην καρτέλα — ο ίδιος
-    /// δρόμος δύο φορές στα κουμπάκια «Αποθηκευμένες», και η μισή τους άδεια. Και χωρίς όροφο, η ίδια
-    /// διεύθυνση διαλεγμένη αργότερα άδειαζε τον όροφο της επόμενης παραγγελίας.</para>
-    /// </summary>
-    [ObservableProperty]
-    private bool _newAddressValidated;
-
-    public bool MissingNewAddressStreet => NewAddressValidated && NewAddressStreet.Trim().Length == 0;
-    public bool MissingNewAddressNumber => NewAddressValidated && NewAddressNumber.Trim().Length == 0;
-    public bool MissingNewAddressArea => NewAddressValidated && NewAddressArea.Trim().Length == 0;
-    public bool MissingNewAddressFloor => NewAddressValidated && NewAddressFloor.Trim().Length == 0;
-
-    /// <summary>Ξεκοκκινίζουν καθώς γράφονται, χωρίς να ξαναπατηθεί η Αποθήκευση.</summary>
-    private void NotifyNewAddressValidation()
-    {
-        OnPropertyChanged(nameof(MissingNewAddressStreet));
-        OnPropertyChanged(nameof(MissingNewAddressNumber));
-        OnPropertyChanged(nameof(MissingNewAddressArea));
-        OnPropertyChanged(nameof(MissingNewAddressFloor));
-    }
-
-    partial void OnNewAddressValidatedChanged(bool value) => NotifyNewAddressValidation();
-    partial void OnNewAddressFloorChanged(string value) => NotifyNewAddressValidation();
-
-    [RelayCommand]
-    private void CancelAddCustomerAddress() => IsAddingCustomerAddress = false;
-
-    /// <summary>Ο ταμίας γέμισε τη ξεχωριστή φόρμα «νέα διεύθυνση» και πατά «Αποθήκευση» — προστίθεται
-    /// κατευθείαν στον πελάτη, χωρίς να χρειάζεται να ολοκληρωθεί πρώτα παραγγελία με αυτή τη διεύθυνση
-    /// (βλ. CustomerStore.AddOtherAddress). Επιλέγεται ΚΑΙ αυτόματα για την τρέχουσα παραγγελία — ο
-    /// ταμίας τη γράφει εδώ επειδή θέλει να παραδοθεί ΕΚΕΙ αυτή η παραγγελία, όχι απλώς να αποθηκευτεί
-    /// για το μέλλον· χωρίς αυτό η παραγγελία έφευγε με ό,τι διεύθυνση ήταν ήδη επιλεγμένη (συνήθως η
-    /// κύρια), εκτός αν ο ταμίας πατούσε ΚΑΙ το καινούριο κουμπί που εμφανίζεται μετά την αποθήκευση.</summary>
-    [RelayCommand]
-    private void ConfirmAddCustomerAddress()
-    {
-        if (_addressOptionsCustomer is not { } customer)
-            return;
-        var street = NewAddressStreet.Trim();
-        var number = NewAddressNumber.Trim();
-        var area = NewAddressArea.Trim();
-        var postalCode = NewAddressPostalCode.Trim();
-        var floor = NewAddressFloor.Trim();
-
-        // Λείπει κάτι: κοκκινίζουν τα κουτιά της ίδιας της φόρμας — είναι μπροστά στα μάτια του ταμία,
-        // δεν χρειάζεται μήνυμα. (Πριν, η Αποθήκευση με κενή οδό απλώς δεν έκανε ΤΙΠΟΤΑ.)
-        if (street.Length == 0 || number.Length == 0 || area.Length == 0 || floor.Length == 0)
-        {
-            NewAddressValidated = true;
-            return;
-        }
-        NewAddressValidated = false;
-
-        CustomerStore.Instance.AddOtherAddress(customer, street, number, area, postalCode, floor);
-        LoadCustomerAddressOptions(customer);
-        IsAddingCustomerAddress = false;
-
-        // Η νέα διεύθυνση γίνεται ΚΑΙ η διεύθυνση αυτής της παραγγελίας. Ο μόνος Τ.Κ. που περνάει είναι
-        // γραμμένος: είναι το μόνο προαιρετικό πεδίο εδώ, και ένα κενό δεν πρέπει να σβήσει τον Τ.Κ. που
-        // ίσως έχει ήδη η παραγγελία. Τα υπόλοιπα είναι υποχρεωτικά παραπάνω, οπότε έρχονται γεμάτα —
-        // παλιότερα περνούσαν και κενά και ΑΔΕΙΑΖΑΝ την Περιοχή/τον Όροφο της παραγγελίας, με το
-        // ΣΥΝΕΧΕΙΑ να σταματάει μετά σε πεδία που ο ταμίας δεν είχε αγγίξει καν.
-        _suppressSuggestions = true;
-        CustomerAddress = street;
-        CustomerArea = area;
-        _suppressSuggestions = false;
-        CustomerStreetNumber = number;
-        if (postalCode.Length > 0)
-            CustomerPostalCode = postalCode;
-        CustomerFloor = floor;
-    }
-
-    // ---- προτάσεις για τη φόρμα «νέα διεύθυνση πελάτη» — ίδια πηγή με τα πεδία της παραγγελίας (ό,τι
-    // έχει ήδη περαστεί), αλλά ξεχωριστή λίστα κάτω από το δικό της πεδίο Οδού, ώστε οι δύο φόρμες να
-    // μην μοιράζονται προτάσεις όταν είναι και οι δύο ορατές μαζί. ----
-
-    private bool _suppressNewAddressSuggestions;
-
-    public ObservableCollection<string> NewAddressSuggestions { get; } = [];
-    public bool HasNewAddressSuggestions => NewAddressSuggestions.Count > 0;
-
-    public ObservableCollection<string> NewAreaSuggestions { get; } = [];
-    public bool HasNewAreaSuggestions => NewAreaSuggestions.Count > 0;
-
-    partial void OnNewAddressStreetChanged(string value)
-    {
-        NotifyNewAddressValidation();
-        if (ForceUpper(value, v => NewAddressStreet = v))
-            return;
-        FillSuggestions(NewAddressSuggestions,
-            _suppressNewAddressSuggestions ? [] : CustomerStore.Instance.SuggestStreets(value),
-            nameof(HasNewAddressSuggestions));
-    }
-
-    partial void OnNewAddressAreaChanged(string value)
-    {
-        NotifyNewAddressValidation();
-        if (ForceUpper(value, v => NewAddressArea = v))
-            return;
-        FillSuggestions(NewAreaSuggestions,
-            _suppressNewAddressSuggestions ? [] : CustomerStore.Instance.SuggestAreas(value),
-            nameof(HasNewAreaSuggestions));
-    }
-
-    partial void OnNewAddressNumberChanged(string value)
-    {
-        NotifyNewAddressValidation();
-        ForceUpper(value, v => NewAddressNumber = v);
-    }
-
-    [RelayCommand]
-    private void SelectNewAddressSuggestion(string street)
-    {
-        var typedNumber = Regex.Match(NewAddressStreet, @"\d+\s*[Α-Ωα-ωA-Za-z]?\s*$").Value.Trim();
-
-        _suppressNewAddressSuggestions = true;
-        NewAddressStreet = street;
-        _suppressNewAddressSuggestions = false;
-        FillSuggestions(NewAddressSuggestions, [], nameof(HasNewAddressSuggestions));
-
-        if (typedNumber.Length > 0 && NewAddressNumber.Trim().Length == 0)
-            NewAddressNumber = typedNumber;
-    }
-
-    [RelayCommand]
-    private void SelectNewAreaSuggestion(string area)
-    {
-        _suppressNewAddressSuggestions = true;
-        NewAddressArea = area;
-        _suppressNewAddressSuggestions = false;
-        FillSuggestions(NewAreaSuggestions, [], nameof(HasNewAreaSuggestions));
-    }
+    /// <para><b>Δεν υπάρχει πια ξεχωριστή φόρμα «νέα διεύθυνση πελάτη».</b> Είχε δικά της κουτιά κάτω
+    /// από τα κουτιά της παραγγελίας, και δικό της κουμπί Αποθήκευσης: όποιος έγραφε εκεί τη διεύθυνση
+    /// και πατούσε κατευθείαν ΣΥΝΕΧΕΙΑ (ή έχανε ένα υποχρεωτικό της κουτί) έστελνε την παραγγελία με
+    /// την ΠΑΛΙΑ διεύθυνση — και αυτή τυπωνόταν στην απόδειξη. Τώρα υπάρχει ΕΝΑ σετ πεδίων: ό,τι
+    /// γράφει ο ταμίας εκεί είναι και η διεύθυνση της παραγγελίας, και αποθηκεύεται μόνο του στον
+    /// πελάτη σαν πρόσθετη διεύθυνση με το ΣΥΝΕΧΕΙΑ (βλ. SaveCustomer → CustomerStore.FindOrCreate,
+    /// που ΔΕΝ πειράζει ποτέ την κύρια).</para></summary>
+    public bool ShowNewAddressHint => _addressOptionsCustomer is not null;
 
     /// <summary>Ο ταμίας διάλεξε άλλη αποθηκευμένη διεύθυνση από το picker (Βήμα 2).</summary>
     [RelayCommand]

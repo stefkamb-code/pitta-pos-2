@@ -539,19 +539,6 @@ public static class WaiterApiService
                 });
             return Results.Ok();
         });
-        app.MapPost("/api/sync/customers/add-address", async (HttpContext ctx) =>
-        {
-            var req = await ctx.Request.ReadFromJsonAsync<CustomerAddAddressRequest>();
-            if (req is not null)
-                OnUi(() =>
-                {
-                    var customer = CustomerStore.Instance.Find(req.Name, req.Phone, req.Address);
-                    if (customer is not null)
-                        CustomerStore.Instance.AddOtherAddress(customer, req.NewAddress, req.NewNumber, req.NewArea, req.NewPostalCode, req.NewFloor);
-                    return 0;
-                });
-            return Results.Ok();
-        });
 
         // ---- μενού (πλήρες: κατηγορίες + έξτρα + χρεώσεις διπλής πίτας — όχι το DTO του /api/menu) ----
         app.MapGet("/api/sync/menu", () => Results.Json(OnUi(() => MenuStore.Instance.BuildSyncDto())));

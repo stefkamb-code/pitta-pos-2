@@ -177,8 +177,6 @@ public sealed record AddressPointRequest(string Address, double Lat, double Lon,
 public sealed record CustomerRemoveAddressRequest(string Name, string Phone, string Address,
     string OtherAddress, string OtherArea, string OtherNumber = "");
 public sealed record CustomerRemoveMainAddressRequest(string Name, string Phone, string Address);
-public sealed record CustomerAddAddressRequest(string Name, string Phone, string Address,
-    string NewAddress, string NewNumber, string NewArea, string NewPostalCode, string NewFloor);
 
 /// <summary>Μία κλήση στην ουρά αναμονής, όπως τη στέλνει το host στο δεύτερο ταμείο.</summary>
 public sealed record IncomingCallEntry(int Id, int Position, string Phone);
