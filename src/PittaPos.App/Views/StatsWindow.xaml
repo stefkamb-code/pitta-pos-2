@@ -34,15 +34,24 @@
                             <TextBlock Text="{Binding RevenueLabel}" FontSize="19" FontWeight="ExtraBold"
                                        Foreground="{DynamicResource Ink}"/>
                         </DockPanel>
-                        <!-- Μετρητά/κάρτα μόνο όπου εισπράττει ο δικός μας διανομέας (BOX) — αλλού
-                             θα ήταν δύο μηδενικά που τρώνε ύψος από όλες τις κάρτες της σειράς. -->
-                        <TextBlock Visibility="{Binding HasPaymentSplit, Converter={StaticResource BoolToVis}}"
-                                   Margin="0,4,0,0" FontSize="10" TextTrimming="CharacterEllipsis">
-                            <Run Text="ΜΕΤΡΗΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                            <Run Text="{Binding CashLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                            <Run Text="  ·  ΚΑΡΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                            <Run Text="{Binding CardLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
-                        </TextBlock>
+                        <!-- Μετρητά/κάρτα μόνο όπου εισπράττει ο δικός μας διανομέας (ΔΙΑΝΟΜΗ, BOX) —
+                             αλλού θα ήταν δύο μηδενικά που τρώνε ύψος από όλες τις κάρτες της σειράς.
+
+                             WrapPanel και ΟΧΙ μία γραμμή με TextTrimming: με μεγάλα ποσά (π.χ. ΜΕΤΡΗΤΑ
+                             €68,90 · ΚΑΡΤΑ €44,50) δεν χωρούσαν δίπλα-δίπλα στο πλάτος της κάρτας και
+                             το «ΚΑΡΤΑ» κοβόταν με αποσιωπητικά — το νούμερο που ήθελε να δει ο ταμίας
+                             εξαφανιζόταν. Τώρα πέφτει από κάτω αντί να χαθεί. -->
+                        <WrapPanel Visibility="{Binding HasPaymentSplit, Converter={StaticResource BoolToVis}}"
+                                   Orientation="Horizontal" Margin="0,4,0,0">
+                            <TextBlock FontSize="10" Margin="0,0,10,0">
+                                <Run Text="ΜΕΤΡΗΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                <Run Text="{Binding CashLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                            </TextBlock>
+                            <TextBlock FontSize="10">
+                                <Run Text="ΚΑΡΤΑ " FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                                <Run Text="{Binding CardLabel, Mode=OneWay}" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"/>
+                            </TextBlock>
+                        </WrapPanel>
                     </StackPanel>
                 </Border>
             </Grid>

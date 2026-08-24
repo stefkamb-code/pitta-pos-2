@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -36,6 +36,19 @@ public class ScaleHost : Decorator
         // Άπειρη διάσταση (π.χ. μέσα σε ScrollViewer) δεν δίνει συντελεστή — τότε μένουμε στο 1:1.
         var width = double.IsInfinity(constraint.Width) ? DesignWidth : constraint.Width;
         var height = double.IsInfinity(constraint.Height) ? DesignHeight : constraint.Height;
+
+        // ΕΛΑΧΙΣΤΟΠΟΙΗΣΗ: τα Windows μετράνε το παράθυρο με μηδενικό (ή σχεδόν μηδενικό) χώρο όσο είναι
+        // κατεβασμένο στη γραμμή εργασιών. Παλιότερα αυτό γύριζε τον συντελεστή στο 1 — δηλαδή στο
+        // «σχεδιαστικό» μέγεθος — και στην επαναφορά το περιεχόμενο έμενε στριμωγμένο: οι κάρτες
+        // φαίνονταν κομμένες. Ένα μέτρημα χωρίς χώρο δεν λέει τίποτα για το πόσο μεγάλο είναι το
+        // παράθυρο: κρατάμε τον συντελεστή που είχαμε και περιμένουμε το πραγματικό μέτρημα.
+        if (width < 1 || height < 1)
+        {
+            child.Measure(constraint);
+            return new Size(
+                double.IsInfinity(constraint.Width) ? child.DesiredSize.Width : constraint.Width,
+                double.IsInfinity(constraint.Height) ? child.DesiredSize.Height : constraint.Height);
+        }
 
         var scale = Math.Min(width / DesignWidth, height / DesignHeight);
         if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0)
