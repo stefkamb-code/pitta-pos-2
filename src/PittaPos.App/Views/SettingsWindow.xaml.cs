@@ -104,13 +104,6 @@ public partial class SettingsWindow : Window
         RefreshUi();
     }
 
-    private void ChangePin_Click(object sender, RoutedEventArgs e)
-    {
-        if (ChangePinDialog.Run(this))
-            MessageBox.Show("Ο κωδικός άλλαξε.", "Αλλαγή κωδικού",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
     /// <summary>ΜΟΝΟ ο admin (4504). Οι υπεύθυνοι ανοίγουν τα πάντα με τον δικό τους κωδικό, αλλά όχι
     /// αυτό: εδώ μέσα είναι οι κωδικοί όλων, δικοί τους και του σερβιτόρου.</summary>
     private void ManageCancelStaff_Click(object sender, RoutedEventArgs e)

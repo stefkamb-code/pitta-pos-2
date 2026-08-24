@@ -219,11 +219,34 @@ public class SettingsStore
         }
     }
 
+    // ΓΙΑΤΙ ΥΠΑΡΧΟΥΝ ΑΥΤΟΙ ΟΙ ΔΥΟ ΜΕΤΡΗΤΕΣ — ΤΟ ΠΙΟ ΔΥΣΚΟΛΟ ΣΗΜΕΙΟ ΤΟΥ ΑΡΧΕΙΟΥ.
+    //
+    // Το δεύτερο ταμείο ρωτάει το κύριο κάθε 5" ΚΑΙ σπρώχνει τις δικές του αλλαγές προς τα εκεί. Οι δύο
+    // κινήσεις διασταυρώνονταν: ο ταμίας πατούσε ΒΡΑΔΙΝΗ, η αλλαγή έφευγε προς το κύριο, και εν τω
+    // μεταξύ επέστρεφε μια απάντηση polling που είχε ζητηθεί ΠΡΙΝ το πάτημα — με την παλιά βάρδια.
+    // Το κουμπί «γυρνούσε» μόνο του πίσω για ένα πεντάλεπτο δευτερολέπτων και ο ταμίας ξαναπατούσε.
+    // Μετρημένο: η βάρδια άλλαζε σωστά στο κύριο ταμείο, αλλά στο δεύτερο έδειχνε την παλιά.
+    //
+    // Κανόνας: όσο ταξιδεύει δική μας αλλαγή — ή αν ξεκίνησε καινούρια όσο περιμέναμε απάντηση — η
+    // απάντηση του κυρίου είναι ΗΔΗ ΠΑΛΙΑ και αγνοείται. Το επόμενο polling (σε 5") φέρνει την αλήθεια.
+    private int _pushesInFlight;
+    private int _localChangeVersion;
+
+    /// <summary>Ξεκινάει τοπική αλλαγή που θα σταλεί στο κύριο ταμείο.</summary>
+    private void MarkLocalChange() => Interlocked.Increment(ref _localChangeVersion);
+
+    /// <summary>Έχει προσπεραστεί η απάντηση του κυρίου από δική μας αλλαγή;</summary>
+    private bool OutdatedByLocalChange(int versionBefore) =>
+        Volatile.Read(ref _pushesInFlight) > 0 || Volatile.Read(ref _localChangeVersion) != versionBefore;
+
     /// <summary>Δεύτερο ταμείο (client) — ευθυγραμμίζει τον αριθμό τραπεζιών με το host.</summary>
     private async Task RefreshTableCountFromHostAsync()
     {
+        if (Volatile.Read(ref _pushesInFlight) > 0)
+            return;
+        var version = Volatile.Read(ref _localChangeVersion);
         var count = await RemoteSync.GetAsync<int?>("/api/sync/table-count");
-        if (count is null || count == Settings.TableCount)
+        if (count is null || count == Settings.TableCount || OutdatedByLocalChange(version))
             return;
         Settings.TableCount = count.Value;
         Changed?.Invoke();
@@ -292,9 +315,13 @@ public class SettingsStore
     /// σπάνια αλλάζουν ρυθμίσεις ταυτόχρονα και από τα δύο ταμεία.</summary>
     private async Task RefreshSharedSettingsFromHostAsync()
     {
+        if (Volatile.Read(ref _pushesInFlight) > 0)
+            return;
+        var version = Volatile.Read(ref _localChangeVersion);
         var dto = await RemoteSync.GetAsync<SharedSettingsDto>("/api/sync/settings");
-        if (dto is not null)
-            ApplySharedSettingsDto(dto);
+        if (dto is null || OutdatedByLocalChange(version))
+            return;
+        ApplySharedSettingsDto(dto);
     }
 
     /// <summary>Δεύτερο ταμείο (client) — μόλις αλλάξει κάτι τοπικά, το στέλνει και στο host (fire-and-
@@ -308,7 +335,21 @@ public class SettingsStore
     {
         if (!RemoteSync.IsClient)
             return;
-        _ = RemoteSync.PostAsync("/api/sync/settings", BuildSharedSettingsDto());
+        MarkLocalChange();
+        _ = PushSharedSettingsAsync();
+    }
+
+    private async Task PushSharedSettingsAsync()
+    {
+        Interlocked.Increment(ref _pushesInFlight);
+        try
+        {
+            await RemoteSync.PostAsync("/api/sync/settings", BuildSharedSettingsDto());
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _pushesInFlight);
+        }
     }
 
     private void Save()
@@ -346,6 +387,7 @@ public class SettingsStore
     {
         if (RemoteSync.IsClient)
         {
+            MarkLocalChange();
             _ = SyncTableCountAsync(count);
             return;
         }
@@ -475,8 +517,14 @@ public class SettingsStore
     public bool VerifyPin(string pin, string right) =>
         VerifyOwnerPin(pin) || HasStaffRight(pin, right);
 
-    /// <summary>Τα δύο κλειδιά που ανοίγουν τα πάντα: ο κωδικός του καταστήματος και ο admin.</summary>
-    public bool VerifyOwnerPin(string pin) => pin == AdminPin || pin == Settings.Pin;
+    /// <summary>
+    /// Το ΕΝΑ κλειδί που ανοίγει τα πάντα: ο admin.
+    ///
+    /// <para>Ο παλιός «κωδικός καταστήματος» (<c>Settings.Pin</c>, εργοστασιακά 1992) ΔΕΝ ανοίγει πια
+    /// τίποτα — ζητήθηκε ρητά, γιατί τον ήξεραν όλοι. Μένει στο αρχείο ρυθμίσεων μόνο ως εφεδρεία για
+    /// τα ήδη στημένα κινητά, μέχρι να μπει κωδικός σερβιτόρου (βλ. VerifyWaiterPin).</para>
+    /// </summary>
+    public bool VerifyOwnerPin(string pin) => pin == AdminPin;
 
     /// <summary>Υπάρχει άτομο με αυτόν τον κωδικό ΚΑΙ με αυτό το δικαίωμα τικαρισμένο;</summary>
     public bool HasStaffRight(string pin, string right) =>
@@ -493,7 +541,13 @@ public class SettingsStore
     /// προσωπικού ΔΕΝ ανοίγουν το κινητό: γι' αυτό υπάρχει ο δικός του.
     /// </summary>
     public bool VerifyWaiterPin(string pin) =>
-        VerifyOwnerPin(pin) || (Settings.WaiterPin.Length > 0 && pin == Settings.WaiterPin);
+        VerifyOwnerPin(pin)
+        || (Settings.WaiterPin.Length > 0
+            ? pin == Settings.WaiterPin
+            // Δεν έχει οριστεί ακόμα κωδικός σερβιτόρου: δέχεται τον παλιό κωδικό καταστήματος, ώστε
+            // τα κινητά που δουλεύουν σήμερα στο μαγάζι να μη «νεκρώσουν» με την αναβάθμιση. Μόλις
+            // μπει κωδικός σερβιτόρου, ο παλιός παύει να ισχύει και εκεί.
+            : Settings.Pin.Length > 0 && pin == Settings.Pin);
 
     /// <summary>
     /// Ο κωδικός admin — ΠΕΡΝΑΕΙ ΠΑΝΤΟΥ (ταμείο, ακυρώσεις, κινητό) και δεν αλλάζει από πουθενά.
@@ -508,17 +562,6 @@ public class SettingsStore
     /// θέλει, ή να αλλάξει τον κωδικό που γράφει το όνομά του στις ακυρώσεις.
     /// </summary>
     public bool VerifyAdminPin(string pin) => pin == AdminPin;
-
-    /// <summary>Ορίζει νέο κωδικό (4 ψηφία). Επιστρέφει false αν δεν είναι έγκυρος.</summary>
-    public bool SetPin(string newPin)
-    {
-        if (newPin.Length != 4 || !newPin.All(char.IsDigit))
-            return false;
-        Settings.Pin = newPin;
-        Save();
-        PushSharedSettingsIfClient();
-        return true;
-    }
 
     /// <summary>Όνομα που αντιστοιχεί σε δεδομένο κωδικό ακύρωσης — null αν δεν ταιριάζει καμία ενεργή θέση.
     /// Ο γενικός κωδικός καταστήματος (admin, Κώστας) περνάει και εδώ, ώστε να μη χρειάζεται να θυμάται

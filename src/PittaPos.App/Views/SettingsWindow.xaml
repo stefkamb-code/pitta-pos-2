@@ -36,11 +36,8 @@
                 <!-- security -->
                 <TextBlock Text="ΑΣΦΑΛΕΙΑ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
-                <Button Content="ΑΛΛΑΓΗ ΚΩΔΙΚΟΥ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
-                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
-                        HorizontalContentAlignment="Center" Click="ChangePin_Click"/>
-                <TextBlock Text="Κωδικός 4 ψηφίων για Στατιστικά, Ιστορικό και Κατάλογο."
-                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+                <!-- Ο παλιός «κωδικός καταστήματος» καταργήθηκε: τα πάντα ανοίγουν με τον κωδικό
+                     admin ή με τον προσωπικό κωδικό του καθενός (βλ. ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ παρακάτω). -->
 
                 <Button Content="ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
                         HorizontalAlignment="Left" Style="{StaticResource FlatButton}"

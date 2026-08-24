@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PittaPos.App.Services;
@@ -132,12 +132,11 @@ public partial class CancelStaffWindow : Window
             return;
         }
 
-        // ΟΧΙ ο κωδικός του καταστήματος και ΟΧΙ ο admin: αυτοί ελέγχονται ΠΡΩΤΟΙ παντού (βλ.
-        // SettingsStore.VerifyOwnerPin), οπότε το άτομο θα άνοιγε τα πάντα ό,τι κι αν του τικάρεις —
-        // και οι ακυρώσεις του θα γράφονταν στο όνομα του ιδιοκτήτη.
-        if (used.Any(p => p == SettingsStore.Instance.Settings.Pin || p == SettingsStore.AdminPin))
+        // ΟΧΙ ο admin: ελέγχεται ΠΡΩΤΟΣ παντού (βλ. SettingsStore.VerifyOwnerPin), οπότε το άτομο θα
+        // άνοιγε τα πάντα ό,τι κι αν του τικάρεις — και οι ακυρώσεις του θα γράφονταν στον ιδιοκτήτη.
+        if (used.Any(p => p == SettingsStore.AdminPin))
         {
-            ShowError("Αυτός ο κωδικός ανοίγει ολόκληρο το ταμείο — δώσε άλλον.");
+            ShowError("Αυτός είναι ο κωδικός admin — δώσε άλλον.");
             return;
         }
 
