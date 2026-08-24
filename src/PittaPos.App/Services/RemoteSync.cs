@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Net.Http.Json;
 using System.Windows.Threading;
 
@@ -21,8 +21,14 @@ public static class RemoteSync
     /// ταμείο θα φόρτωνε άσκοπα τον εαυτό του με αιτήματα. Εδώ επανέρχεται σε λειτουργία κύριου
     /// ταμείου (τοπικά αρχεία), που είναι πάντα ασφαλέστερο από το να χάνονται παραγγελίες.
     /// </summary>
+    /// <para>Η ξεχωριστή εφαρμογή «Ζωντανές Παραγγελίες» (βλ. <see cref="AppMode"/>) περνά ΠΑΝΤΑ από
+    /// εδώ ως client, και μάλιστα με διεύθυνση 127.0.0.1 — δηλαδή ακριβώς αυτό που ο παραπάνω έλεγχος
+    /// απαγορεύει. Δεν είναι αντίφαση: εκείνος υπάρχει για να μη μιλάει ένα ταμείο στον ΕΑΥΤΟ του,
+    /// ενώ ο πίνακας μιλάει σε ΑΛΛΗ διεργασία, το ταμείο δίπλα του. Βρόχος δεν γίνεται γιατί ο πίνακας
+    /// δεν σηκώνει καν server (βλ. App.OnStartup): τίποτα δεν γυρίζει ποτέ πίσω σε αυτόν.</para>
     public static bool IsClient =>
-        SettingsStore.Instance.Settings.NetworkMode == "client" && !HostIsThisMachine();
+        AppMode.IsBoard
+        || (SettingsStore.Instance.Settings.NetworkMode == "client" && !HostIsThisMachine());
 
     private static string? _checkedHost;
     private static bool _checkedResult;
@@ -141,7 +147,11 @@ public static class RemoteSync
     /// Επιστρέφει τη διεύθυνση που ισχύει τώρα, ή null αν δεν βρέθηκε τίποτα.</summary>
     public static async Task<string?> FindAndSaveHostAsync()
     {
-        if (_discovering || !IsClient)
+        // Η εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ μιλάει εξ ορισμού στο ταμείο του ΙΔΙΟΥ υπολογιστή (βλ.
+        // AppMode) — δεν έχει IP να χάσει και δεν έχει τίποτα να ψάξει. Χωρίς αυτό, με το ταμείο
+        // κλειστό θα σάρωνε το δίκτυο και θα «κόλλαγε» σε ταμείο άλλου μηχανήματος, δείχνοντας
+        // παραγγελίες που δεν είναι αυτού του πάγκου.
+        if (AppMode.IsBoard || _discovering || !IsClient)
             return null;
         _discovering = true;
         _lastDiscovery = DateTime.Now;
@@ -388,7 +398,14 @@ public static class RemoteSync
             return;
         }
 
-        _ = refresh();
+        // Το πρώτο poll μπαίνει στην ουρά του UI αντί να τρέξει ΤΩΡΑ. Ο κάθε store το ζητά μέσα από
+        // τον constructor του, δηλαδή τη στιγμή που το `Instance` του δεν έχει ακόμα ανατεθεί: ένα
+        // refresh εκείνη τη στιγμή έσκαγε με NullReferenceException μόλις κάποιος διάβαζε ρυθμίσεις
+        // (βλ. BaseUrl -> SettingsStore.Instance) και το πρώτο συγχρονισμό τον έτρωγε το crash-log.
+        if (dispatcher is null)
+            _ = refresh();
+        else
+            dispatcher.BeginInvoke(refresh);
         var timer = new DispatcherTimer { Interval = interval };
         timer.Tick += async (_, _) => await refresh();
         timer.Start();

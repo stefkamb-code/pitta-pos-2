@@ -39,6 +39,11 @@
          git commit και ανανεώνουμε το PittaPOS-Setup.bat στην Επιφάνεια — έτσι ο αριθμός σημαίνει «αυτή
          είναι η έκδοση που βγήκε», όχι «πόσες φορές έκανα build σήμερα». -->
     <Content Include="version.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Το εικονίδιο της συντόμευσης «Ζωντανές Παραγγελίες»: το λογότυπο με τον ντελιβερά μπροστά, ώστε
+         να ξεχωρίζει με τη μία από το εικονίδιο του ταμείου. Ταξιδεύει ΔΙΠΛΑ ΣΤΟ EXE (όχι embedded
+         resource) γιατί η συντόμευση των Windows θέλει πραγματικό αρχείο στον δίσκο για IconLocation —
+         βλ. scripts/make-setup.sh. -->
+    <Content Include="Assets\live-orders.ico" Link="live-orders.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

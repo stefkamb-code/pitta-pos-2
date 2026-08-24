@@ -139,20 +139,21 @@
         <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2"
                 Padding="20,0,150,0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
             <DockPanel VerticalAlignment="Center">
+                <!-- Το λογότυπο ΑΝΟΙΓΕΙ ΤΑ ΣΤΑΤΙΣΤΙΚΑ (με τον κωδικό, όπως πάντα). Ζητήθηκε ρητά να
+                     μη φαίνεται πουθενά κουμπί: επίτηδες δεν αλλάζει ο δείκτης του ποντικιού και δεν
+                     υπάρχει ToolTip — το ξέρει όποιος πρέπει. Βλ. Logo_MouseLeftButtonDown. -->
                 <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
                        Height="50" Margin="0,0,10,0" VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       MouseLeftButtonDown="Logo_MouseLeftButtonDown"/>
                 <TextBlock DockPanel.Dock="Left" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontWeight="ExtraBold" FontSize="15.5"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"
                            Style="{StaticResource HideWhenNarrow}"/>
-                <Button DockPanel.Dock="Left" Content="ΣΤΑΤΙΣΤΙΚΑ" FontSize="12.5" FontWeight="ExtraBold"
-                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="20,0,0,0"
-                        VerticalAlignment="Center" Click="OpenStats_Click"/>
-                <Button DockPanel.Dock="Left" Content="ΙΣΤΟΡΙΚΟ" FontSize="12.5" FontWeight="ExtraBold"
-                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
-                        VerticalAlignment="Center" Click="OpenHistory_Click"/>
+                <!-- ΤΟ ΙΣΤΟΡΙΚΟ ΔΕΝ ΕΙΝΑΙ ΠΙΑ ΕΔΩ: ζητήθηκε να μπει μέσα στα ΣΤΑΤΙΣΤΙΚΑ, δίπλα στο
+                     ΔΙΑΓΡΑΜΜΑ (βλ. Views/StatsWindow.xaml) — δηλαδή πίσω από το ίδιο κλειδωμένο
+                     σημείο, μαζί με τα υπόλοιπα νούμερα της ημέρας. -->
                 <Button DockPanel.Dock="Left" Content="ΚΑΤΑΛΟΓΟΣ" FontSize="12.5" FontWeight="ExtraBold"
-                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
+                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="20,0,0,0"
                         VerticalAlignment="Center" Click="OpenMenuManager_Click"/>
                 <Button DockPanel.Dock="Left" Content="ΠΕΛΑΤΕΣ" FontSize="12.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
@@ -162,8 +163,13 @@
                 <Button DockPanel.Dock="Left" Content="ΚΑΤΑΝΑΛΩΣΕΙΣ" FontSize="12.5" FontWeight="ExtraBold"
                         Style="{StaticResource FlatButton}" Padding="14,8" Margin="10,0,0,0"
                         VerticalAlignment="Center" Click="OpenConsumption_Click"/>
-                <Button DockPanel.Dock="Right" Content="⚙" FontSize="23" ToolTip="Ρυθμίσεις"
-                        Style="{StaticResource GlyphButton}" Padding="7,0" Margin="12,0,0,0"
+                <!-- Το γρανάζι ΔΕΝ είναι πια ο χαρακτήρας «⚙» της γραμματοσειράς του ταμείου (έβγαινε
+                     χοντροκομμένο και ελαφρώς στραβό στη βάση). Είναι το εικονίδιο ρυθμίσεων των ίδιων
+                     των Windows, από το «Segoe Fluent Icons» (Win11) με πτώση στο «Segoe MDL2 Assets»
+                     (Win10) — ίδιο σχήμα, καθαρές γραμμές σε κάθε μέγεθος. -->
+                <Button DockPanel.Dock="Right" Content="&#xE713;" FontSize="18" ToolTip="Ρυθμίσεις"
+                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                        Style="{StaticResource GlyphButton}" Padding="9,0" Margin="12,0,0,0"
                         VerticalAlignment="Center" Click="OpenSettings_Click"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
                     <!-- Ο ήλιος/το φεγγάρι ρητά σε «Segoe UI Emoji» και με τον δείκτη εμφάνισης emoji
@@ -210,37 +216,9 @@
                 <TextBlock DockPanel.Dock="Right" x:Name="ClockText" FontSize="14.5" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center"
                            Style="{StaticResource HideWhenNarrow}" Margin="0,0,10,0"/>
-                <!-- VerticalAlignment="Center" όπως ΣΤΑΤΙΣΤΙΚΑ/ΙΣΤΟΡΙΚΟ: χωρίς αυτό το DockPanel το
-                     τέντωνε σε όλο το ύψος της κεφαλίδας και έβγαινε ψηλότερο από τα διπλανά του. -->
-                <Button DockPanel.Dock="Right" FontSize="12.5" FontWeight="ExtraBold"
-                        Style="{StaticResource FlatButton}" Padding="14,8" Margin="0,0,14,0"
-                        ToolTip="Ζωντανές παραγγελίες"
-                        VerticalAlignment="Center" Click="OpenLiveOrders_Click">
-                    <!-- Η κουκκίδα και το σήμα κρατιούνται χαμηλότερα από το ύψος του κειμένου, ώστε
-                         το κουμπί να βγαίνει ακριβώς ίδιο σε ύψος με τα ΣΤΑΤΙΣΤΙΚΑ/ΙΣΤΟΡΙΚΟ δίπλα του
-                         (ίδιο FontSize και Padding έχουν ήδη· το σήμα των 20px ήταν που το φούσκωνε). -->
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="10" Height="10" Fill="#2e7d32" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                        <!-- Σε στενό παράθυρο μένουν μόνο η πράσινη κουκκίδα και το πλήθος — η
-                             πληροφορία που μετράει· η λέξη τη λέει το ToolTip. -->
-                        <TextBlock Text="ΠΑΡΑΓΓΕΛΙΕΣ" VerticalAlignment="Center"
-                                   Style="{StaticResource HideWhenNarrow}"/>
-                        <Border Background="{DynamicResource Accent}" CornerRadius="8" MinWidth="16" Height="16"
-                                Margin="7,0,0,0" Padding="4,0" VerticalAlignment="Center">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Board.PendingCount}" Value="0">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding Board.PendingCount}" Foreground="White" FontSize="10.5"
-                                       FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </StackPanel>
-                </Button>
+                <!-- ΕΔΩ ΗΤΑΝ ΤΟ ΚΟΥΜΠΙ «ΠΑΡΑΓΓΕΛΙΕΣ». Οι Ζωντανές Παραγγελίες έγιναν ΞΕΧΩΡΙΣΤΗ
+                     ΕΦΑΡΜΟΓΗ (βλ. Services/AppMode.cs) και ανοίγουν ΜΟΝΟ από τη δική τους συντόμευση
+                     στην Επιφάνεια — ζητήθηκε ρητά να μη μένει κανένας δεύτερος τρόπος από το ταμείο. -->
                 <TextBlock DockPanel.Dock="Right" Text="{Binding OrderContextLabel}" FontSize="12"
                            Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center" Margin="0,0,14,0"/>
                 <Border/>

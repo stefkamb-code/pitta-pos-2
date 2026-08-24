@@ -50,11 +50,26 @@ public partial class LiveOrdersViewModel : ObservableObject
             foreach (var o in _board.Orders)
                 o.Tick();
             NowLabel = DateTime.Now.ToString("HH:mm");
+            OnPropertyChanged(nameof(LiveBrush));
         };
         _timer.Start();
         NowLabel = DateTime.Now.ToString("HH:mm");
         Rebuild();
     }
+
+    private static readonly Brush LiveGreen = new SolidColorBrush(Color.FromRgb(0x2e, 0x7d, 0x32));
+    private static readonly Brush StaleGrey = new SolidColorBrush(Color.FromRgb(0x9e, 0x9e, 0x9e));
+
+    /// <summary>
+    /// Η κουκκίδα δίπλα στον τίτλο. Πράσινη = αυτά που βλέπεις είναι η τωρινή εικόνα. Γκρι = η πηγή
+    /// τους δεν απαντά αυτή τη στιγμή, άρα ο πίνακας έχει «παγώσει» σε ό,τι πρόλαβε.
+    ///
+    /// <para>Αφορά μόνο όποιον διαβάζει από αλλού — την ξεχωριστή εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ (βλ.
+    /// AppMode) και το δεύτερο ταμείο. Μέσα στο ίδιο το ταμείο τα δεδομένα είναι δικά του και η
+    /// κουκκίδα μένει πράσινη, όπως ήταν πάντα. Είναι σκόπιμα μια κουκκίδα και όχι μήνυμα: όταν
+    /// ξαναβρεθεί η σύνδεση διορθώνεται μόνη της, χωρίς να χρειαστεί να πατήσει κανείς τίποτα.</para>
+    /// </summary>
+    public Brush LiveBrush => !RemoteSync.IsClient || RemoteSync.LastError is null ? LiveGreen : StaleGrey;
 
     /// <summary>Τρέχουσα βάρδια — κοινός χειροκίνητος διακόπτης (Αρχική/Ζωντανές Παραγγελίες), ποτέ αυτόματος.</summary>
     public bool IsEveningShift => SettingsStore.Instance.Settings.IsEveningShift;

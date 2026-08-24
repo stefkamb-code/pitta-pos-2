@@ -1,4 +1,4 @@
-<Window x:Class="PittaPos.App.Views.PinDialog"
+﻿<Window x:Class="PittaPos.App.Views.PinDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ΚΩΔΙΚΟΣ" Width="320" SizeToContent="Height"
@@ -8,7 +8,7 @@
         Background="{DynamicResource Bg}"
         KeyDown="Window_KeyDown">
     <StackPanel Margin="24">
-        <TextBlock Text="Βάλε τον κωδικό" FontSize="14" FontWeight="ExtraBold"
+        <TextBlock x:Name="PromptText" Text="Βάλε τον κωδικό" FontSize="14" FontWeight="ExtraBold"
                    Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
 
         <TextBlock x:Name="Dots" Text="" FontSize="30" FontWeight="ExtraBold" Height="44"

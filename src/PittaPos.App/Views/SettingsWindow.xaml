@@ -42,7 +42,7 @@
                 <TextBlock Text="Κωδικός 4 ψηφίων για Στατιστικά, Ιστορικό και Κατάλογο."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
-                <Button Content="ΚΩΔΙΚΟΙ ΑΚΥΡΩΣΗΣ ΠΡΟΣΩΠΙΚΟΥ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
+                <Button Content="ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
                         HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
                         HorizontalContentAlignment="Center" Click="ManageCancelStaff_Click"/>
                 <TextBlock Text="Μόνο για τον admin (θέλει τον παραπάνω κωδικό καταστήματος) — 4 ονόματα με δικό τους κωδικό ακύρωσης, ώστε το ιστορικό ακυρωμένων να δείχνει ποιος ακύρωσε."

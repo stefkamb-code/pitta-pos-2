@@ -1,3 +1,5 @@
+﻿using System.IO;
+
 namespace PittaPos.App.Services;
 
 /// <summary>
@@ -17,7 +19,17 @@ public static class AppIdentity
     /// (παραγγελίες, στατιστικά, πελάτες, ρυθμίσεις, μενού, αρχείο, αναφορές).
     /// Το πρώτο κατάστημα χρησιμοποιεί "PittaPos" — μην το ξαναβάλεις εδώ.
     /// </summary>
-    public const string DataFolder = "PittaPos2";
+    public const string StoreDataFolder = "PittaPos2";
+
+    /// <summary>
+    /// Ο φάκελος δεδομένων ΑΥΤΗΣ της διεργασίας. Για το ταμείο είναι ο φάκελος του καταστήματος, όπως
+    /// πάντα. Για την ξεχωριστή εφαρμογή «Ζωντανές Παραγγελίες» είναι δικός της υποφάκελος μέσα του
+    /// (βλ. <see cref="AppMode"/>): εκείνη δεν κρατά δεδομένα — τα ρωτάει από το ταμείο — και δεν πρέπει
+    /// να γράφει ΠΟΤΕ πάνω στα αρχεία του, γιατί δύο διεργασίες στο ίδιο JSON σβήνουν η μία την άλλη.
+    /// </summary>
+    public static string DataFolder => AppMode.IsBoard
+        ? Path.Combine(StoreDataFolder, AppMode.BoardFolderName)
+        : StoreDataFolder;
 
     /// <summary>
     /// Όνομα του mutex μοναδικού instance. Πρέπει να διαφέρει από του πρώτου καταστήματος, αλλιώς

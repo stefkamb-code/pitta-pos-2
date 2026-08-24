@@ -15,6 +15,15 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // ΞΕΧΩΡΙΣΤΗ ΕΦΑΡΜΟΓΗ «ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ»: ίδιο exe, δική της συντόμευση, όρισμα --live.
+        // Τίποτα από όσα ακολουθούν δεν ισχύει για εκείνη — ούτε server, ούτε email, ούτε τηλέφωνα:
+        // ανοίγει έναν πίνακα και ρωτάει το ταμείο (βλ. AppMode).
+        if (AppMode.WantsBoard(e.Args))
+        {
+            StartLiveBoard();
+            return;
+        }
+
         // Δύο instances μαζί (π.χ. διπλό κλικ στη συντόμευση, ή ένα ξεχασμένο ανοιχτό από πριν) παλεύουν
         // για την ίδια θύρα του WaiterApiService ΚΑΙ για τον ίδιο φάκελο προφίλ WebView2 — το δεύτερο
         // βγάζει «Access Denied» μόλις ανοίξει ο Χάρτης Διανομής (δοκιμασμένο, βλ. crash-log). Καλύτερα να
@@ -29,11 +38,7 @@ public partial class App : Application
             return;
         }
 
-        // Χωρίς αυτά, ένα οποιοδήποτε απρόσμενο σφάλμα (π.χ. null σε κάποιο ViewModel) έριχνε όλο
-        // το ταμείο απότομα, στη μέση παραγγελίας — τώρα καταγράφεται και η εφαρμογή συνεχίζει.
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
-        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        HookExceptionLogging();
 
         // Εφαρμογή του αποθηκευμένου θέματος πριν ανοίξει οποιοδήποτε παράθυρο. Το HookNewWindows
         // προηγείται ώστε να πιάσει και το πρώτο παράθυρο: κάθε παράθυρο που ανοίγει από δω και πέρα
@@ -85,6 +90,59 @@ public partial class App : Application
 
         // Αναγνώριση κλήσεων μέσω AMI του Grandstream UCM — ανενεργό αν δεν έχει ρυθμιστεί
         AmiClientService.Start();
+
+        // Η αρχική ανοίγει ΕΔΩ και όχι με StartupUri στο App.xaml: το ίδιο exe ανοίγει πλέον δύο
+        // διαφορετικά παράθυρα ανάλογα με το πώς ξεκίνησε (ταμείο ή πίνακας, βλ. StartLiveBoard), και
+        // το StartupUri θα άνοιγε την αρχική ΚΑΙ στις δύο περιπτώσεις.
+        ShowMainWindow(new MainWindow());
+    }
+
+    /// <summary>Το ΕΝΑ κύριο παράθυρο αυτής της διεργασίας. Το ShutdownMode είναι OnMainWindowClose:
+    /// κλείνει αυτό, κλείνει η εφαρμογή — για το ταμείο η αρχική, για τον πίνακα ο ίδιος ο πίνακας.</summary>
+    private void ShowMainWindow(Window window)
+    {
+        MainWindow = window;
+        window.Show();
+    }
+
+    /// <summary>
+    /// Εκκίνηση ως εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ. Σκόπιμα ΕΛΑΧΙΣΤΗ: ο πίνακας δεν είναι ταμείο.
+    ///
+    /// <para>Δεν σηκώνει τον server του κινητού (η θύρα ανήκει στο ταμείο και θα έσκαγε), δεν στέλνει
+    /// αναφορές ημέρας, δεν ακούει τηλέφωνα, δεν καθαρίζει τραπέζια και δεν προθερμαίνει πελατολόγιο —
+    /// όλα αυτά τα κάνει το ταμείο, μία φορά, και θα ήταν λάθος να γίνονται δεύτερη φορά από εδώ.</para>
+    /// </summary>
+    private void StartLiveBoard()
+    {
+        // Δικό της mutex: ανοίγει ΜΑΖΙ με το ταμείο (άλλο όνομα), αλλά μία φορά. Δεύτερο άνοιγμα δεν
+        // βγάζει μήνυμα — φέρνει μπροστά αυτόν που τρέχει ήδη, που είναι και το αναμενόμενο όταν
+        // ξαναπατάς μια συντόμευση.
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, AppMode.BoardMutex, out var createdNew);
+        if (!createdNew)
+        {
+            BoardActivation.SignalExisting();
+            Shutdown();
+            return;
+        }
+
+        // ΠΡΩΤΑ αυτό: από δω και πέρα κάθε αρχείο που ανοίγει η διεργασία δείχνει στον δικό της
+        // υποφάκελο, όχι στα αρχεία του ταμείου.
+        AppMode.EnableBoard();
+
+        HookExceptionLogging();
+        TitleBarTheme.HookNewWindows();
+        ThemeManager.Apply(SettingsStore.Instance.IsDark);
+
+        ShowMainWindow(new Views.LiveOrdersWindow());
+    }
+
+    /// <summary>Χωρίς αυτά, ένα οποιοδήποτε απρόσμενο σφάλμα έριχνε ολόκληρο το παράθυρο απότομα —
+    /// τώρα καταγράφεται και συνεχίζει. Ισχύει και για το ταμείο και για τον πίνακα.</summary>
+    private void HookExceptionLogging()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
     /// <summary>Ό,τι αποθήκευση πελατών εκκρεμεί, γράφεται ΤΩΡΑ. Η αποθήκευση αναβάλλεται λίγα

@@ -126,7 +126,10 @@ public sealed record SharedSettingsDto(
     List<StaffPin> CancelStaffPins,
     string ReceiptTitle, string ReceiptInfo, string ReceiptFooter,
     bool ReceiptShowDateTime, bool ReceiptShowCustomer, bool ReceiptShowDetails,
-    double ReceiptTitleFontSize, double ReceiptItemsFontSize, double ReceiptTotalFontSize, double ReceiptMetaFontSize);
+    double ReceiptTitleFontSize, double ReceiptItemsFontSize, double ReceiptTotalFontSize, double ReceiptMetaFontSize,
+    // ΤΕΛΕΥΤΑΙΟ ΚΑΙ ΜΕ ΠΡΟΕΠΙΛΟΓΗ επίτηδες: ταμείο παλιότερης έκδοσης δεν στέλνει αυτό το πεδίο, και
+    // χωρίς την προεπιλογή θα ερχόταν null — και το πρώτο κινητό που θα ρωτούσε κωδικό θα έσκαγε.
+    string WaiterPin = "");
 
 /// <summary>Ολόκληρο το μενού για συγχρονισμό με το δεύτερο ταμείο. Πριν στέλνονταν ΜΟΝΟ οι
 /// κατηγορίες: τα κοινά έξτρα και οι χρεώσεις διπλής πίτας δεν έφταναν ποτέ, οπότε στο δεύτερο ταμείο

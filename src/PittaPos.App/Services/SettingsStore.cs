@@ -4,11 +4,45 @@ using PittaPos.Core.Data;
 
 namespace PittaPos.App.Services;
 
-/// <summary>Ένας ονομαστικός κωδικός ακύρωσης — κενό Name/Pin σημαίνει αδειανή, ανενεργή θέση.</summary>
+/// <summary>Τι επιτρέπεται να ανοίξει ένας κωδικός προσωπικού. Κλειδιά — γράφονται στο settings.json,
+/// μην τα μετονομάσεις.</summary>
+public static class StaffRight
+{
+    public const string Cancel = "cancel";
+    public const string Stats = "stats";
+    public const string History = "history";
+    public const string Menu = "menu";
+    public const string Customers = "customers";
+    public const string Consumption = "consumption";
+
+    /// <summary>Με τη σειρά που εμφανίζονται στην οθόνη κωδικών.</summary>
+    public static readonly (string Key, string Label)[] All =
+    [
+        (Cancel, "ΑΚΥΡΩΣΕΙΣ"),
+        (Stats, "ΣΤΑΤΙΣΤΙΚΑ"),
+        (History, "ΙΣΤΟΡΙΚΟ"),
+        (Menu, "ΚΑΤΑΛΟΓΟΣ"),
+        (Customers, "ΠΕΛΑΤΕΣ"),
+        (Consumption, "ΚΑΤΑΝΑΛΩΣΕΙΣ"),
+    ];
+}
+
+/// <summary>Ένας ονομαστικός κωδικός προσωπικού — κενό Name/Pin σημαίνει αδειανή, ανενεργή θέση.</summary>
 public class StaffPin
 {
     public string Name { get; set; } = "";
     public string Pin { get; set; } = "";
+
+    /// <summary>
+    /// Τι ανοίγει αυτός ο κωδικός (βλ. <see cref="StaffRight"/>) — τα «τικ» της οθόνης κωδικών.
+    ///
+    /// <para><c>null</c> σημαίνει ΟΛΑ: έτσι οι κωδικοί που υπήρχαν πριν μπουν τα δικαιώματα
+    /// συνεχίζουν να δουλεύουν ακριβώς όπως χθες, χωρίς να χρειαστεί να μπει κανείς να τα τικάρει.</para>
+    /// </summary>
+    public List<string>? Rights { get; set; }
+
+    /// <summary>Επιτρέπεται αυτό το σημείο;</summary>
+    public bool Allows(string right) => Rights is null || Rights.Contains(right);
 }
 
 public class AppSettings
@@ -25,6 +59,12 @@ public class AppSettings
     public bool IsEveningShift { get; set; }
     /// <summary>Όνομα εκτυπωτή (Windows print queue) για σιωπηλή αυτόματη εκτύπωση — κενό = ανενεργή.</summary>
     public string PrinterName { get; set; } = "";
+
+    /// <summary>Κωδικός ΣΕΡΒΙΤΟΡΟΥ — μόνο για την εφαρμογή του κινητού (βλ. WaiterApiService). Δεν
+    /// ανοίγει Στατιστικά/Ιστορικό/Κατάλογο στο ταμείο και δεν ακυρώνει: ο σερβιτόρος τον έχει στο
+    /// τηλέφωνό του και δεν πρέπει να του δίνει τίποτα άλλο. Κενό = δεν έχει οριστεί, οπότε το κινητό
+    /// δουλεύει με τον κωδικό του καταστήματος, όπως πάντα.</summary>
+    public string WaiterPin { get; set; } = "";
 
     /// <summary>Διεύθυνση καταστήματος — σημείο εκκίνησης/επιστροφής της προτεινόμενης διαδρομής
     /// στον Χάρτη Διανομής (βλ. DeliveryRouteService). Κενό = δεν δείχνεται σημείο καταστήματος.</summary>
@@ -200,7 +240,8 @@ public class SettingsStore
         Settings.CancelStaffPins,
         Settings.ReceiptTitle, Settings.ReceiptInfo, Settings.ReceiptFooter,
         Settings.ReceiptShowDateTime, Settings.ReceiptShowCustomer, Settings.ReceiptShowDetails,
-        Settings.ReceiptTitleFontSize, Settings.ReceiptItemsFontSize, Settings.ReceiptTotalFontSize, Settings.ReceiptMetaFontSize);
+        Settings.ReceiptTitleFontSize, Settings.ReceiptItemsFontSize, Settings.ReceiptTotalFontSize, Settings.ReceiptMetaFontSize,
+        Settings.WaiterPin);
 
     /// <summary>Εφαρμόζει ένα SharedSettingsDto πάνω στις τοπικές ρυθμίσεις (host που δέχεται push από
     /// client, ή client που τραβάει από host) — Save()/Changed μόνο αν κάτι πραγματικά άλλαξε, ώστε να μην
@@ -225,6 +266,7 @@ public class SettingsStore
         Settings.SmtpPassword = dto.SmtpPassword;
         Settings.ReportEmail = dto.ReportEmail;
         Settings.CancelStaffPins = dto.CancelStaffPins;
+        Settings.WaiterPin = dto.WaiterPin ?? "";
         Settings.ReceiptTitle = dto.ReceiptTitle;
         Settings.ReceiptInfo = dto.ReceiptInfo;
         Settings.ReceiptFooter = dto.ReceiptFooter;
@@ -258,7 +300,11 @@ public class SettingsStore
     /// <summary>Δεύτερο ταμείο (client) — μόλις αλλάξει κάτι τοπικά, το στέλνει και στο host (fire-and-
     /// forget) ώστε να μην περιμένει το επόμενο 5" polling του host-ίδιου-του-εαυτού του (το host δεν
     /// τραβάει τίποτα μόνο του — μόνο δέχεται). Στο host αυτό δεν κάνει τίποτα (IsClient == false).</summary>
-    private void PushSharedSettingsIfClient()
+    /// <summary>Δημόσιο γιατί το καλεί και ο ίδιος ο server όταν δεχτεί ρυθμίσεις από αλλού
+    /// (βλ. WaiterApiService, POST /api/sync/settings): αν ΑΥΤΟ το ταμείο είναι δεύτερο, οι ρυθμίσεις
+    /// πρέπει να συνεχίσουν το ταξίδι τους ως το κύριο, αλλιώς μένουν εδώ και τις σβήνει το επόμενο
+    /// polling.</summary>
+    public void PushSharedSettingsIfClient()
     {
         if (!RemoteSync.IsClient)
             return;
@@ -421,7 +467,47 @@ public class SettingsStore
         PushSharedSettingsIfClient();
     }
 
-    public bool VerifyPin(string pin) => pin == Settings.Pin;
+    /// <summary>
+    /// Ανοίγει αυτός ο κωδικός ΑΥΤΟ το σημείο; Τρεις περιπτώσεις περνάνε: ο admin, ο κωδικός του
+    /// καταστήματος, και κάθε άτομο του προσωπικού που έχει τικαρισμένο το συγκεκριμένο δικαίωμα
+    /// (βλ. <see cref="StaffRight"/>, οθόνη ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ).
+    /// </summary>
+    public bool VerifyPin(string pin, string right) =>
+        VerifyOwnerPin(pin) || HasStaffRight(pin, right);
+
+    /// <summary>Τα δύο κλειδιά που ανοίγουν τα πάντα: ο κωδικός του καταστήματος και ο admin.</summary>
+    public bool VerifyOwnerPin(string pin) => pin == AdminPin || pin == Settings.Pin;
+
+    /// <summary>Υπάρχει άτομο με αυτόν τον κωδικό ΚΑΙ με αυτό το δικαίωμα τικαρισμένο;</summary>
+    public bool HasStaffRight(string pin, string right) =>
+        pin.Length > 0 && Settings.CancelStaffPins.Any(p => p.Pin.Length > 0 && p.Pin == pin && p.Allows(right));
+
+    /// <summary>Ανοίγει αυτός ο κωδικός το συγκεκριμένο σημείο; (ίδιο με VerifyPin — υπάρχει για να
+    /// διαβάζεται καθαρά εκεί που ελέγχουμε κωδικό που δόθηκε ΝΩΡΙΤΕΡΑ, π.χ. το ΙΣΤΟΡΙΚΟ μέσα στα
+    /// Στατιστικά, χωρίς να ξαναζητηθεί.)</summary>
+    public bool PinOpens(string? pin, string right) => pin is not null && VerifyPin(pin, right);
+
+    /// <summary>
+    /// Ο κωδικός που δέχεται το ΚΙΝΗΤΟ του σερβιτόρου: ο κωδικός σερβιτόρου, ο κωδικός καταστήματος
+    /// (όπως δούλευε πάντα — να μη «χαλάσουν» τα ήδη στημένα κινητά) και ο admin. Οι κωδικοί
+    /// προσωπικού ΔΕΝ ανοίγουν το κινητό: γι' αυτό υπάρχει ο δικός του.
+    /// </summary>
+    public bool VerifyWaiterPin(string pin) =>
+        VerifyOwnerPin(pin) || (Settings.WaiterPin.Length > 0 && pin == Settings.WaiterPin);
+
+    /// <summary>
+    /// Ο κωδικός admin — ΠΕΡΝΑΕΙ ΠΑΝΤΟΥ (ταμείο, ακυρώσεις, κινητό) και δεν αλλάζει από πουθενά.
+    /// Δεν αποθηκεύεται στα settings επίτηδες: αν ζούσε εκεί, ένα λάθος πάτημα στις Ρυθμίσεις (ή ένα
+    /// χαλασμένο settings.json) θα κλείδωνε τον ιδιοκτήτη έξω από τα δικά του στατιστικά.
+    /// </summary>
+    public const string AdminPin = "4504";
+
+    /// <summary>
+    /// ΜΟΝΟ ο admin. Φυλάει τη μία οθόνη που δεν πρέπει να αγγίζει υπάλληλος: τους ίδιους τους
+    /// κωδικούς και τα δικαιώματά τους — αλλιώς ο καθένας θα μπορούσε να δώσει στον εαυτό του ό,τι
+    /// θέλει, ή να αλλάξει τον κωδικό που γράφει το όνομά του στις ακυρώσεις.
+    /// </summary>
+    public bool VerifyAdminPin(string pin) => pin == AdminPin;
 
     /// <summary>Ορίζει νέο κωδικό (4 ψηφία). Επιστρέφει false αν δεν είναι έγκυρος.</summary>
     public bool SetPin(string newPin)
@@ -439,15 +525,22 @@ public class SettingsStore
     /// δεύτερο κωδικό μόνο για ακυρώσεις.</summary>
     public string? FindCancelStaffName(string pin)
     {
-        if (pin.Length > 0 && pin == Settings.Pin)
+        // Ο admin γράφεται με το ίδιο όνομα με τον κωδικό του καταστήματος: και τα δύο είναι «το
+        // αφεντικό», και δύο διαφορετικά ονόματα στην αναφορά ακυρώσεων θα έμοιαζαν με δύο άτομα.
+        if (pin.Length > 0 && VerifyOwnerPin(pin))
             return "ΚΩΣΤΑΣ";
-        return Settings.CancelStaffPins.FirstOrDefault(p => p.Pin.Length > 0 && p.Pin == pin)?.Name;
+        // ΜΟΝΟ όσοι έχουν τικαρισμένη την ΑΚΥΡΩΣΗ: κάποιος που μπήκε π.χ. μόνο για τον κατάλογο δεν
+        // πρέπει να μπορεί να σβήνει παραγγελίες.
+        return Settings.CancelStaffPins
+            .FirstOrDefault(p => p.Pin.Length > 0 && p.Pin == pin && p.Allows(StaffRight.Cancel))?.Name;
     }
 
-    /// <summary>Αποθηκεύει τους 4 ονομαστικούς κωδικούς ακύρωσης (μόνο ο admin, βλ. SettingsWindow).</summary>
-    public void SetCancelStaffPins(List<StaffPin> pins)
+    /// <summary>Αποθηκεύει τους ονομαστικούς κωδικούς (υπεύθυνοι) και τον κωδικό σερβιτόρου —
+    /// μόνο ο admin φτάνει εκεί, βλ. SettingsWindow/CancelStaffWindow.</summary>
+    public void SetStaffPins(List<StaffPin> pins, string waiterPin)
     {
         Settings.CancelStaffPins = pins;
+        Settings.WaiterPin = waiterPin;
         Save();
         PushSharedSettingsIfClient();
     }

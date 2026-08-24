@@ -42,7 +42,10 @@ public partial class ChangePinDialog : Window
         switch (_stage)
         {
             case Stage.Current:
-                if (!SettingsStore.Instance.VerifyPin(_entered))
+                // Ο κωδικός του ΚΑΤΑΣΤΗΜΑΤΟΣ αλλάζει μόνο με admin: με το VerifyPin θα μπορούσε ένας
+                // υπεύθυνος (που πλέον περνάει κι εκείνος παντού) να τον αλλάξει και να κλειδώσει έξω
+                // τους υπόλοιπους.
+                if (!SettingsStore.Instance.VerifyAdminPin(_entered))
                 {
                     Reject("Λάθος κωδικός");
                     return;

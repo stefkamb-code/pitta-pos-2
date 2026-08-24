@@ -13,9 +13,7 @@ public partial class MainWindow : Window
 {
     private readonly OrderWizardViewModel _wizard = new();
     private readonly DispatcherTimer _clock;
-    private LiveOrdersWindow? _liveOrders;
     private StatsWindow? _stats;
-    private HistoryWindow? _history;
     private SettingsWindow? _settings;
     private MenuManagerWindow? _menuManager;
     private CustomersWindow? _customers;
@@ -253,28 +251,28 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OpenLiveOrders_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Κρυφή είσοδος στα ΣΤΑΤΙΣΤΙΚΑ: το κουμπί έφυγε από την μπάρα (ζητήθηκε να μη φαίνεται) και τα
+    /// ανοίγει πλέον το ίδιο το λογότυπο. Ο κωδικός συνεχίζει να ζητείται κανονικά.
+    /// </summary>
+    private void Logo_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (_liveOrders is null || !_liveOrders.IsLoaded)
-        {
-            // Χωρίς Owner ώστε η αρχική να μπορεί να έρθει μπροστά του για νέα παραγγελία
-            _liveOrders = new LiveOrdersWindow();
-            _liveOrders.Closed += (_, _) => _liveOrders = null;
-            _liveOrders.Show();
-        }
-        else
-        {
-            _liveOrders.Activate();
-        }
+        // Χωρίς αυτό το πάτημα συνέχιζε στη μπάρα και ξεκινούσε σύρσιμο του παραθύρου
+        // (βλ. Header_MouseLeftButtonDown) — τα Στατιστικά δεν άνοιγαν ποτέ.
+        e.Handled = true;
+        OpenStats_Click(sender, e);
     }
 
     private void OpenStats_Click(object sender, RoutedEventArgs e)
     {
         if (_stats is null || !_stats.IsLoaded)
         {
-            if (!PinDialog.Require(this))
+            // Ο κωδικός που άνοιξε τα Στατιστικά ταξιδεύει μαζί τους: αν ανοίγει και το Ιστορικό, το
+            // κουμπί εκεί μέσα δεν θα ξαναρωτήσει (βλ. StatsWindow).
+            var pin = PinDialog.RequirePin(this, StaffRight.Stats);
+            if (pin is null)
                 return;
-            _stats = new StatsWindow();
+            _stats = new StatsWindow(pin);
             _stats.Closed += (_, _) => _stats = null;
             _stats.Show();
         }
@@ -284,27 +282,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenHistory_Click(object sender, RoutedEventArgs e)
-    {
-        if (_history is null || !_history.IsLoaded)
-        {
-            if (!PinDialog.Require(this))
-                return;
-            _history = new HistoryWindow();
-            _history.Closed += (_, _) => _history = null;
-            _history.Show();
-        }
-        else
-        {
-            _history.Activate();
-        }
-    }
-
     private void OpenMenuManager_Click(object sender, RoutedEventArgs e)
     {
         if (_menuManager is null || !_menuManager.IsLoaded)
         {
-            if (!PinDialog.Require(this))
+            if (!PinDialog.Require(this, StaffRight.Menu))
                 return;
             _menuManager = new MenuManagerWindow();
             _menuManager.Closed += (_, _) => _menuManager = null;
@@ -320,7 +302,7 @@ public partial class MainWindow : Window
     {
         if (_customers is null || !_customers.IsLoaded)
         {
-            if (!PinDialog.Require(this))
+            if (!PinDialog.Require(this, StaffRight.Customers))
                 return;
             _customers = new CustomersWindow();
             _customers.Closed += (_, _) => _customers = null;
@@ -338,7 +320,7 @@ public partial class MainWindow : Window
     {
         if (_consumption is null || !_consumption.IsLoaded)
         {
-            if (!PinDialog.Require(this))
+            if (!PinDialog.Require(this, StaffRight.Consumption))
                 return;
             _consumption = new ConsumptionWindow();
             _consumption.Closed += (_, _) => _consumption = null;

@@ -33,7 +33,7 @@
                        RenderOptions.BitmapScalingMode="HighQuality"/>
                 <TextBlock DockPanel.Dock="Left" Text="ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ" FontWeight="ExtraBold" FontSize="14"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
-                <Ellipse DockPanel.Dock="Left" Width="14" Height="14" Fill="#2e7d32"
+                <Ellipse DockPanel.Dock="Left" Width="14" Height="14" Fill="{Binding LiveBrush}"
                          Margin="14,0,0,0" VerticalAlignment="Center"/>
                 <TextBlock DockPanel.Dock="Right" Text="{Binding NowLabel}" FontSize="13" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral700}" VerticalAlignment="Center" Margin="14,0,0,0"/>

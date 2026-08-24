@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using PittaPos.App.ViewModels;
 
 using PittaPos.App.Services;
@@ -13,6 +13,9 @@ public partial class LiveOrdersWindow : Window
     // νύχτας» που μαύριζε ολόκληρο τον πίνακα παραγγελιών· στο μαγαζί ήταν πιο δύσκολο να διαβαστεί
     // και δεν πρόσφερε τίποτα — η βάρδια συνεχίζει να μετράει κανονικά στις αναφορές και στα
     // στατιστικά, απλώς δεν φαίνεται στα χρώματα.
+    /// <summary>Μόνο όταν τρέχει ως ξεχωριστή εφαρμογή — ακούει το «έλα μπροστά» (βλ. AppMode).</summary>
+    private readonly BoardActivationListener? _activation;
+
     public LiveOrdersWindow()
     {
         InitializeComponent();
@@ -20,6 +23,16 @@ public partial class LiveOrdersWindow : Window
         TitleBarTheme.Attach(this);
         DataContext = _vm;
         Closed += (_, _) => _vm.Shutdown();
+
+        if (!AppMode.IsBoard)
+            return;
+
+        // Ξεχωριστή εφαρμογή: ανοίγει σε ΚΑΝΟΝΙΚΟ παράθυρο, στο μέγεθος που είχε πάντα — ζητήθηκε
+        // ρητά να μη μεγιστοποιείται μόνο του («θα το κάνω αν θέλω εγώ»). Το «←» δεν γυρίζει πουθενά
+        // πλέον: κλείνει την ίδια την εφαρμογή.
+        Title = "ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ · " + AppIdentity.StoreName;
+        _activation = new BoardActivationListener(this);
+        Closed += (_, _) => _activation.Dispose();
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();

@@ -1,7 +1,7 @@
 <Window x:Class="PittaPos.App.Views.CancelStaffWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ΚΩΔΙΚΟΙ ΑΚΥΡΩΣΗΣ" Height="600" Width="560"
+        Title="ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ" Height="700" Width="680"
         WindowStartupLocation="CenterOwner"
         Icon="pack://application:,,,/Assets/logo.png"
         FontFamily="{StaticResource PosFont}"
@@ -20,45 +20,96 @@
                 <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
                        Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="HighQuality"/>
-                <TextBlock DockPanel.Dock="Left" Text="ΚΩΔΙΚΟΙ ΑΚΥΡΩΣΗΣ" FontWeight="ExtraBold" FontSize="14"
+                <TextBlock DockPanel.Dock="Left" Text="ΚΩΔΙΚΟΙ ΠΡΟΣΩΠΙΚΟΥ" FontWeight="ExtraBold" FontSize="14"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
                 <Border/>
             </DockPanel>
         </Border>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="30,26" MaxWidth="480" HorizontalAlignment="Left">
-                <TextBlock Text="Κάθε μέλος του προσωπικού παίρνει το δικό του 4ψήφιο κωδικό ακύρωσης. Όταν κάποιος ακυρώνει παραγγελία ή προϊόν, βάζει τον δικό του κωδικό — έτσι το ιστορικό ακυρωμένων δείχνει ποιος το έκανε. Άδεια θέση = ανενεργή."
-                           FontSize="12.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,0,0,24"/>
+            <StackPanel Margin="30,26" MaxWidth="580" HorizontalAlignment="Left">
+                <TextBlock Text="Κάθε άτομο έχει τον δικό του 4ψήφιο και ανοίγει ΜΟΝΟ όσα του τικάρεις. Το όνομά του γράφεται στις ακυρώσεις της ημέρας. Ο κωδικός σερβιτόρου είναι ΜΟΝΟ για το κινητό — δεν ανοίγει τίποτα στο ταμείο."
+                           FontSize="12.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Margin="0,0,0,22"/>
 
-                <Grid Margin="0,0,0,14">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="110"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="ΟΝΟΜΑ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                    <TextBlock Grid.Column="2" Text="ΚΩΔΙΚΟΣ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                </Grid>
-
+                <!-- Όσα άτομα θέλει το μαγαζί: το «+ ΑΤΟΜΟ» προσθέτει, το × αφαιρεί. -->
                 <ItemsControl x:Name="RowsControl">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="110"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" Style="{StaticResource PosTextBox}" Height="42"
-                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
-                                <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="42"
-                                         MaxLength="4" HorizontalContentAlignment="Center" FontWeight="Bold"
-                                         Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"/>
-                            </Grid>
+                            <Border Background="{DynamicResource Surface}" CornerRadius="12" Padding="16,14" Margin="0,0,0,12"
+                                    BorderBrush="{DynamicResource Divider}" BorderThickness="1">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="105"/>
+                                            <ColumnDefinition Width="38"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="ΟΝΟΜΑ" FontSize="10.5" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Neutral600}"/>
+                                        <TextBlock Grid.Column="2" Text="ΚΩΔΙΚΟΣ" FontSize="10.5" FontWeight="ExtraBold"
+                                                   Foreground="{DynamicResource Neutral600}"/>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="105"/>
+                                            <ColumnDefinition Width="38"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Style="{StaticResource PosTextBox}" Height="42"
+                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Grid.Column="2" Style="{StaticResource PosTextBox}" Height="42"
+                                                 MaxLength="4" HorizontalContentAlignment="Center" FontWeight="Bold"
+                                                 Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <Button Grid.Column="3" Content="×" FontSize="18" ToolTip="Αφαίρεση ατόμου"
+                                                Style="{StaticResource GlyphButton}" VerticalAlignment="Center"
+                                                Click="RemoveRow_Click"/>
+                                    </Grid>
+
+                                    <!-- Τα δικαιώματα: ό,τι είναι τικαρισμένο, ανοίγει με τον κωδικό του. -->
+                                    <ItemsControl ItemsSource="{Binding Rights}" Margin="2,12,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding IsOn}"
+                                                          FontSize="12" FontWeight="ExtraBold"
+                                                          Foreground="{DynamicResource Ink}"
+                                                          Margin="0,0,18,6" VerticalContentAlignment="Center"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <Button Content="+ ΑΤΟΜΟ" Height="40" FontSize="12.5" FontWeight="ExtraBold" Width="140"
+                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                        HorizontalContentAlignment="Center" Click="AddRow_Click"/>
+
+                <!-- Ο σερβιτόρος δεν έχει όνομα ούτε δικαιώματα εδώ: ο κωδικός του δεν ανοίγει τίποτα
+                     στο ταμείο και δεν γράφεται σε ακυρώσεις — είναι το κλειδί του κινητού. -->
+                <Grid Margin="0,26,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="105"/>
+                        <ColumnDefinition Width="38"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="ΣΕΡΒΙΤΟΡΟΣ" FontSize="12.5" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="ο κωδικός που μπαίνει στο κινητό" FontSize="12"
+                               Foreground="{DynamicResource Neutral600}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="WaiterPinBox" Grid.Column="3" Style="{StaticResource PosTextBox}" Height="42"
+                             MaxLength="4" HorizontalContentAlignment="Center" FontWeight="Bold"/>
+                </Grid>
 
                 <TextBlock x:Name="ErrorText" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Accent}"
                            TextWrapping="Wrap" Margin="0,4,0,14" Visibility="Collapsed"/>

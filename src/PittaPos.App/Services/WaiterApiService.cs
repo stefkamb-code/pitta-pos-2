@@ -140,7 +140,7 @@ public static class WaiterApiService
                 var req = await ctx.Request.ReadFromJsonAsync<SetPersonsRequest>();
                 if (req is null)
                     return Results.BadRequest(new { error = "Άκυρο αίτημα" });
-                if (!SettingsStore.Instance.VerifyPin(req.Pin))
+                if (!SettingsStore.Instance.VerifyWaiterPin(req.Pin))
                     return Results.Json(new { error = "Λάθος κωδικός" }, statusCode: 401);
                 OnUi(() => { TablePersonsService.Instance.SetCount(table, req.Count); return 0; });
                 return Results.Json(new { persons = OnUi(() => TablePersonsService.Instance.CountFor(table)) });
@@ -230,7 +230,16 @@ public static class WaiterApiService
         app.MapPost("/api/sync/settings", async (HttpContext ctx) =>
         {
             var dto = await ctx.Request.ReadFromJsonAsync<SharedSettingsDto>();
-            if (dto is not null) OnUi(() => { SettingsStore.Instance.ApplySharedSettingsDto(dto); return 0; });
+            // Το «και παρακάτω» δεν είναι θεωρητικό: την αλλαγή βάρδιας τη στέλνει εδώ η ξεχωριστή
+            // εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ (βλ. AppMode), που μιλάει πάντα στο ταμείο δίπλα της. Αν
+            // εκείνο είναι το ΔΕΥΤΕΡΟ ταμείο και σταματούσε εδώ, η βάρδια θα άλλαζε για μισό λεπτό και
+            // θα την ξανάφερνε πίσω το επόμενο polling από το κύριο.
+            if (dto is not null) OnUi(() =>
+            {
+                if (SettingsStore.Instance.ApplySharedSettingsDto(dto))
+                    SettingsStore.Instance.PushSharedSettingsIfClient();
+                return 0;
+            });
             return Results.Ok();
         });
 
@@ -671,7 +680,7 @@ public static class WaiterApiService
     /// <summary>Εξοφλεί ξεχωριστά ένα προϊόν από ανοιχτό τραπέζι (π.χ. πλήρωσε μόνο ένας από την παρέα).</summary>
     private static (int Status, object Body) SettleLine(int table, SettleLineRequest req)
     {
-        if (!SettingsStore.Instance.VerifyPin(req.Pin))
+        if (!SettingsStore.Instance.VerifyWaiterPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" });
 
         // Η παραγγελία πρέπει να ανήκει στο ΤΡΕΧΟΝ άνοιγμα του τραπεζιού — ίδιος κανόνας με κάθε άλλη
@@ -735,7 +744,7 @@ public static class WaiterApiService
     /// <summary>Πληρωμή/κλείσιμο ολόκληρου τραπεζιού από το κινητό — ίδια ενέργεια με το «✕ ΠΛΗΡΩΜΗ ΤΡΑΠΕΖΙΟΥ» του ταμείου.</summary>
     private static (int Status, object Body) CloseTable(int table, CloseTableRequest req)
     {
-        if (!SettingsStore.Instance.VerifyPin(req.Pin))
+        if (!SettingsStore.Instance.VerifyWaiterPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" });
         if (!TableStatusService.Instance.OpenSince.TryGetValue(table, out var since))
             return (400, new { error = "Το τραπέζι δεν είναι ανοιχτό" });
@@ -834,7 +843,7 @@ public static class WaiterApiService
 
     private static (int Status, object Body, CompletedOrder? Order, List<int?> Persons) BuildTableOrder(SubmitOrderRequest req)
     {
-        if (!SettingsStore.Instance.VerifyPin(req.Pin))
+        if (!SettingsStore.Instance.VerifyWaiterPin(req.Pin))
             return (401, new { error = "Λάθος κωδικός" }, null, []);
         if (req.Table < 1 || !TableNumbers().Contains(req.Table))
             return (400, new { error = "Άκυρο τραπέζι" }, null, []);
