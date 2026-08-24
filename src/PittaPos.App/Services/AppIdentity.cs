@@ -23,12 +23,12 @@ public static class AppIdentity
 
     /// <summary>
     /// Ο φάκελος δεδομένων ΑΥΤΗΣ της διεργασίας. Για το ταμείο είναι ο φάκελος του καταστήματος, όπως
-    /// πάντα. Για την ξεχωριστή εφαρμογή «Ζωντανές Παραγγελίες» είναι δικός της υποφάκελος μέσα του
+    /// πάντα. Για τις ξεχωριστές εφαρμογές (Ζωντανές Παραγγελίες, Στατιστικά) είναι δικός τους υποφάκελος μέσα του
     /// (βλ. <see cref="AppMode"/>): εκείνη δεν κρατά δεδομένα — τα ρωτάει από το ταμείο — και δεν πρέπει
     /// να γράφει ΠΟΤΕ πάνω στα αρχεία του, γιατί δύο διεργασίες στο ίδιο JSON σβήνουν η μία την άλλη.
     /// </summary>
-    public static string DataFolder => AppMode.IsBoard
-        ? Path.Combine(StoreDataFolder, AppMode.BoardFolderName)
+    public static string DataFolder => AppMode.IsViewer
+        ? Path.Combine(StoreDataFolder, AppMode.FolderName)
         : StoreDataFolder;
 
     /// <summary>

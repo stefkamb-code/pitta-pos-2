@@ -44,6 +44,7 @@
          resource) γιατί η συντόμευση των Windows θέλει πραγματικό αρχείο στον δίσκο για IconLocation —
          βλ. scripts/make-setup.sh. -->
     <Content Include="Assets\live-orders.ico" Link="live-orders.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Assets\stats.ico" Link="stats.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

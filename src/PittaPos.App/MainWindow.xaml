@@ -139,13 +139,11 @@
         <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2"
                 Padding="20,0,150,0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
             <DockPanel VerticalAlignment="Center">
-                <!-- Το λογότυπο ΑΝΟΙΓΕΙ ΤΑ ΣΤΑΤΙΣΤΙΚΑ (με τον κωδικό, όπως πάντα). Ζητήθηκε ρητά να
-                     μη φαίνεται πουθενά κουμπί: επίτηδες δεν αλλάζει ο δείκτης του ποντικιού και δεν
-                     υπάρχει ToolTip — το ξέρει όποιος πρέπει. Βλ. Logo_MouseLeftButtonDown. -->
+                <!-- ΤΑ ΣΤΑΤΙΣΤΙΚΑ ΔΕΝ ΑΝΟΙΓΟΥΝ ΠΙΑ ΑΠΟ ΕΔΩ (ούτε από το λογότυπο): έγιναν ξεχωριστή
+                     εφαρμογή με δική της συντόμευση, όπως και οι Ζωντανές Παραγγελίες (βλ. AppMode). -->
                 <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
                        Height="50" Margin="0,0,10,0" VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       MouseLeftButtonDown="Logo_MouseLeftButtonDown"/>
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
                 <TextBlock DockPanel.Dock="Left" Text="ΠΙΤΤΑ ΤΟΥ ΠΑΠΠΟΥ" FontWeight="ExtraBold" FontSize="15.5"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"
                            Style="{StaticResource HideWhenNarrow}"/>

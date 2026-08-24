@@ -15,12 +15,13 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // ΞΕΧΩΡΙΣΤΗ ΕΦΑΡΜΟΓΗ «ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ»: ίδιο exe, δική της συντόμευση, όρισμα --live.
-        // Τίποτα από όσα ακολουθούν δεν ισχύει για εκείνη — ούτε server, ούτε email, ούτε τηλέφωνα:
-        // ανοίγει έναν πίνακα και ρωτάει το ταμείο (βλ. AppMode).
-        if (AppMode.WantsBoard(e.Args))
+        // ΞΕΧΩΡΙΣΤΕΣ ΕΦΑΡΜΟΓΕΣ: ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ (--live) και ΣΤΑΤΙΣΤΙΚΑ (--stats). Ίδιο exe,
+        // δική τους συντόμευση. Τίποτα από όσα ακολουθούν δεν ισχύει για εκείνες — ούτε server, ούτε
+        // email, ούτε τηλέφωνα: ανοίγουν μία οθόνη και ρωτάνε το ταμείο (βλ. AppMode).
+        var role = AppMode.RoleFromArgs(e.Args);
+        if (role != AppRole.Till)
         {
-            StartLiveBoard();
+            StartViewer(role);
             return;
         }
 
@@ -106,18 +107,22 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Εκκίνηση ως εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ. Σκόπιμα ΕΛΑΧΙΣΤΗ: ο πίνακας δεν είναι ταμείο.
+    /// Εκκίνηση ως ξεχωριστή εφαρμογή (πίνακας ή στατιστικά). Σκόπιμα ΕΛΑΧΙΣΤΗ: δεν είναι ταμείο.
     ///
     /// <para>Δεν σηκώνει τον server του κινητού (η θύρα ανήκει στο ταμείο και θα έσκαγε), δεν στέλνει
     /// αναφορές ημέρας, δεν ακούει τηλέφωνα, δεν καθαρίζει τραπέζια και δεν προθερμαίνει πελατολόγιο —
     /// όλα αυτά τα κάνει το ταμείο, μία φορά, και θα ήταν λάθος να γίνονται δεύτερη φορά από εδώ.</para>
     /// </summary>
-    private void StartLiveBoard()
+    private void StartViewer(AppRole role)
     {
+        // ΠΡΩΤΑ ο ρόλος: από δω και πέρα κάθε αρχείο που ανοίγει η διεργασία δείχνει στον δικό της
+        // υποφάκελο, όχι στα αρχεία του ταμείου — και το mutex/σήμα παρακάτω παίρνουν το σωστό όνομα.
+        AppMode.EnableViewer(role);
+
         // Δικό της mutex: ανοίγει ΜΑΖΙ με το ταμείο (άλλο όνομα), αλλά μία φορά. Δεύτερο άνοιγμα δεν
-        // βγάζει μήνυμα — φέρνει μπροστά αυτόν που τρέχει ήδη, που είναι και το αναμενόμενο όταν
+        // βγάζει μήνυμα — φέρνει μπροστά αυτήν που τρέχει ήδη, που είναι και το αναμενόμενο όταν
         // ξαναπατάς μια συντόμευση.
-        _singleInstanceMutex = new Mutex(initiallyOwned: true, AppMode.BoardMutex, out var createdNew);
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, AppMode.Mutex, out var createdNew);
         if (!createdNew)
         {
             BoardActivation.SignalExisting();
@@ -125,32 +130,32 @@ public partial class App : Application
             return;
         }
 
-        // ΠΡΩΤΑ αυτό: από δω και πέρα κάθε αρχείο που ανοίγει η διεργασία δείχνει στον δικό της
-        // υποφάκελο, όχι στα αρχεία του ταμείου.
-        AppMode.EnableBoard();
-
         HookExceptionLogging();
         TitleBarTheme.HookNewWindows();
         ThemeManager.Apply(SettingsStore.Instance.IsDark);
 
-        // ΚΩΔΙΚΟΣ ΠΡΙΝ ΑΝΟΙΞΕΙ. Ο πίνακας δείχνει διευθύνσεις πελατών, ποσά και τα λεφτά που κρατάει ο
-        // διανομέας — και από πάνω ακυρώνει παραγγελίες. Ζητείται ΠΡΙΝ φτιαχτεί το παράθυρο, ώστε να
-        // μη φανεί τίποτα από πίσω· «Άκυρο» σημαίνει ότι η εφαρμογή απλώς κλείνει.
+        // ΚΩΔΙΚΟΣ ΠΡΙΝ ΑΝΟΙΞΕΙ. Ο πίνακας δείχνει διευθύνσεις πελατών και τα μετρητά του διανομέα (και
+        // ακυρώνει παραγγελίες)· τα Στατιστικά δείχνουν ολόκληρο τον τζίρο. Ζητείται ΠΡΙΝ φτιαχτεί το
+        // παράθυρο, ώστε να μη φανεί τίποτα από πίσω· «Άκυρο» σημαίνει ότι η εφαρμογή απλώς κλείνει.
         //
         // Το ShutdownMode αλλάζει προσωρινά: το WPF ορίζει ΜΟΝΟ ΤΟΥ ως «κύριο παράθυρο» το πρώτο που
         // θα ανοίξει — δηλαδή τον ίδιο τον διάλογο του κωδικού — και με OnMainWindowClose η εφαρμογή
         // έκλεινε τη στιγμή που ο διάλογος έφευγε, ακόμα και με σωστό κωδικό. (Μετρημένο: ο πίνακας
         // δεν άνοιγε ποτέ, η διεργασία απλώς εξαφανιζόταν.)
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        var unlocked = Views.PinDialog.RequireStandalone(StaffRight.LiveOrders);
+        var pin = Views.PinDialog.RequirePinStandalone(AppMode.RequiredRight);
         MainWindow = null;
-        if (!unlocked)
+        if (pin is null)
         {
             Shutdown();
             return;
         }
 
-        ShowMainWindow(new Views.LiveOrdersWindow());
+        // Ο κωδικός ταξιδεύει μέσα στα Στατιστικά: αν ανοίγει και το ΙΣΤΟΡΙΚΟ, το κουμπί εκεί μέσα
+        // δεν θα ξαναρωτήσει (ίδιος κανόνας με το ταμείο, βλ. StatsWindow).
+        ShowMainWindow(role == AppRole.Stats
+            ? new Views.StatsWindow(pin)
+            : new Views.LiveOrdersWindow());
         // Από δω και πέρα ισχύει ο κανόνας του App.xaml: κλείνει ο πίνακας, κλείνει η εφαρμογή.
         ShutdownMode = ShutdownMode.OnMainWindowClose;
     }

@@ -3,7 +3,7 @@
 namespace PittaPos.App.Services;
 
 /// <summary>
-/// Το σήμα «έλα μπροστά» για την ξεχωριστή εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ (βλ. <see cref="AppMode"/>).
+/// Το σήμα «έλα μπροστά» για τις ξεχωριστές εφαρμογές (βλ. <see cref="AppMode"/>).
 ///
 /// <para>Χρειάζεται γιατί ο πίνακας ανοίγει μία φορά: δεύτερο διπλό κλικ στη συντόμευση βρίσκει το
 /// mutex πιασμένο και η νέα διεργασία κλείνει αμέσως. Χωρίς το σήμα, εκείνο το δεύτερο κλικ δεν θα
@@ -16,7 +16,7 @@ public static class BoardActivation
     {
         try
         {
-            if (!EventWaitHandle.TryOpenExisting(AppMode.BoardActivateEvent, out var handle))
+            if (!EventWaitHandle.TryOpenExisting(AppMode.ActivateEvent, out var handle))
                 return false;
             using (handle)
                 return handle.Set();
@@ -41,7 +41,7 @@ public sealed class BoardActivationListener : IDisposable
 
     public BoardActivationListener(Window window)
     {
-        _signal = new EventWaitHandle(false, EventResetMode.AutoReset, AppMode.BoardActivateEvent);
+        _signal = new EventWaitHandle(false, EventResetMode.AutoReset, AppMode.ActivateEvent);
         _registration = ThreadPool.RegisterWaitForSingleObject(
             _signal,
             (_, _) => window.Dispatcher.BeginInvoke(() => BringToFront(window)),

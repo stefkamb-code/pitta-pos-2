@@ -3,8 +3,9 @@
 # (ίδιο self-extracting bat wrapper — βλ. :PAYLOAD, base64-encoded zip του publish output).
 # Δεύτερο βήμα του release flow, μετά το bump-version.sh, πριν το git commit.
 #
-# ΔΥΟ συντομεύσεις φτιάχνει πλέον: «Pitta POS 2» (το ταμείο) και «Ζωντανές Παραγγελίες» (ίδιο exe με
-# όρισμα --live, δικό του εικονίδιο live-orders.ico με τον ντελιβερά). Το ελληνικό όνομα της δεύτερης
+# ΤΡΕΙΣ συντομεύσεις φτιάχνει πλέον: «Pitta POS 2» (το ταμείο), «Ζωντανές Παραγγελίες» (ίδιο exe με
+# όρισμα --live, εικονίδιο live-orders.ico με τον ντελιβερά) και «Στατιστικά» (--stats, εικονίδιο
+# stats.ico με το διάγραμμα). Το ελληνικό όνομα των δύο τελευταίων
 # ΔΕΝ γράφεται ως κείμενο μέσα στο .bat: περνάει από cmd -> powershell και βγαίνει αλλοιωμένο (μετρημένο,
 # το αρχείο δεν δημιουργείται καν). Χτίζεται από code points με [char], που είναι καθαρό ASCII στο .bat.
 #
@@ -61,6 +62,7 @@ fi
 # αφήνεται στο csproj: με PublishSingleFile το Content δεν έφτανε στο publish/ (δοκιμάστηκε), οπότε η
 # συντόμευση θα έπαιρνε σιωπηλά το εικονίδιο του ταμείου και τα δύο εικονίδια θα ήταν ίδια.
 cp src/PittaPos.App/Assets/live-orders.ico "$PUBLISH_DIR/live-orders.ico"
+cp src/PittaPos.App/Assets/stats.ico "$PUBLISH_DIR/stats.ico"
 
 if [ -f "$CUST_SRC" ]; then
   echo "Bundling customers from $CUST_SRC ..."
@@ -97,7 +99,7 @@ rem  C:\PittaPOS2, οπότε δεν τα ακουμπάει καν. Το αντ
 echo Φύλαξη αντιγράφου των ρυθμίσεων...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { $s = Join-Path (Join-Path $env:AppData 'PittaPos2') 'settings.json'; if (Test-Path $s) { Copy-Item -LiteralPath $s -Destination ($s + '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmm')) -Force } } catch { } }"
 echo Προετοιμασία αρχείων, περίμενε λίγο...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference='Stop'; try { Get-Process -Name 'PittaPos2.App' -ErrorAction SilentlyContinue | Stop-Process -Force; $dest='C:\PittaPOS2'; $exe = Join-Path $dest 'PittaPos2.App.exe'; for ($i = 0; $i -lt 20; $i++) { if (-not (Test-Path $exe)) { break }; try { $fs = [System.IO.File]::Open($exe, 'Open', 'ReadWrite', 'None'); $fs.Close(); break } catch { Start-Sleep -Milliseconds 300 } }; $lines = Get-Content -LiteralPath '%~f0'; $startIdx = ($lines | Select-String -Pattern '^:PAYLOAD$' | Select-Object -First 1).LineNumber; $b64 = ($lines[$startIdx..($lines.Count-1)] -join ''); $bytes = [System.Convert]::FromBase64String($b64); $zip = Join-Path $env:TEMP 'pittapos2-install.zip'; [System.IO.File]::WriteAllBytes($zip, $bytes); if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }; Expand-Archive -Path $zip -DestinationPath $dest -Force; Remove-Item $zip -Force; $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Pitta POS 2.lnk')); $s.TargetPath = $exe; $s.WorkingDirectory = $dest; $s.IconLocation = $exe; $s.Save(); $nm = -join ([int[]](0x396,0x3C9,0x3BD,0x3C4,0x3B1,0x3BD,0x3AD,0x3C2,0x20,0x3A0,0x3B1,0x3C1,0x3B1,0x3B3,0x3B3,0x3B5,0x3BB,0x3AF,0x3B5,0x3C2) | ForEach-Object { [char]$_ }); $b = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) ($nm + '.lnk'))); $b.TargetPath = $exe; $b.Arguments = '--live'; $b.WorkingDirectory = $dest; $ico = Join-Path $dest 'live-orders.ico'; $b.IconLocation = $(if (Test-Path $ico) { $ico } else { $exe }); $b.Description = $nm; $b.Save(); Write-Host 'OK' } catch { Write-Host ('SFALMA: ' + $_.Exception.Message); exit 1 } }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference='Stop'; try { Get-Process -Name 'PittaPos2.App' -ErrorAction SilentlyContinue | Stop-Process -Force; $dest='C:\PittaPOS2'; $exe = Join-Path $dest 'PittaPos2.App.exe'; for ($i = 0; $i -lt 20; $i++) { if (-not (Test-Path $exe)) { break }; try { $fs = [System.IO.File]::Open($exe, 'Open', 'ReadWrite', 'None'); $fs.Close(); break } catch { Start-Sleep -Milliseconds 300 } }; $lines = Get-Content -LiteralPath '%~f0'; $startIdx = ($lines | Select-String -Pattern '^:PAYLOAD$' | Select-Object -First 1).LineNumber; $b64 = ($lines[$startIdx..($lines.Count-1)] -join ''); $bytes = [System.Convert]::FromBase64String($b64); $zip = Join-Path $env:TEMP 'pittapos2-install.zip'; [System.IO.File]::WriteAllBytes($zip, $bytes); if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest | Out-Null }; Expand-Archive -Path $zip -DestinationPath $dest -Force; Remove-Item $zip -Force; $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Pitta POS 2.lnk')); $s.TargetPath = $exe; $s.WorkingDirectory = $dest; $s.IconLocation = $exe; $s.Save(); $nm = -join ([int[]](0x396,0x3C9,0x3BD,0x3C4,0x3B1,0x3BD,0x3AD,0x3C2,0x20,0x3A0,0x3B1,0x3C1,0x3B1,0x3B3,0x3B3,0x3B5,0x3BB,0x3AF,0x3B5,0x3C2) | ForEach-Object { [char]$_ }); $b = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) ($nm + '.lnk'))); $b.TargetPath = $exe; $b.Arguments = '--live'; $b.WorkingDirectory = $dest; $ico = Join-Path $dest 'live-orders.ico'; $b.IconLocation = $(if (Test-Path $ico) { $ico } else { $exe }); $b.Description = $nm; $b.Save(); $sn = -join ([int[]](0x3A3,0x3C4,0x3B1,0x3C4,0x3B9,0x3C3,0x3C4,0x3B9,0x3BA,0x3AC) | ForEach-Object { [char]$_ }); $c = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) ($sn + '.lnk'))); $c.TargetPath = $exe; $c.Arguments = '--stats'; $c.WorkingDirectory = $dest; $sico = Join-Path $dest 'stats.ico'; $c.IconLocation = $(if (Test-Path $sico) { $sico } else { $exe }); $c.Description = $sn; $c.Save(); Write-Host 'OK' } catch { Write-Host ('SFALMA: ' + $_.Exception.Message); exit 1 } }"
 if errorlevel 1 (
   echo.
   echo   ΣΦΑΛΜΑ — η εγκατάσταση ΔΕΝ ολοκληρώθηκε. Δες το μήνυμα παραπάνω ^(π.χ. αρχείο κλειδωμένο,
@@ -127,8 +129,8 @@ echo   Οι ρυθμίσεις που κρατήθηκαν:
 powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { $s = Join-Path (Join-Path $env:AppData 'PittaPos2') 'settings.json'; if (-not (Test-Path $s)) { Write-Host '   - (καθαρή εγκατάσταση, δεν υπήρχαν ρυθμίσεις)'; exit 0 }; $j = Get-Content -LiteralPath $s -Raw | ConvertFrom-Json; $net = if ($j.NetworkMode -eq 'client') { 'ΔΕΥΤΕΡΟ ΤΑΜΕΙΟ -> ' + $j.HostAddress } else { 'ΚΥΡΙΟ ΤΑΜΕΙΟ' }; Write-Host ('   - Δίκτυο: ' + $net); Write-Host ('   - Εκτυπωτής: ' + $(if ($j.PrinterName) { $j.PrinterName } else { '(κανένας)' })); Write-Host ('   - Διεύθυνση μαγαζιού: ' + $(if ($j.ShopAddress) { $j.ShopAddress } else { '(δεν έχει οριστεί)' })) } catch { Write-Host '   - (δεν διαβάστηκαν)' } }"
 echo.
 echo   Ολοκληρώθηκε! Βρες το εικονίδιο "Pitta POS 2" στην Επιφάνεια Εργασίας.
-echo   Δίπλα του μπήκε και το "Zontanes Paraggelies" ^(με τον ντελιβερά^) — οι Ζωντανές Παραγγελίες
-echo   ανοίγουν πλέον σε δικό τους παράθυρο, ξεχωριστά από το ταμείο.
+echo   Διπλα του μπηκαν και οι "Ζωντανες Παραγγελιες" ^(ντελιβερας^) και τα "Στατιστικα" ^(διαγραμμα^):
+echo   ανοιγουν πλεον σε δικα τους παραθυρα, ξεχωριστα απο το ταμειο, με κωδικο.
 echo.
 pause
 exit /b

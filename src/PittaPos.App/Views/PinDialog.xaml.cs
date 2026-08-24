@@ -40,7 +40,7 @@ public partial class PinDialog : Window
     /// Χωρίς παράθυρο-γονιό — για την εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ, που ζητάει κωδικό ΠΡΙΝ ανοίξει
     /// οτιδήποτε άλλο (βλ. App.StartLiveBoard): δεν υπάρχει ακόμα παράθυρο να το κεντράρει.
     /// </summary>
-    public static bool RequireStandalone(string right)
+    public static string? RequirePinStandalone(string right)
     {
         var dialog = new PinDialog
         {
@@ -48,7 +48,7 @@ public partial class PinDialog : Window
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             ShowInTaskbar = true,
         };
-        return dialog.ShowDialog() == true;
+        return dialog.ShowDialog() == true ? dialog.AcceptedPin : null;
     }
 
     /// <summary>Ίδιο με το Require, αλλά επιστρέφει ΤΟΝ ΚΩΔΙΚΟ που δέχτηκε (null = ακυρώθηκε).</summary>

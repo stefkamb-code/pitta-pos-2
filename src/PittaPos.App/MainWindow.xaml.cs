@@ -13,7 +13,6 @@ public partial class MainWindow : Window
 {
     private readonly OrderWizardViewModel _wizard = new();
     private readonly DispatcherTimer _clock;
-    private StatsWindow? _stats;
     private SettingsWindow? _settings;
     private MenuManagerWindow? _menuManager;
     private CustomersWindow? _customers;
@@ -249,37 +248,6 @@ public partial class MainWindow : Window
 
         _wizard.ContinueStep2Command.Execute(null);
         e.Handled = true;
-    }
-
-    /// <summary>
-    /// Κρυφή είσοδος στα ΣΤΑΤΙΣΤΙΚΑ: το κουμπί έφυγε από την μπάρα (ζητήθηκε να μη φαίνεται) και τα
-    /// ανοίγει πλέον το ίδιο το λογότυπο. Ο κωδικός συνεχίζει να ζητείται κανονικά.
-    /// </summary>
-    private void Logo_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        // Χωρίς αυτό το πάτημα συνέχιζε στη μπάρα και ξεκινούσε σύρσιμο του παραθύρου
-        // (βλ. Header_MouseLeftButtonDown) — τα Στατιστικά δεν άνοιγαν ποτέ.
-        e.Handled = true;
-        OpenStats_Click(sender, e);
-    }
-
-    private void OpenStats_Click(object sender, RoutedEventArgs e)
-    {
-        if (_stats is null || !_stats.IsLoaded)
-        {
-            // Ο κωδικός που άνοιξε τα Στατιστικά ταξιδεύει μαζί τους: αν ανοίγει και το Ιστορικό, το
-            // κουμπί εκεί μέσα δεν θα ξαναρωτήσει (βλ. StatsWindow).
-            var pin = PinDialog.RequirePin(this, StaffRight.Stats);
-            if (pin is null)
-                return;
-            _stats = new StatsWindow(pin);
-            _stats.Closed += (_, _) => _stats = null;
-            _stats.Show();
-        }
-        else
-        {
-            _stats.Activate();
-        }
     }
 
     private void OpenMenuManager_Click(object sender, RoutedEventArgs e)

@@ -13,6 +13,9 @@ public partial class StatsWindow : Window
     /// <summary>Ο κωδικός που άνοιξε ΑΥΤΟ το παράθυρο — βλ. OpenHistory_Click.</summary>
     private readonly string? _unlockedWith;
 
+    /// <summary>Μόνο όταν τρέχει ως ξεχωριστή εφαρμογή — ακούει το «έλα μπροστά» (βλ. AppMode).</summary>
+    private readonly BoardActivationListener? _activation;
+
     public StatsWindow(string? unlockedWith = null)
     {
         _unlockedWith = unlockedWith;
@@ -21,6 +24,14 @@ public partial class StatsWindow : Window
         TitleBarTheme.Attach(this);
         DataContext = _vm;
         Closed += (_, _) => _vm.Detach();
+
+        if (!AppMode.IsStats)
+            return;
+
+        // Ξεχωριστή εφαρμογή: το «←» δεν γυρίζει πουθενά — κλείνει την ίδια την εφαρμογή.
+        Title = "ΣΤΑΤΙΣΤΙΚΑ ΠΩΛΗΣΕΩΝ · " + AppIdentity.StoreName;
+        _activation = new BoardActivationListener(this);
+        Closed += (_, _) => _activation.Dispose();
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
