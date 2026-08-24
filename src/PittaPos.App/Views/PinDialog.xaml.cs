@@ -36,6 +36,21 @@ public partial class PinDialog : Window
     /// <summary>Δείχνει το παράθυρο κωδικού· true μόνο αν μπήκε κωδικός που ανοίγει ΑΥΤΟ το σημείο.</summary>
     public static bool Require(Window owner, string right) => RequirePin(owner, right) is not null;
 
+    /// <summary>
+    /// Χωρίς παράθυρο-γονιό — για την εφαρμογή ΖΩΝΤΑΝΕΣ ΠΑΡΑΓΓΕΛΙΕΣ, που ζητάει κωδικό ΠΡΙΝ ανοίξει
+    /// οτιδήποτε άλλο (βλ. App.StartLiveBoard): δεν υπάρχει ακόμα παράθυρο να το κεντράρει.
+    /// </summary>
+    public static bool RequireStandalone(string right)
+    {
+        var dialog = new PinDialog
+        {
+            _right = right,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ShowInTaskbar = true,
+        };
+        return dialog.ShowDialog() == true;
+    }
+
     /// <summary>Ίδιο με το Require, αλλά επιστρέφει ΤΟΝ ΚΩΔΙΚΟ που δέχτηκε (null = ακυρώθηκε).</summary>
     public static string? RequirePin(Window owner, string right)
     {

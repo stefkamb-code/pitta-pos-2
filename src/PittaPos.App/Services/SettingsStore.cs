@@ -9,6 +9,7 @@ namespace PittaPos.App.Services;
 public static class StaffRight
 {
     public const string Cancel = "cancel";
+    public const string LiveOrders = "live";
     public const string Stats = "stats";
     public const string History = "history";
     public const string Menu = "menu";
@@ -19,6 +20,7 @@ public static class StaffRight
     public static readonly (string Key, string Label)[] All =
     [
         (Cancel, "ΑΚΥΡΩΣΕΙΣ"),
+        (LiveOrders, "ΖΩΝΤΑΝΕΣ"),
         (Stats, "ΣΤΑΤΙΣΤΙΚΑ"),
         (History, "ΙΣΤΟΡΙΚΟ"),
         (Menu, "ΚΑΤΑΛΟΓΟΣ"),

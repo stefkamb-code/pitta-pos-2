@@ -133,7 +133,26 @@ public partial class App : Application
         TitleBarTheme.HookNewWindows();
         ThemeManager.Apply(SettingsStore.Instance.IsDark);
 
+        // ΚΩΔΙΚΟΣ ΠΡΙΝ ΑΝΟΙΞΕΙ. Ο πίνακας δείχνει διευθύνσεις πελατών, ποσά και τα λεφτά που κρατάει ο
+        // διανομέας — και από πάνω ακυρώνει παραγγελίες. Ζητείται ΠΡΙΝ φτιαχτεί το παράθυρο, ώστε να
+        // μη φανεί τίποτα από πίσω· «Άκυρο» σημαίνει ότι η εφαρμογή απλώς κλείνει.
+        //
+        // Το ShutdownMode αλλάζει προσωρινά: το WPF ορίζει ΜΟΝΟ ΤΟΥ ως «κύριο παράθυρο» το πρώτο που
+        // θα ανοίξει — δηλαδή τον ίδιο τον διάλογο του κωδικού — και με OnMainWindowClose η εφαρμογή
+        // έκλεινε τη στιγμή που ο διάλογος έφευγε, ακόμα και με σωστό κωδικό. (Μετρημένο: ο πίνακας
+        // δεν άνοιγε ποτέ, η διεργασία απλώς εξαφανιζόταν.)
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var unlocked = Views.PinDialog.RequireStandalone(StaffRight.LiveOrders);
+        MainWindow = null;
+        if (!unlocked)
+        {
+            Shutdown();
+            return;
+        }
+
         ShowMainWindow(new Views.LiveOrdersWindow());
+        // Από δω και πέρα ισχύει ο κανόνας του App.xaml: κλείνει ο πίνακας, κλείνει η εφαρμογή.
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
     }
 
     /// <summary>Χωρίς αυτά, ένα οποιοδήποτε απρόσμενο σφάλμα έριχνε ολόκληρο το παράθυρο απότομα —
