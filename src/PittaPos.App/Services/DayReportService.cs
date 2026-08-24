@@ -10,6 +10,17 @@ namespace PittaPos.App.Services;
 /// <summary>
 /// Αναφορά κλεισίματος ημέρας: αναλυτικό κείμενο, τοπικό backup και αποστολή email.
 /// </summary>
+/// <summary>
+/// Πού πήγαν τα λεφτά της ημέρας. Τα πέντε νούμερα αθροίζουν ΑΚΡΙΒΩΣ στον τζίρο — αν δεν βγαίνει,
+/// φαίνεται αμέσως πόσο και πού λείπει (βλ. DayReportService.SplitMoney).
+/// </summary>
+/// <param name="Cash">Μετρητά: ΔΙΑΝΟΜΗ/BOX με τρόπο πληρωμής + οι εισπράξεις τραπεζιών σε μετρητά.</param>
+/// <param name="Card">Κάρτα: το ίδιο, με κάρτα.</param>
+/// <param name="Counter">ΟΡΘΙΟΣ: πληρώνεται μπροστά στο ταμείο και δεν καταγράφεται τρόπος.</param>
+/// <param name="Platforms">e-food/Wolt: τα πληρώνει ο πελάτης μέσα στην εφαρμογή, δεν περνάει ευρώ από εδώ.</param>
+/// <param name="Unsettled">Ό,τι απομένει — τραπέζια που έκλεισαν χωρίς να εξοφληθούν.</param>
+public sealed record MoneySplit(decimal Cash, decimal Card, decimal Counter, decimal Platforms, decimal Unsettled);
+
 public static class DayReportService
 {
     private static readonly CultureInfo Greek = CultureInfo.GetCultureInfo("el-GR");
@@ -97,6 +108,28 @@ public static class DayReportService
     private static void AppendMoneySplit(StringBuilder sb, List<CompletedOrder> orders)
     {
         var revenue = orders.Sum(o => o.Total);
+        var split = SplitMoney(orders);
+        var (cash, card, platforms, counter, unsettled) =
+            (split.Cash, split.Card, split.Platforms, split.Counter, split.Unsettled);
+
+        if (revenue > 0)
+        {
+            sb.AppendLine($"    Μετρητά   : {Order.FormatPrice(cash)}");
+            sb.AppendLine($"    Κάρτα     : {Order.FormatPrice(card)}");
+            if (counter != 0)
+                sb.AppendLine($"    Όρθιος    : {Order.FormatPrice(counter)}");
+            if (platforms != 0)
+                sb.AppendLine($"    Εφαρμογές : {Order.FormatPrice(platforms)}");
+            if (unsettled != 0)
+                sb.AppendLine($"    Ανεξόφλητα: {Order.FormatPrice(unsettled)}");
+        }
+    }
+
+    /// <summary>Πού πήγαν τα λεφτά — τα ίδια ακριβώς νούμερα με το χαρτί, ώστε αναφορά και ΣΤΑΤΙΣΤΙΚΑ
+    /// να μη λένε ΠΟΤΕ διαφορετικά πράγματα (η οθόνη τα δείχνει ζωντανά, βλ. StatsViewModel).</summary>
+    public static MoneySplit SplitMoney(IReadOnlyList<CompletedOrder> orders)
+    {
+        var revenue = orders.Sum(o => o.Total);
         // ΔΙΑΝΟΜΗ/BOX κρατούν τον τρόπο πληρωμής πάνω στην παραγγελία· τα ΤΡΑΠΕΖΙΑ πληρώνονται τμηματικά
         // (ο καθένας τα δικά του, με διαφορετικό τρόπο ο καθένας), οπότε καταγράφονται ξεχωριστά ανά
         // είσπραξη — βλ. TablePaymentsService. Εδώ αθροίζονται και τα δύο στον ίδιο διαχωρισμό.
@@ -133,18 +166,7 @@ public static class DayReportService
             .Sum(o => o.Total);
 
         var unsettled = revenue - cash - card - platforms - counter;
-
-        if (revenue > 0)
-        {
-            sb.AppendLine($"    Μετρητά   : {Order.FormatPrice(cash)}");
-            sb.AppendLine($"    Κάρτα     : {Order.FormatPrice(card)}");
-            if (counter != 0)
-                sb.AppendLine($"    Όρθιος    : {Order.FormatPrice(counter)}");
-            if (platforms != 0)
-                sb.AppendLine($"    Εφαρμογές : {Order.FormatPrice(platforms)}");
-            if (unsettled != 0)
-                sb.AppendLine($"    Ανεξόφλητα: {Order.FormatPrice(unsettled)}");
-        }
+        return new MoneySplit(cash, card, counter, platforms, unsettled);
     }
 
     private static void AppendPerChannel(StringBuilder sb, List<CompletedOrder> orders)

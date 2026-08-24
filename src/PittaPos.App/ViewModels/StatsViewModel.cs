@@ -385,6 +385,24 @@ public partial class StatsViewModel : ObservableObject
     public string RevenueLabel { get; private set; } = Order.FormatPrice(0);
     public string AvgOrderLabel { get; private set; } = Order.FormatPrice(0);
 
+    /// <summary>
+    /// ΠΩΣ ΠΛΗΡΩΘΗΚΑΝ — τα ίδια ακριβώς νούμερα με την αναφορά ημέρας (βλ. DayReportService.SplitMoney),
+    /// μαζί με τις εισπράξεις των ΤΡΑΠΕΖΙΩΝ.
+    ///
+    /// <para>Χρειάστηκε γιατί το σπάσιμο μέσα στις κάρτες καναλιού δείχνει μόνο ΔΙΑΝΟΜΗ και BOX — εκεί
+    /// κρατάει τρόπο πληρωμής η ίδια η παραγγελία. Ο ταμίας ρώτησε «γιατί δεν μου λέει πόσα με κάρτα»:
+    /// τα λεφτά της κάρτας στα τραπέζια ζουν στις εισπράξεις (TablePaymentsService) και δεν φαίνονταν
+    /// πουθενά στην οθόνη, μόνο στο χαρτί του κλεισίματος.</para>
+    /// </summary>
+    public string CashTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public string CardTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public string CounterTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public string PlatformsTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public string UnsettledTotalLabel { get; private set; } = Order.FormatPrice(0);
+    public bool HasCounterTotal { get; private set; }
+    public bool HasPlatformsTotal { get; private set; }
+    public bool HasUnsettledTotal { get; private set; }
+
     public string MorningRevenueLabel { get; private set; } = Order.FormatPrice(0);
     public string MorningCountLabel { get; private set; } = "0 παραγγελίες";
     public string EveningRevenueLabel { get; private set; } = Order.FormatPrice(0);
@@ -550,6 +568,17 @@ public partial class StatsViewModel : ObservableObject
         EveningRevenueLabel = Order.FormatPrice(evening.Sum(o => o.Total));
         EveningCountLabel = CountLabel(evening.Count);
 
+        // Πού πήγαν τα λεφτά — ΤΑ ΙΔΙΑ νούμερα με το χαρτί του κλεισίματος, χωρίς αντιγραφή λογικής.
+        var money = DayReportService.SplitMoney(orders);
+        CashTotalLabel = Order.FormatPrice(money.Cash);
+        CardTotalLabel = Order.FormatPrice(money.Card);
+        CounterTotalLabel = Order.FormatPrice(money.Counter);
+        PlatformsTotalLabel = Order.FormatPrice(money.Platforms);
+        UnsettledTotalLabel = Order.FormatPrice(money.Unsettled);
+        HasCounterTotal = money.Counter != 0;
+        HasPlatformsTotal = money.Platforms != 0;
+        HasUnsettledTotal = money.Unsettled != 0;
+
         PendingRevenueLabel = Order.FormatPrice(awaiting.Sum(o => o.Total));
         PendingCountLabel = CountLabel(awaiting.Count);
         HasPending = awaiting.Count > 0;
@@ -575,6 +604,14 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(PendingRevenueLabel));
         OnPropertyChanged(nameof(PendingCountLabel));
         OnPropertyChanged(nameof(HasPending));
+        OnPropertyChanged(nameof(CashTotalLabel));
+        OnPropertyChanged(nameof(CardTotalLabel));
+        OnPropertyChanged(nameof(CounterTotalLabel));
+        OnPropertyChanged(nameof(PlatformsTotalLabel));
+        OnPropertyChanged(nameof(UnsettledTotalLabel));
+        OnPropertyChanged(nameof(HasCounterTotal));
+        OnPropertyChanged(nameof(HasPlatformsTotal));
+        OnPropertyChanged(nameof(HasUnsettledTotal));
 
         // Το διάγραμμα ξαναδιαβάζει αρχεία ιστορικού (ακριβό για ΜΗΝΑΣ/ΧΡΟΝΟΣ) — μόνο όταν
         // είναι ορατό, ώστε μια νέα παραγγελία στην κίνηση να μην ξανασαρώνει αρχεία άδικα.

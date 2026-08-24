@@ -251,6 +251,44 @@
                 </Grid>
             </UniformGrid>
 
+            <!-- ΠΩΣ ΠΛΗΡΩΘΗΚΑΝ: τα ίδια νούμερα με το χαρτί του κλεισίματος, ΜΑΖΙ με τα τραπέζια
+                 (βλ. StatsViewModel.CashTotalLabel). Όρθιος/Εφαρμογές/Ανεξόφλητα εμφανίζονται μόνο
+                 όταν έχουν ποσό — αλλιώς είναι τρία μηδενικά που δεν λένε τίποτα. -->
+            <TextBlock Text="ΠΩΣ ΠΛΗΡΩΘΗΚΑΝ" FontSize="11" FontWeight="ExtraBold"
+                       Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+            <Grid Margin="0,0,0,26">
+                <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
+                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="12" Padding="18,14">
+                    <WrapPanel Orientation="Horizontal">
+                        <StackPanel Margin="0,0,44,0">
+                            <TextBlock Text="ΜΕΤΡΗΤΑ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding CashTotalLabel}" FontSize="22" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,44,0">
+                            <TextBlock Text="ΚΑΡΤΑ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding CardTotalLabel}" FontSize="22" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Ink}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,44,0" Visibility="{Binding HasCounterTotal, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="ΟΡΘΙΟΣ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding CounterTotalLabel}" FontSize="22" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Neutral700}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,44,0" Visibility="{Binding HasPlatformsTotal, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="ΕΦΑΡΜΟΓΕΣ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding PlatformsTotalLabel}" FontSize="22" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Neutral700}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel Visibility="{Binding HasUnsettledTotal, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="ΑΝΕΞΟΦΛΗΤΑ" FontSize="11" FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
+                            <TextBlock Text="{Binding UnsettledTotalLabel}" FontSize="22" FontWeight="ExtraBold"
+                                       Foreground="{DynamicResource Accent}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </Border>
+            </Grid>
+
             <!-- morning / evening / total -->
             <TextBlock Text="ΑΝΑ ΒΑΡΔΙΑ" FontSize="11" FontWeight="ExtraBold"
                        Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
