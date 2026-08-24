@@ -156,6 +156,14 @@ public partial class App : Application
         ShowMainWindow(role == AppRole.Stats
             ? new Views.StatsWindow(pin)
             : new Views.LiveOrdersWindow());
+
+        // ΤΑ ΠΑΛΙΟΤΕΡΑ: ο τζίρος της ημέρας έρχεται ζωντανά από το ταμείο, αλλά ΟΛΕΣ οι προηγούμενες
+        // μέρες (διάγραμμα μήνα/έτους, Ιστορικό με ημερομηνίες πίσω) διαβάζονται από το αρχείο. Στη
+        // δική μας διεργασία ο φάκελος αρχείου είναι ΑΔΕΙΟΣ — χωρίς αυτό, τα Στατιστικά έδειχναν
+        // σωστά μόνο το σήμερα και μηδενικά για κάθε προηγούμενη μέρα (ίδιος μηχανισμός με το
+        // δεύτερο ταμείο, βλ. HistoryArchiveService.StartClientMirror).
+        if (role == AppRole.Stats)
+            HistoryArchiveService.StartClientMirror();
         // Από δω και πέρα ισχύει ο κανόνας του App.xaml: κλείνει ο πίνακας, κλείνει η εφαρμογή.
         ShutdownMode = ShutdownMode.OnMainWindowClose;
     }

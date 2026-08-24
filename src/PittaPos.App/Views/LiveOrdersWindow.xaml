@@ -425,6 +425,21 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- ΠΕΡΙΜΕΝΩ ΤΟ ΤΑΜΕΙΟ: μόνο στις ξεχωριστές εφαρμογές, όσο δεν έχει έρθει τίποτα από το ταμείο.
+             Σκεπάζει τα νούμερα ώστε να μη διαβαστούν μηδενικά σαν αληθινά — φεύγει μόνο του. -->
+        <Border Grid.Row="0" Grid.RowSpan="2" Background="{DynamicResource Bg}"
+                Visibility="{Binding WaitingForTill, Converter={StaticResource BoolToVis}}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
+                <Image Source="pack://application:,,,/Assets/logo.png" Height="90" Margin="0,0,0,26"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Text="ΠΕΡΙΜΕΝΩ ΤΟ ΤΑΜΕΙΟ" FontSize="18" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Άνοιξε το «Pitta POS 2» — τα νούμερα θα γεμίσουν μόνα τους μέσα σε λίγα δευτερόλεπτα."
+                           FontSize="13" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap"
+                           TextAlignment="Center" Margin="0,10,0,0"/>
+            </StackPanel>
+        </Border>
     </Grid>
     </ctl:ScaleHost>
 </Window>

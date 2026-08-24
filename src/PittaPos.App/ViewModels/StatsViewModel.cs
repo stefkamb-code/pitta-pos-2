@@ -81,9 +81,24 @@ public partial class StatsViewModel : ObservableObject
         Refresh();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _clock.Tick += (_, _) => OnPropertyChanged(nameof(NowLabel));
+        _clock.Tick += (_, _) =>
+        {
+            OnPropertyChanged(nameof(NowLabel));
+            OnPropertyChanged(nameof(WaitingForTill));
+        };
         _clock.Start();
     }
+
+    /// <summary>
+    /// Ξεχωριστή εφαρμογή ΣΤΑΤΙΣΤΙΚΑ (ή δεύτερο ταμείο) που δεν έχει πάρει ακόμα απάντηση από το ταμείο.
+    ///
+    /// <para>Υπάρχει επειδή τα μηδενικά είναι <b>ψέμα</b>: το πρωί που εγκαταστάθηκε η νέα έκδοση, το
+    /// setup έκλεισε το ταμείο, ο χρήστης άνοιξε τα Στατιστικά και είδε «ΤΖΙΡΟΣ €0,00» σαν να μην είχε
+    /// πουλήσει τίποτα. Όσο δεν έχει έρθει τίποτα (ή έχει χαθεί η σύνδεση) το λέμε καθαρά, και μόλις
+    /// απαντήσει το ταμείο γεμίζει μόνο του — χωρίς να πατήσει κανείς τίποτα.</para>
+    /// </summary>
+    public bool WaitingForTill =>
+        AppMode.IsViewer && (!RemoteSync.EverSynced || RemoteSync.LastError is not null);
 
     /// <summary>Αποσύνδεση από τα services όταν κλείσει το παράθυρο.</summary>
     public void Detach()
@@ -578,7 +593,11 @@ public partial class StatsViewModel : ObservableObject
 
         (string Name, System.Windows.Media.Brush Brush, Func<CompletedOrder, bool> Match, bool SplitsPayment)[] channels =
         [
-            ("ΔΙΑΝΟΜΗ", ink, o => o.Type == OrderType.Delivery, false),
+            // ΔΙΑΝΟΜΗ και BOX είναι τα δύο κανάλια που τα παραδίδει δικός μας διανομέας και κρατούν
+            // τρόπο πληρωμής (βλ. OrderWizardViewModel.ShowCustomerForm) — μόνο εκεί έχει νόημα το
+            // σπάσιμο μετρητά/κάρτα. Σε ΟΡΘΙΟ/ΤΡΑΠΕΖΙ/e-food/Wolt ο τρόπος πληρωμής δεν καταγράφεται
+            // στην ίδια την παραγγελία, οπότε ένα σπάσιμο εκεί θα ήταν ψέμα.
+            ("ΔΙΑΝΟΜΗ", ink, o => o.Type == OrderType.Delivery, true),
             ("ΟΡΘΙΟ", ink, o => o.Type == OrderType.Pickup, false),
             ("ΤΡΑΠΕΖΙ", ink, o => o.Type == OrderType.Table, false),
             ("e-food", new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xd3, 0x2f, 0x2f)),

@@ -51,6 +51,7 @@ public partial class LiveOrdersViewModel : ObservableObject
                 o.Tick();
             NowLabel = DateTime.Now.ToString("HH:mm");
             OnPropertyChanged(nameof(LiveBrush));
+            OnPropertyChanged(nameof(WaitingForTill));
         };
         _timer.Start();
         NowLabel = DateTime.Now.ToString("HH:mm");
@@ -69,6 +70,11 @@ public partial class LiveOrdersViewModel : ObservableObject
     /// κουκκίδα μένει πράσινη, όπως ήταν πάντα. Είναι σκόπιμα μια κουκκίδα και όχι μήνυμα: όταν
     /// ξαναβρεθεί η σύνδεση διορθώνεται μόνη της, χωρίς να χρειαστεί να πατήσει κανείς τίποτα.</para>
     /// </summary>
+    /// <summary>Ίδιος λόγος με τα Στατιστικά (βλ. StatsViewModel.WaitingForTill): άδεια αναμονή επειδή
+    /// δεν απαντά το ταμείο δεν πρέπει να μοιάζει με ήσυχο βράδυ.</summary>
+    public bool WaitingForTill =>
+        AppMode.IsViewer && (!RemoteSync.EverSynced || RemoteSync.LastError is not null);
+
     public Brush LiveBrush => !RemoteSync.IsClient || RemoteSync.LastError is null ? LiveGreen : StaleGrey;
 
     /// <summary>Τρέχουσα βάρδια — κοινός χειροκίνητος διακόπτης (Αρχική/Ζωντανές Παραγγελίες), ποτέ αυτόματος.</summary>

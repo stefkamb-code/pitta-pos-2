@@ -79,9 +79,16 @@ public static class RemoteSync
     /// σιωπηλά, βλ. παρακάτω — χωρίς αυτό δεν έχει κανείς κανένα ίχνος για να ξεκινήσει τη διάγνωση).</summary>
     public static string? LastError { get; private set; }
 
+    /// <summary>Έχει έρθει ΕΣΤΩ ΜΙΑ σωστή απάντηση από το ταμείο; Ξεχωριστό από το LastError: στο
+    /// πρώτο άνοιγμα μιας ξεχωριστής εφαρμογής δεν έχει προλάβει να αποτύχει τίποτα, αλλά δεν έχει
+    /// έρθει και τίποτα — και τα μηδενικά που θα έδειχνε η οθόνη θα φαίνονταν αληθινά νούμερα.</summary>
+    public static bool EverSynced { get; private set; }
+
     private static void ReportOutcome(Exception? ex)
     {
         var message = ex is null ? null : DescribeError(ex);
+        if (message is null)
+            EverSynced = true;
         if (message is not null)
             _ = TryRediscoverHostAsync();
         if (message == LastError)
