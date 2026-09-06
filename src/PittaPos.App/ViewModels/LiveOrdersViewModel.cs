@@ -27,8 +27,17 @@ public partial class ChannelOrderViewModel : ObservableObject
     [ObservableProperty]
     private bool _showReassignOptions;
 
+    /// <summary>Ανοιχτό/κλειστό το κρατάει ο ΠΙΝΑΚΑΣ, όχι αυτό το αντικείμενο: η γραμμή πετιέται και
+    /// ξαναφτιάχνεται σε κάθε ανανέωση από το ταμείο (κάθε λίγα δευτερόλεπτα), οπότε ό,τι θυμόταν μόνη
+    /// της χανόταν — οι επιλογές έκλειναν μόνες τους μπροστά στα μάτια του χρήστη.</summary>
+    public Action<bool>? ReassignToggled { get; init; }
+
     [RelayCommand]
-    private void ToggleReassignOptions() => ShowReassignOptions = !ShowReassignOptions;
+    private void ToggleReassignOptions()
+    {
+        ShowReassignOptions = !ShowReassignOptions;
+        ReassignToggled?.Invoke(ShowReassignOptions);
+    }
 }
 
 /// <summary>Παράμετρος για το CancelOrderCommand — ποια παραγγελία και ποιος την ακυρώνει.</summary>
@@ -39,6 +48,10 @@ public partial class LiveOrdersViewModel : ObservableObject
 {
     private readonly OrderBoardService _board = OrderBoardService.Instance;
     private readonly DispatcherTimer _timer;
+
+    /// <summary>Ποιας παραγγελίας είναι ανοιχτές οι επιλογές «ΑΛΛΑΓΗ ΣΕ». Ζει ΕΔΩ και όχι στη γραμμή,
+    /// γιατί οι γραμμές ξαναχτίζονται από την αρχή σε κάθε ανανέωση του πίνακα.</summary>
+    private int? _reassignOpenFor;
 
     public LiveOrdersViewModel()
     {
@@ -219,6 +232,8 @@ public partial class LiveOrdersViewModel : ObservableObject
     {
         SelectedChannel = name;
         SelectedOrder = null;
+        // Άλλο κανάλι = καθαρή λίστα: οι ανοιχτές επιλογές αφορούσαν γραμμή που δεν φαίνεται πια.
+        _reassignOpenFor = null;
         Rebuild();
     }
 
@@ -320,9 +335,13 @@ public partial class LiveOrdersViewModel : ObservableObject
                         .Select(c => new ChannelButtonViewModel
                         {
                             Name = c.Name, Brush = c.Brush,
-                            Command = new RelayCommand(() => _board.Reassign(o, c.Name)),
+                            // Η αλλαγή έγινε — η γραμμή φεύγει από αυτό το κανάλι, δεν έχει τι να μείνει ανοιχτό.
+                            Command = new RelayCommand(() => { _reassignOpenFor = null; _board.Reassign(o, c.Name); }),
                         }).ToList(),
-                    RevertCommand = new RelayCommand(() => _board.RevertToPending(o)),
+                    RevertCommand = new RelayCommand(() => { _reassignOpenFor = null; _board.RevertToPending(o); }),
+                    // Ό,τι ήταν ανοιχτό πριν την ανανέωση, ξανανοίγει.
+                    ShowReassignOptions = _reassignOpenFor == o.OrderNumber,
+                    ReassignToggled = open => _reassignOpenFor = open ? o.OrderNumber : null,
                 }).ToList();
 
         OnPropertyChanged(nameof(PendingOrders));

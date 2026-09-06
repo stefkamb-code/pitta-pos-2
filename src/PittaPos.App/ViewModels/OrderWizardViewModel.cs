@@ -562,7 +562,9 @@ public partial class OrderWizardViewModel : ObservableObject
         }
         set
         {
+            _editingNameCell = true;
             SetFullName(value, CustomerLastName);
+            _editingNameCell = false;
             // Οι προτάσεις βγαίνουν από ΤΟ ΚΕΛΙ που γράφεται, όχι από το ενιαίο όνομα από κάτω — αλλιώς
             // γράφοντας «ΣΤΕΦΑΝΟΣ» στο Όνομα προτεινόταν ολόκληρο το «ΣΤΕΦΑΝΟΣ ΚΑΜΠΟΥΡΗΣ» και το επώνυμο
             // κατέληγε μέσα στο κελί του ονόματος.
@@ -580,13 +582,20 @@ public partial class OrderWizardViewModel : ObservableObject
         }
         set
         {
+            _editingNameCell = true;
             SetFullName(CustomerFirstName, value);
+            _editingNameCell = false;
             RefreshLastNameSuggestions(value);
         }
     }
 
     private void SetFullName(string first, string last) =>
         CustomerName = string.Join(" ", new[] { first.Trim(), last.Trim() }.Where(s => s.Length > 0));
+
+    /// <summary>Σηκωμένο ΜΟΝΟ όσο γράφει ο ταμίας σε ένα από τα δύο κελιά του ονόματος. Τότε το ενιαίο
+    /// CustomerName αλλάζει από την ίδια την πληκτρολόγηση, και οι προτάσεις που μόλις άνοιξαν δεν
+    /// πρέπει να σβηστούν από κάτω τους.</summary>
+    private bool _editingNameCell;
 
     /// <summary>Όταν αλλάζει το ενιαίο όνομα (π.χ. επιλογή πελάτη από την αναζήτηση), ξαναδιαβάζονται
     /// και τα δύο κελιά.</summary>
@@ -596,6 +605,15 @@ public partial class OrderWizardViewModel : ObservableObject
             return;
         OnPropertyChanged(nameof(CustomerFirstName));
         OnPropertyChanged(nameof(CustomerLastName));
+        // Το όνομα άλλαξε από αλλού — καθάρισμα φόρμας, νέα παραγγελία, επιλογή πελάτη, αναγνώριση
+        // κλήσης. Τα δύο κελιά είναι υπολογιζόμενα πάνω στο CustomerName, οπότε κανένας setter δεν
+        // τρέχει και οι προτάσεις της προηγούμενης πληκτρολόγησης έμεναν ανοιχτές πάνω από άδεια
+        // πεδία, ακόμα κι αν έβγαινες και ξαναέμπαινες στο βήμα.
+        if (!_editingNameCell)
+        {
+            FillSuggestions(FirstNameSuggestions, [], nameof(HasFirstNameSuggestions));
+            FillSuggestions(LastNameSuggestions, [], nameof(HasLastNameSuggestions));
+        }
         NotifyStep2Validation();
     }
 
@@ -699,6 +717,7 @@ public partial class OrderWizardViewModel : ObservableObject
     /// ολοκληρώσει και μετά να διορθώσει (ή να ακυρώσει) ολόκληρη παραγγελία.</summary>
     [RelayCommand]
     private void CancelPaymentPrompt() => ShowPaymentPrompt = false;
+
 
     private void ChoosePaymentMethod(Core.Models.PaymentMethod method)
     {
@@ -1861,6 +1880,10 @@ public partial class OrderWizardViewModel : ObservableObject
         // Καθαρή φόρμα στην επόμενη παραγγελία: χωρίς αυτό, τα κόκκινα κουτιά της προηγούμενης θα
         // υποδέχονταν τον ταμία πριν προλάβει να γράψει οτιδήποτε.
         Step2Validated = false;
+        FillSuggestions(FirstNameSuggestions, [], nameof(HasFirstNameSuggestions));
+        FillSuggestions(LastNameSuggestions, [], nameof(HasLastNameSuggestions));
+        FillSuggestions(AddressSuggestions, [], nameof(HasAddressSuggestions));
+        FillSuggestions(AreaSuggestions, [], nameof(HasAreaSuggestions));
         ClearCustomerAddressOptions();
         AppPlatform = null;
         AppOrderRef = "";

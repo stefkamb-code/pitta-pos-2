@@ -21,6 +21,20 @@ namespace PittaPos.App.Services;
 /// <param name="Unsettled">Ό,τι απομένει — τραπέζια που έκλεισαν χωρίς να εξοφληθούν.</param>
 public sealed record MoneySplit(decimal Cash, decimal Card, decimal Counter, decimal Platforms, decimal Unsettled);
 
+/// <summary>
+/// Ένα ανεξόφλητο κομμάτι της ημέρας: ποιο τραπέζι, τι ώρα χτυπήθηκε, πόσα έμειναν.
+///
+/// <para>Τρία χωριστά πεδία και όχι έτοιμη γραμμή, γιατί το ίδιο πράγμα εμφανίζεται σε δύο μορφές:
+/// μία γραμμή κειμένου στο χαρτί/email (<see cref="Text"/>) και τρεις στήλες στο banner που σηκώνεται
+/// μετά την αποστολή (βλ. SettingsWindow.SendReport_Click).</para>
+/// </summary>
+public sealed record UnsettledEntry(string Where, string When, decimal Amount)
+{
+    public string AmountLabel => Order.FormatPrice(Amount);
+    public bool HasWhen => When.Length > 0;
+    public string Text => HasWhen ? $"{Where} · {When} · {AmountLabel}" : $"{Where} · {AmountLabel}";
+}
+
 public static class DayReportService
 {
     private static readonly CultureInfo Greek = CultureInfo.GetCultureInfo("el-GR");
@@ -121,8 +135,95 @@ public static class DayReportService
             if (platforms != 0)
                 sb.AppendLine($"    Εφαρμογές : {Order.FormatPrice(platforms)}");
             if (unsettled != 0)
+            {
                 sb.AppendLine($"    Ανεξόφλητα: {Order.FormatPrice(unsettled)}");
+                foreach (var line in UnsettledBreakdown(orders, unsettled))
+                    sb.AppendLine("      " + line.Text);
+            }
         }
+    }
+
+    /// <summary>
+    /// Ποιο τραπέζι έμεινε ανεξόφλητο και τι ώρα χτυπήθηκε — οι γραμμές που μπαίνουν από κάτω από τα
+    /// «Ανεξόφλητα»: «ΤΡΑΠΕΖΙ 4 · 20:41 · €30,50».
+    ///
+    /// <para>Χωρίς αυτές, το νούμερο έλεγε μόνο ΟΤΙ λείπουν λεφτά και ο ταμίας έπρεπε να ψάξει μόνος του
+    /// στο Ιστορικό ποιο τραπέζι δεν εξοφλήθηκε. Το ποσό είναι πάντα το <b>υπόλοιπο του τραπεζιού</b>
+    /// (παραγγελίες μείον εισπράξεις), όχι το σύνολό του: σε τραπέζι όπου πλήρωσαν τρεις στους
+    /// τέσσερις φαίνονται μόνο τα λεφτά του τέταρτου.</para>
+    ///
+    /// <para>Η ώρα είναι της παραγγελίας που έμεινε απλήρωτη — εύρος («20:41–21:24») όταν είναι
+    /// περισσότερες από μία, γιατί σε ένα τραπέζι κάθε άτομο χτυπιέται χωριστά.</para>
+    /// </summary>
+    private static List<UnsettledEntry> UnsettledBreakdown(List<CompletedOrder> orders, decimal unsettled)
+    {
+        var lines = new List<UnsettledEntry>();
+        var payments = TablePaymentsService.Instance;
+
+        // ΤΡΑΠΕΖΙΑ — μία γραμμή ανά τραπέζι, όχι ανά άτομο: το τραπέζι είναι που «έμεινε», και τρεις
+        // σχεδόν ταυτόχρονες γραμμές για την ίδια παρέα δεν λένε κάτι παραπάνω.
+        foreach (var table in orders.Where(o => o.Type == OrderType.Table)
+                     .GroupBy(o => o.TableNumberLabel)
+                     .OrderBy(g => g.Min(o => o.PlacedAt)))
+        {
+            var number = int.TryParse(table.Key, out var t) ? t : 0;
+            // Οι εισπράξεις μετριούνται ανά ΤΡΑΠΕΖΙ και όχι ανά παραγγελία, ώστε να πιάνονται και οι
+            // παλιές εγγραφές που δεν κρατούσαν αριθμό παραγγελίας (βλ. TablePayment.OrderNumber).
+            var owed = table.Sum(o => o.Total) - (number > 0 ? payments.TotalForTable(number) : 0m);
+            if (owed < 0.005m)
+                continue;
+
+            // Ποιανού ατόμου η ώρα: εκείνων που δεν έχουν είσπραξη. Αν δεν ξεχωρίζει κανένα (παλιές
+            // εγγραφές χωρίς αριθμό παραγγελίας), δείχνουμε το εύρος όλου του τραπεζιού.
+            var unpaid = table.Where(o => payments.AmountFor(o.OrderNumber) < o.Total - 0.005m).ToList();
+            if (unpaid.Count == 0)
+                unpaid = table.ToList();
+
+            var where = number > 0 ? $"ΤΡΑΠΕΖΙ {number}" : "ΤΡΑΠΕΖΙ";
+            lines.Add(new UnsettledEntry(where, TimeRangeLabel(unpaid), owed));
+        }
+
+        // ΔΙΑΝΟΜΗ/BOX χωρίς τρόπο πληρωμής — δεν συμβαίνει με τη ροή του ταμείου (εκεί ζητιέται
+        // υποχρεωτικά), αλλά υπάρχουν παλιές παραγγελίες από πριν μπει ο κανόνας. Χωρίς αυτές, η λίστα
+        // θα έδειχνε λιγότερα από το νούμερο των «Ανεξόφλητων».
+        foreach (var o in orders
+                     .Where(o => o.PaymentMethod is null
+                                 && (o.Type == OrderType.Delivery || (o.Type == OrderType.Apps && o.Channel == "BOX")))
+                     .OrderBy(o => o.PlacedAt))
+            lines.Add(new UnsettledEntry($"{o.TypeLabel} #{o.DisplayNumber}", o.TimeLabel, o.Total));
+
+        // Ό,τι δεν καταφέραμε να χρεώσουμε σε συγκεκριμένο τραπέζι/παραγγελία. Δεν παραλείπεται: το
+        // νόημα του «Ανεξόφλητα» είναι ότι τα νούμερα αθροίζουν ΑΚΡΙΒΩΣ, οπότε ούτε η λίστα από κάτω
+        // επιτρέπεται να βγάζει λιγότερα από τη γραμμή που εξηγεί.
+        var rest = unsettled - lines.Sum(l => l.Amount);
+        if (Math.Abs(rest) >= 0.01m)
+            lines.Add(new UnsettledEntry("ΥΠΟΛΟΙΠΟ", "", rest));
+
+        return lines;
+    }
+
+    /// <summary>
+    /// Τα ανεξόφλητα της μέρας όπως ακριβώς μπαίνουν στην αναφορά — για το banner που σηκώνεται μόλις
+    /// σταλεί το email (βλ. SettingsWindow.SendReport_Click). Κενή λίστα όταν δεν υπάρχει τίποτα, που
+    /// είναι και το συνηθισμένο: τότε δεν εμφανίζεται τίποτα απολύτως.
+    /// </summary>
+    public static (decimal Total, IReadOnlyList<UnsettledEntry> Entries) UnsettledToday()
+    {
+        // Ίδια πηγή με το Build/BuildPrintSummary — αλλιώς το banner θα μπορούσε να λέει άλλα από την
+        // αναφορά που μόλις έφυγε.
+        var orders = SalesStatsService.Instance.CountedOrders.OrderBy(o => o.PlacedAt).ToList();
+        var unsettled = SplitMoney(orders).Unsettled;
+        return unsettled == 0
+            ? (0m, [])
+            : (unsettled, UnsettledBreakdown(orders, unsettled));
+    }
+
+    /// <summary>«20:41» για μία παραγγελία, «20:41–21:24» για περισσότερες — η ώρα που χτυπήθηκε.</summary>
+    private static string TimeRangeLabel(List<CompletedOrder> orders)
+    {
+        var first = orders.Min(o => o.PlacedAt).ToString("HH:mm");
+        var last = orders.Max(o => o.PlacedAt).ToString("HH:mm");
+        return first == last ? first : $"{first}–{last}";
     }
 
     /// <summary>Πού πήγαν τα λεφτά — τα ίδια ακριβώς νούμερα με το χαρτί, ώστε αναφορά και ΣΤΑΤΙΣΤΙΚΑ

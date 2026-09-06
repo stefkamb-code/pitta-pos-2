@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using PittaPos.App.Services;
+using PittaPos.Core.Models;
 
 namespace PittaPos.App.Views;
 
@@ -126,7 +127,29 @@ public partial class SettingsWindow : Window
     /// τη μέρα είναι πολύ εύκολο να γίνει κατά λάθος στη μέση της βάρδιας. Ο μηδενισμός μένει
     /// αποκλειστικά στο αυτόματο κλείσιμο (βλ. SalesStatsService.CheckAutoClose).</para>
     /// </summary>
+    /// <remarks>
+    /// Ο έλεγχος για ανεξόφλητα γίνεται ΠΡΙΝ φύγει το email, όχι μετά: αν έχει μείνει τραπέζι χωρίς
+    /// εξόφληση, η αναφορά που θα έστελνε είναι λάθος — και ένα email δεν ξαναγυρίζει πίσω για να
+    /// διορθωθεί. Έτσι ο ταμίας προλαβαίνει να πάει να τα κλείσει και να ξαναπατήσει αποστολή, με τη
+    /// σωστή αναφορά αυτή τη φορά (βλ. UnsettledBanner στο SettingsWindow.xaml).
+    /// </remarks>
     private async void SendReport_Click(object sender, RoutedEventArgs e)
+    {
+        var (total, entries) = DayReportService.UnsettledToday();
+        if (total != 0)
+        {
+            UnsettledAmount.Text = Order.FormatPrice(total);
+            UnsettledList.ItemsSource = entries;
+            UnsettledBanner.Visibility = Visibility.Visible;
+            return;
+        }
+
+        await SendReportAsync();
+    }
+
+    /// <summary>Η αποστολή, χωρίς κανέναν έλεγχο — από το κουμπί όταν η μέρα είναι καθαρή, ή από το
+    /// banner όταν ο ταμίας επιλέξει να σταλεί έτσι όπως είναι.</summary>
+    private async Task SendReportAsync()
     {
         SendReportStatus.SetResourceReference(ForegroundProperty, "Neutral500");
         SendReportStatus.Text = "Στέλνω…";
@@ -140,6 +163,23 @@ public partial class SettingsWindow : Window
         SendReportStatus.Text = ok
             ? "✓ Η αναφορά στάλθηκε."
             : "✕ " + error + "  (μπήκε σε αναμονή — θα ξαναδοκιμάσει μόνη της)";
+    }
+
+    /// <summary>«ΠΙΣΩ ΝΑ ΤΑ ΚΛΕΙΣΩ»: κλείνει και τις Ρυθμίσεις, όχι μόνο το banner — τα τραπέζια
+    /// εξοφλούνται στην κύρια οθόνη, που είναι ακριβώς από πίσω. Δεν στέλνεται τίποτα· ο ταμίας
+    /// ξαναπατάει αποστολή όταν τα κλείσει.</summary>
+    private void BackToTables_Click(object sender, RoutedEventArgs e)
+    {
+        UnsettledBanner.Visibility = Visibility.Collapsed;
+        Close();
+    }
+
+    /// <summary>«ΣΤΕΙΛΕ ΤΗΝ ΕΤΣΙ»: υπάρχουν βράδια που το ανεξόφλητο είναι πραγματικό (κερασμένο
+    /// τραπέζι, πελάτης που έφυγε) και η αναφορά πρέπει να φύγει όπως είναι.</summary>
+    private async void SendAnyway_Click(object sender, RoutedEventArgs e)
+    {
+        UnsettledBanner.Visibility = Visibility.Collapsed;
+        await SendReportAsync();
     }
 
     private void RefreshUi()

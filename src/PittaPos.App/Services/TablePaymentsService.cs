@@ -77,6 +77,13 @@ public class TablePaymentsService
     public decimal TotalFor(PaymentMethod method) =>
         _payments.Where(p => p.Method == method).Sum(p => p.Amount);
 
+    /// <summary>Πόσα εισπράχθηκαν συνολικά από ένα τραπέζι, με όποιον τρόπο. Ανά ΤΡΑΠΕΖΙ και όχι ανά
+    /// παραγγελία, ώστε να μετράνε και οι παλιές εγγραφές που δεν κρατούσαν αριθμό παραγγελίας — έτσι
+    /// βγαίνει σωστά το υπόλοιπο που δείχνει η αναφορά κάτω από τα «Ανεξόφλητα»
+    /// (βλ. DayReportService.UnsettledBreakdown).</summary>
+    public decimal TotalForTable(int table) =>
+        _payments.Where(p => p.Table == table).Sum(p => p.Amount);
+
     /// <summary>Πώς πληρώθηκε αυτή η παραγγελία (= αυτό το άτομο): null αν δεν έχει εισπραχθεί τίποτα
     /// ακόμα, ή αν πληρώθηκε με τα δύο μαζί (σπάνιο, μισά-μισά — τότε δεν δείχνουμε ψέματα).</summary>
     public PaymentMethod? MethodFor(int orderNumber)

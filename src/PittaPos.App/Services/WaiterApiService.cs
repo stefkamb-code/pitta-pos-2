@@ -95,19 +95,24 @@ public static class WaiterApiService
             app.MapGet("/api/whoami", () => Results.Json(new RemoteSync.WhoAmIDto(
                 SettingsStore.Instance.Settings.NetworkMode == "client" ? "client" : "host",
                 AppIdentity.StoreName)));
-            app.MapGet("/api/tables", () => Results.Json(OnUi(GetTables)));
-            app.MapGet("/api/tables/{table:int}/orders", (int table) => Results.Json(OnUi(() => GetTableOrders(table))));
-            app.MapGet("/api/menu", () => Results.Json(OnUi(GetMenu)));
+            app.MapGet("/api/tables", (HttpContext ctx) =>
+                NoPin(ctx) ?? Results.Json(OnUi(GetTables)));
+            app.MapGet("/api/tables/{table:int}/orders", (HttpContext ctx, int table) =>
+                NoPin(ctx) ?? Results.Json(OnUi(() => GetTableOrders(table))));
+            app.MapGet("/api/menu", (HttpContext ctx) =>
+                NoPin(ctx) ?? Results.Json(OnUi(GetMenu)));
             // Η τρέχουσα βάρδια, για να τη δείχνει το κινητό. Ο σερβιτόρος δεν έβλεπε πουθενά αν το
             // ταμείο είναι σε ΠΡΩΙΝΗ ή ΒΡΑΔΙΝΗ, οπότε η παραγγελία του σφραγιζόταν με ό,τι είχε ο
             // ταμίας εκείνη τη στιγμή — και η αλλαγή βάρδιας στη μέση της εξυπηρέτησης φαινόταν μόνο
             // στα στατιστικά της ημέρας, όταν πια δεν διορθωνόταν. OnUi όπως όλα: το SettingsStore το
             // πειράζει το UI thread από τα κουμπιά ☀/🌙 της κεφαλίδας.
-            app.MapGet("/api/shift", () => Results.Json(OnUi(() => new ShiftDto(SettingsStore.Instance.Settings.IsEveningShift))));
+            app.MapGet("/api/shift", (HttpContext ctx) =>
+                NoPin(ctx) ?? Results.Json(OnUi(() => new ShiftDto(SettingsStore.Instance.Settings.IsEveningShift))));
             // OnUi όπως όλα τα υπόλοιπα: διαβάζει τον κατάλογο (κατηγορίες/έξτρα) που μπορεί να τον
             // αλλάζει εκείνη τη στιγμή ο ταμίας από τη Διαχείριση — χωρίς αυτό, μια ταυτόχρονη
             // επεξεργασία μενού και ένα άνοιγμα προϊόντος από το κινητό μπορούσαν να συμπέσουν.
-            app.MapGet("/api/customizer-options", () => Results.Json(OnUi(GetCustomizerOptions)));
+            app.MapGet("/api/customizer-options", (HttpContext ctx) =>
+                NoPin(ctx) ?? Results.Json(OnUi(GetCustomizerOptions)));
             app.MapPost("/api/orders", async (HttpContext ctx) =>
             {
                 var req = await ctx.Request.ReadFromJsonAsync<SubmitOrderRequest>();
@@ -191,6 +196,21 @@ public static class WaiterApiService
     /// λειτουργούν ακριβώς όπως πάντα (τοπικά JSON), οπότε αυτά τα endpoints απλά εκθέτουν την ήδη
     /// υπάρχουσα λογική τους μέσω HTTP.
     /// </summary>
+    /// <summary>
+    /// Ο κωδικός σερβιτόρου στα GET του κινητού: <c>?pin=1234</c>. Επιστρέφει 401 όταν δεν περνάει, ή
+    /// <c>null</c> για «προχώρα».
+    ///
+    /// <para>Πριν, ΜΟΝΟ οι εγγραφές (παραγγελία, πληρωμή, άτομα) ζητούσαν κωδικό — οι λίστες (τραπέζια,
+    /// κατάλογος, παραγγελίες τραπεζιού, βάρδια) ήταν ανοιχτές. Έτσι ένα κινητό με παλιό ή λάθος κωδικό
+    /// άνοιγε κανονικά, έδειχνε τα τραπέζια και άφηνε τον σερβιτόρο να γράψει ολόκληρη παραγγελία, και
+    /// κοβόταν μόνο στην ΑΠΟΣΤΟΛΗ — έμοιαζε σαν να «δουλεύει ακόμα» ο παλιός κωδικός (βλ.
+    /// SettingsStore.VerifyWaiterPin, που όντως τον απορρίπτει).</para>
+    /// </summary>
+    private static IResult? NoPin(HttpContext ctx) =>
+        SettingsStore.Instance.VerifyWaiterPin(ctx.Request.Query["pin"].ToString())
+            ? null
+            : Results.Json(new { error = "Λάθος κωδικός" }, statusCode: 401);
+
     private static void MapSyncEndpoints(WebApplication app)
     {
         // ---- τραπέζια ----
