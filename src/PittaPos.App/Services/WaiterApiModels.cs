@@ -168,6 +168,11 @@ public sealed record OrderNumberLineRequest(int OrderNumber, int LineIndex, stri
 public sealed record OrderNumberPaymentMethodRequest(int OrderNumber, PittaPos.Core.Models.PaymentMethod? PaymentMethod);
 public sealed record OrderNumberChannelRequest(int OrderNumber, PittaPos.Core.Models.OrderType Type, string? Channel,
     string? AppOrderRef = null);
+/// <summary>Διορθώσεις από το Ιστορικό, με το όνομα αυτού που τις έκανε (βλ. OrderChangeLogService).</summary>
+public sealed record OrderCorrectPaymentRequest(int OrderNumber, PittaPos.Core.Models.PaymentMethod PaymentMethod,
+    string ChangedBy = "");
+public sealed record OrderCorrectChannelRequest(int OrderNumber, PittaPos.Core.Models.OrderType Type, string? Channel,
+    string? AppOrderRef = null, string ChangedBy = "");
 public sealed record BoardChannelRequest(int OrderNumber, string Channel);
 public sealed record CustomerUpsertRequest(string Name, string Phone, string Address, string StreetNumber = "",
     string Area = "", string PostalCode = "", string Floor = "", string Notes = "");

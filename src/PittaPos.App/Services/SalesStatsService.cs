@@ -679,6 +679,95 @@ public class SalesStatsService
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Διόρθωση τρόπου πληρωμής ΑΠΟ ΤΟ ΙΣΤΟΡΙΚΟ, με το όνομα αυτού που την έκανε — γράφεται στις αλλαγές
+    /// της ημέρας και βγαίνει στην αναφορά (βλ. <see cref="OrderChangeLogService"/>).
+    ///
+    /// <para>Ό,τι χρειάζεται γίνεται ΕΔΩ, στο κύριο ταμείο, με μία κίνηση: η είσπραξη του τραπεζιού, η
+    /// παραγγελία και η εγγραφή της αλλαγής. Χωριστά αιτήματα από το Ιστορικό μπορούσαν να φτάσουν με
+    /// άλλη σειρά, και τότε το «πριν» της αναφοράς θα έγραφε ήδη το «μετά».</para>
+    /// </summary>
+    public void CorrectPaymentMethod(int orderNumber, PaymentMethod method, string changedBy)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = CorrectOnHostAsync("/api/sync/orders/correct-payment",
+                new { OrderNumber = orderNumber, PaymentMethod = method, ChangedBy = changedBy });
+            return;
+        }
+        if (!_orders.TryGetValue(orderNumber, out var order))
+            return;
+
+        var payments = TablePaymentsService.Instance;
+        var isTable = order.Type == OrderType.Table;
+        // ΤΡΑΠΕΖΙ: ο τρόπος ζει στις εισπράξεις του ατόμου, όχι πάνω στην παραγγελία.
+        var before = isTable ? payments.MethodFor(orderNumber) : order.PaymentMethod;
+        var amount = isTable ? payments.AmountFor(orderNumber) : order.Total;
+        // Ίδιος τρόπος = τίποτα δεν αλλάζει, και άτομο χωρίς είσπραξη δεν έχει πληρωμή να διορθωθεί
+        // (το Ιστορικό το λέει ήδη στον ταμία, πριν ζητήσει κωδικό).
+        if (before == method || (isTable && amount == 0))
+            return;
+
+        OrderChangeLogService.Instance.Log(new OrderChange(orderNumber, ChangeLabel(order, withChannel: true),
+            isTable && before is null ? "Μετρητά + Κάρτα" : MethodLabel(before), MethodLabel(method),
+            amount, DateTime.Now, changedBy));
+
+        // Το ΠΟΣΟ μετακινείται στην αναφορά ημέρας, και ο τρόπος γράφεται και πάνω στην παραγγελία ώστε
+        // η διόρθωση να επιβιώσει στο αρχείο. Δεν διπλομετράει: για τα τραπέζια η αναφορά μετράει μόνο
+        // τις εισπράξεις.
+        if (isTable)
+            payments.SwitchMethod(orderNumber, method);
+        UpdatePaymentMethod(orderNumber, method);
+    }
+
+    /// <summary>Διόρθωση καναλιού ΑΠΟ ΤΟ ΙΣΤΟΡΙΚΟ, με όνομα — ίδια λογική με το
+    /// <see cref="CorrectPaymentMethod"/>. Γράφεται μόνο αν άλλαξε όντως το κανάλι: μια σκέτη διόρθωση
+    /// του κωδικού πλατφόρμας δεν μετακινεί λεφτά.</summary>
+    public void CorrectChannel(int orderNumber, OrderType type, string? channel, string? appOrderRef, string changedBy)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _ = CorrectOnHostAsync("/api/sync/orders/correct-channel", new
+            {
+                OrderNumber = orderNumber, Type = type, Channel = channel, AppOrderRef = appOrderRef, ChangedBy = changedBy,
+            });
+            return;
+        }
+        if (!_orders.TryGetValue(orderNumber, out var order))
+            return;
+
+        UpdateChannel(orderNumber, type, channel, appOrderRef);
+        if (_orders.TryGetValue(orderNumber, out var after) && after.TypeLabel != order.TypeLabel)
+            OrderChangeLogService.Instance.Log(new OrderChange(orderNumber, ChangeLabel(order, withChannel: false),
+                order.TypeLabel, after.TypeLabel, order.Total, DateTime.Now, changedBy));
+    }
+
+    /// <summary>Δεύτερο ταμείο / Στατιστικά: στέλνει τη διόρθωση και ξαναδιαβάζει ΑΜΕΣΩΣ και τις εισπράξεις
+    /// των τραπεζιών — από εκεί βγαίνει το 💶/💳 του ατόμου στο Ιστορικό, που αλλιώς θα έμενε στο παλιό
+    /// μέχρι το επόμενο polling τους.</summary>
+    private async Task CorrectOnHostAsync(string path, object body)
+    {
+        await RemoteSync.PostAsync(path, body);
+        await TablePaymentsService.Instance.RefreshNowAsync();
+        await RefreshFromHostAsync();
+    }
+
+    /// <summary>«#12 ΔΙΑΝΟΜΗ», «ΤΡΑΠΕΖΙ 4 · ΑΤΟΜΟ Β» — πώς λέει το μαγαζί την παραγγελία. Σε αλλαγή
+    /// καναλιού το κανάλι λείπει: το λέει ήδη το «ΟΡΘΙΟΣ → ΤΡΑΠΕΖΙ» δίπλα.</summary>
+    private static string ChangeLabel(CompletedOrder order, bool withChannel)
+    {
+        if (order.TableNumberLabel.Length > 0)
+            return "ΤΡΑΠΕΖΙ " + order.TableNumberLabel + (order.HasPerson ? " · " + order.PersonLabel : "");
+        return withChannel ? $"#{order.DisplayNumber} {order.TypeLabel}" : "#" + order.DisplayNumber;
+    }
+
+    private static string MethodLabel(PaymentMethod? method) => method switch
+    {
+        PaymentMethod.Cash => "Μετρητά",
+        PaymentMethod.Card => "Κάρτα",
+        _ => "—",
+    };
+
     /// <summary>Πραγματική διαγραφή ολόκληρου γύρου (π.χ. λάθος παραγγελία) — αφαιρείται όλο από τον τζίρο.</summary>
     public void RemoveOrder(int orderNumber, string cancelledBy = "")
     {

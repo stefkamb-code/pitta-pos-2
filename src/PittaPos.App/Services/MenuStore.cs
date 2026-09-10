@@ -568,7 +568,8 @@ public class MenuStore
     {
         foreach (var product in Categories.SelectMany(c => c.Products))
             product.ExtraNames ??= [.. Extras.Select(e => e.Name)];
-        Extras.Add(new ExtraItem { Name = name, Price = price });
+        // Στην αλφαβητική του θέση, όχι στο τέλος του καταλόγου — όπως και όταν τσεκάρεται σε προϊόν.
+        Extras.Insert(AlphabeticalSlot([.. Extras.Select(e => e.Name)], name), new ExtraItem { Name = name, Price = price });
         Save();
     }
 
@@ -600,11 +601,52 @@ public class MenuStore
     /// </summary>
     public void SortExtrasAlphabetically()
     {
-        var alphabet = StringComparer.Create(CultureInfo.GetCultureInfo("el-GR"), ignoreCase: true);
+        var alphabet = ExtraAlphabet;
         Extras.Sort((a, b) => alphabet.Compare(a.Name, b.Name));
         foreach (var product in Categories.SelectMany(c => c.Products))
             product.ExtraNames?.Sort(alphabet);
         Save();
+    }
+
+    /// <summary>Η αλφαβητική σειρά των έξτρα — ελληνικό αλφάβητο ρητά, βλ. <see cref="SortExtrasAlphabetically"/>.</summary>
+    /// <remarks>ΙΔΙΟΤΗΤΑ και όχι static πεδίο, επίτηδες: το <see cref="Instance"/> φτιάχνεται στην
+    /// αρχικοποίηση της κλάσης, ΠΡΙΝ από κάθε πεδίο γραμμένο πιο κάτω, και ο constructor του τρέχει το
+    /// πρώτο αλφαβητικό στρώσιμο (βλ. SortExtrasOnce). Ως πεδίο θα ήταν ακόμα null εκείνη τη στιγμή — σε
+    /// καινούρια εγκατάσταση η εφαρμογή θα έσκαγε στο άνοιγμα.</remarks>
+    public static StringComparer ExtraAlphabet =>
+        StringComparer.Create(CultureInfo.GetCultureInfo("el-GR"), ignoreCase: true);
+
+    /// <summary>
+    /// Σε ποια θέση μιας λίστας έξτρα μπαίνει αλφαβητικά το <paramref name="name"/> (0 = πρώτο,
+    /// <c>names.Count</c> = τελευταίο).
+    ///
+    /// <para>Όχι απλώς «πριν από το πρώτο που έρχεται μετά»: η σειρά ξεκινά αλφαβητική, αλλά ο ταμίας
+    /// μπορεί να έχει σύρει κάποιο έξτρα επίτηδες εκτός σειράς (π.χ. τις Πατάτες πρώτες). Με τον απλό
+    /// κανόνα, κάθε νέο έξτρα που αρχίζει από Α–Ο θα κολλούσε πάνω από τις Πατάτες, στην κορυφή. Εδώ
+    /// διαλέγεται η θέση όπου συμφωνούν τα περισσότερα: όσα είναι πριν να έρχονται αλφαβητικά πριν, και
+    /// όσα είναι μετά να έρχονται μετά. Σε αλφαβητική λίστα βγαίνει ακριβώς η αλφαβητική θέση.</para>
+    /// </summary>
+    public static int AlphabeticalSlot(IReadOnlyList<string> names, string name)
+    {
+        var alphabet = ExtraAlphabet;
+        var best = 0;
+        var bestScore = -1;
+        for (var slot = 0; slot <= names.Count; slot++)
+        {
+            var score = 0;
+            for (var i = 0; i < names.Count; i++)
+            {
+                var order = alphabet.Compare(names[i], name);
+                if (i < slot ? order < 0 : order > 0)
+                    score++;
+            }
+            if (score > bestScore)
+            {
+                best = slot;
+                bestScore = score;
+            }
+        }
+        return best;
     }
 
     /// <summary>

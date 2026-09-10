@@ -342,14 +342,13 @@ public static class DayReportService
     /// <para>Λείπει ολόκληρο το μπλοκ όταν δεν ακυρώθηκε τίποτα — όπως και η ΚΑΤΑΝΑΛΩΣΗ, καλύτερα καμία
     /// γραμμή παρά ένας άδειος τίτλος.</para>
     /// </summary>
-    private static void AppendCancellations(StringBuilder sb)
+    private static void AppendCancellations(StringBuilder sb, HashSet<DateTime> days)
     {
         // Φίλτρο ημέρας: το log καθαρίζει στο κλείσιμο (CloseDay), αλλά μια παλιά μέρα που
         // αρχειοθετήθηκε μέσα στη βάρδια αφήνει για λίγο και τις δικές της εγγραφές — η αναφορά
-        // μιλάει ΜΟΝΟ για τη σημερινή.
-        var today = SalesStatsService.BusinessDay(DateTime.Now);
+        // μιλάει ΜΟΝΟ για τη μέρα των παραγγελιών της (βλ. ReportDays).
         var cancelled = CancellationLogService.Instance.Entries
-            .Where(c => SalesStatsService.BusinessDay(c.CancelledAt) == today)
+            .Where(c => days.Contains(SalesStatsService.BusinessDay(c.CancelledAt)))
             .ToList();
         if (cancelled.Count == 0)
             return;
@@ -369,9 +368,56 @@ public static class DayReportService
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Ποιος άλλαξε τρόπο πληρωμής ή κανάλι από το Ιστορικό — ίδια μορφή με τις ακυρώσεις: μία γραμμή
+    /// ανά υπάλληλο, και από κάτω οι αλλαγές του («21:05 · #12 ΔΙΑΝΟΜΗ · Μετρητά → Κάρτα · €15,50»).
+    ///
+    /// <para>Εδώ γράφεται η κάθε αλλαγή και όχι μόνο πλήθος, όπως στις ακυρώσεις: είναι λίγες, και η
+    /// καθεμιά μετακινεί λεφτά (από το συρτάρι στην κάρτα, ή έξω από τα μετρητά/κάρτα) — όποιος διαβάζει
+    /// την αναφορά θέλει να ξέρει ΠΟΙΑ παραγγελία να κοιτάξει. Το όνομα το δίνει ο προσωπικός κωδικός
+    /// που ζητιέται σε κάθε αλλαγή (βλ. HistoryViewModel.AskStaffName).</para>
+    ///
+    /// <para>Λείπει ολόκληρο όταν δεν άλλαξε τίποτα.</para>
+    /// </summary>
+    private static void AppendChanges(StringBuilder sb, HashSet<DateTime> days)
+    {
+        var changes = OrderChangeLogService.Instance.Entries
+            .Where(c => days.Contains(SalesStatsService.BusinessDay(c.ChangedAt)))
+            .ToList();
+        if (changes.Count == 0)
+            return;
+
+        static string Word(int n) => n == 1 ? "αλλαγή" : "αλλαγές";
+
+        sb.AppendLine("ΑΛΛΑΓΕΣ ΑΝΑ ΥΠΑΛΛΗΛΟ");
+        sb.AppendLine("  (τρόπος πληρωμής ή κανάλι, από το Ιστορικό)");
+        foreach (var staff in changes.GroupBy(c => c.ChangedByLabel).OrderByDescending(g => g.Count()))
+        {
+            sb.AppendLine($"  {staff.Key,-22} {staff.Count(),3} {Word(staff.Count())} · {Order.FormatPrice(staff.Sum(c => c.Amount))}");
+            foreach (var change in staff.OrderBy(c => c.ChangedAt))
+                sb.AppendLine("      " + change.Text);
+        }
+        if (changes.Select(c => c.ChangedByLabel).Distinct().Count() > 1)
+            sb.AppendLine($"  {"ΣΥΝΟΛΟ",-22} {changes.Count,3} {Word(changes.Count)} · {Order.FormatPrice(changes.Sum(c => c.Amount))}");
+        sb.AppendLine();
+    }
+
+    /// <summary>
+    /// Ποιες μέρες καλύπτει η αναφορά: οι μέρες των παραγγελιών της — μέσα στη βάρδια, το σήμερα.
+    /// <para>Όχι σκέτο «σήμερα»: στο αυτόματο κλείσιμο των 5 το πρωί (βλ. CloseDay) οι παραγγελίες είναι
+    /// της ΧΘΕΣΙΝΗΣ, και με φίλτρο «σήμερα» η αναφορά που σώζεται τότε έβγαινε χωρίς ακυρώσεις.</para>
+    /// </summary>
+    private static HashSet<DateTime> ReportDays(List<CompletedOrder> orders)
+    {
+        var days = orders.Select(o => SalesStatsService.BusinessDay(o.PlacedAt)).ToHashSet();
+        if (days.Count == 0)
+            days.Add(SalesStatsService.BusinessDay(DateTime.Now));
+        return days;
+    }
+
     /// <summary>Η αναφορά της ημέρας για email και τοπικό backup: ΟΛΑ τα στατιστικά — σύνοψη με τον
-    /// διαχωρισμό των χρημάτων, ανά κανάλι, ανά κατηγορία, κατανάλωση α' ύλης και ακυρώσεις ανά
-    /// υπάλληλο. Καμία λίστα ανά προϊόν και καμία ανά παραγγελία: ζητήθηκε ρητά να μη γεμίζει το email
+    /// διαχωρισμό των χρημάτων, ανά κανάλι, ανά κατηγορία, κατανάλωση α' ύλης, ακυρώσεις και αλλαγές
+    /// (πληρωμής/καναλιού από το Ιστορικό) ανά υπάλληλο. Καμία λίστα ανά προϊόν και καμία ανά παραγγελία: ζητήθηκε ρητά να μη γεμίζει το email
     /// με εκατοντάδες γραμμές που δεν διαβάζει κανείς.</summary>
     public static string Build()
     {
@@ -390,7 +436,9 @@ public static class DayReportService
         AppendPerChannel(sb, orders);
         AppendPerCategory(sb, orders);
         AppendConsumption(sb);
-        AppendCancellations(sb);
+        var days = ReportDays(orders);
+        AppendCancellations(sb, days);
+        AppendChanges(sb, days);
 
         // ΔΕΝ ακολουθεί λίστα με τις παραγγελίες μία-μία. Η αναφορά είναι ΤΑ ΣΤΑΤΙΣΤΙΚΑ της μέρας:
         // 137 παραγγελίες × τις γραμμές τους είναι χίλιες σειρές που δεν διαβάζει κανείς σε email, και
@@ -471,6 +519,7 @@ public static class DayReportService
         ReceiptPrinter.PrintDayReport(BuildPrintSummary());
         SalesStatsService.Instance.Clear();
         CancellationLogService.Instance.Clear();
+        OrderChangeLogService.Instance.Clear();
         TablePaymentsService.Instance.Clear();
         TableStatusService.Instance.CloseAll();
         OrderBoardService.Instance.Clear();
@@ -500,6 +549,7 @@ public static class DayReportService
             // το ίδιο πρέπει να γίνει και με τις ακυρώσεις της, αλλιώς μένουν και στις δύο πηγές που
             // ενώνει το Ιστορικό και εμφανίζονται διπλές.
             CancellationLogService.Instance.RemoveForDay(group.Key);
+            OrderChangeLogService.Instance.RemoveForDay(group.Key);
             AppLog.Write("close-day",
                 $"Καθυστερημένες παραγγελίες ημέρας {group.Key:yyyy-MM-dd} ({group.Count()}) αρχειοθετήθηκαν " +
                 "χωρίς να κλείσει η τρέχουσα βάρδια.");

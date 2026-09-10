@@ -64,6 +64,10 @@ public class TablePaymentsService
         _payments.AddRange(payments);
     }
 
+    /// <summary>Δεύτερο ταμείο: ξαναδιάβασε τώρα, χωρίς να περιμένεις το polling — μετά από διόρθωση
+    /// μετρητά↔κάρτα (βλ. SalesStatsService.CorrectPaymentMethod). Στο κύριο δεν κάνει τίποτα.</summary>
+    public Task RefreshNowAsync() => RemoteSync.IsClient ? RefreshFromHostAsync() : Task.CompletedTask;
+
     /// <summary>Καταγράφει είσπραξη. Καλείται μόνο στο κύριο ταμείο — οι εξοφλήσεις του δεύτερου
     /// ταμείου περνάνε ούτως ή άλλως από εκεί (βλ. TableSettlementService).</summary>
     public void Add(int table, int orderNumber, decimal amount, PaymentMethod method)

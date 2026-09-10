@@ -26,9 +26,16 @@ public partial class StaffPinDialog : Window
     }
 
     /// <summary>Δείχνει το παράθυρο· επιστρέφει το όνομα του υπαλλήλου ή null αν ακυρώθηκε/απέτυχε.</summary>
-    public static string? RequireName(Window owner)
+    /// <param name="title">Άλλος τίτλος από το «ΠΟΙΟΣ ΑΚΥΡΩΝΕΙ» — ο ίδιος κωδικός ζητιέται και για τις
+    /// αλλαγές πληρωμής/καναλιού του Ιστορικού.</param>
+    /// <param name="prompt">Το κείμενο πάνω από τις τελείες.</param>
+    public static string? RequireName(Window owner, string? title = null, string? prompt = null)
     {
         var dialog = new StaffPinDialog { Owner = owner };
+        if (title is not null)
+            dialog.Title = title;
+        if (prompt is not null)
+            dialog.PromptText.Text = prompt;
         return dialog.ShowDialog() == true ? dialog.MatchedName : null;
     }
 

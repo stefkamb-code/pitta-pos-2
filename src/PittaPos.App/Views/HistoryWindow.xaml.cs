@@ -15,6 +15,9 @@ public partial class HistoryWindow : Window
         // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
         TitleBarTheme.Attach(this);
         DataContext = _vm;
+        // Αλλαγή πληρωμής/καναλιού = προσωπικός κωδικός, όπως η ακύρωση· το όνομα πάει στην αναφορά ημέρας.
+        _vm.AskStaffName = () => StaffPinDialog.RequireName(this, "ΠΟΙΟΣ ΑΛΛΑΖΕΙ",
+            "Βάλε τον προσωπικό σου κωδικό για την αλλαγή");
         Closed += (_, _) => _vm.Detach();
         ApplyReceiptSettings();
     }

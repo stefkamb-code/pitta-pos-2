@@ -427,6 +427,21 @@ public static class WaiterApiService
             if (req is not null) OnUi(() => { SalesStatsService.Instance.UpdateChannel(req.OrderNumber, req.Type, req.Channel, req.AppOrderRef); return 0; });
             return Results.Ok();
         });
+        // Οι διορθώσεις του Ιστορικού (που ανοίγει μέσα στα Στατιστικά) — με το όνομα αυτού που τις
+        // έκανε, για την αναφορά ημέρας. Γράφονται μόνο εδώ· το δεύτερο ταμείο τις διαβάζει από εδώ.
+        app.MapPost("/api/sync/orders/correct-payment", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<OrderCorrectPaymentRequest>();
+            if (req is not null) OnUi(() => { SalesStatsService.Instance.CorrectPaymentMethod(req.OrderNumber, req.PaymentMethod, req.ChangedBy); return 0; });
+            return Results.Ok();
+        });
+        app.MapPost("/api/sync/orders/correct-channel", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<OrderCorrectChannelRequest>();
+            if (req is not null) OnUi(() => { SalesStatsService.Instance.CorrectChannel(req.OrderNumber, req.Type, req.Channel, req.AppOrderRef, req.ChangedBy); return 0; });
+            return Results.Ok();
+        });
+        app.MapGet("/api/sync/order-changes", () => Results.Json(OnUi(() => OrderChangeLogService.Instance.Entries.ToList())));
 
         // ---- ζωντανές παραγγελίες (Live Orders Board) ----
         app.MapGet("/api/sync/board", () => Results.Json(OnUi(() => OrderBoardService.Instance.Orders.ToList())));

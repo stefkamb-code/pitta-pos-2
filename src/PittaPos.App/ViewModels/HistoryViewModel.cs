@@ -443,36 +443,51 @@ public partial class HistoryViewModel : ObservableObject
     [RelayCommand]
     private void SetPaymentMethodCard() => ApplyPaymentMethod(Core.Models.PaymentMethod.Card);
 
+    /// <summary>
+    /// Ποιος κάνει την αλλαγή: το παράθυρο ζητάει τον προσωπικό κωδικό (ο ίδιος με της ακύρωσης, βλ.
+    /// StaffPinDialog) και επιστρέφει το όνομα — null αν πατήθηκε άκυρο, οπότε δεν αλλάζει τίποτα.
+    ///
+    /// <para>Κάθε αλλαγή πληρωμής ή καναλιού γράφεται με αυτό το όνομα στην αναφορά ημέρας (βλ.
+    /// OrderChangeLogService). Ζητήθηκε ρητά: το Ιστορικό το ανοίγει όποιος ξέρει τον κωδικό του, αλλά
+    /// ένα «μετρητά → κάρτα» βγάζει λεφτά από το συρτάρι και πρέπει να φαίνεται ποιος το έκανε.</para>
+    /// </summary>
+    public Func<string?> AskStaffName { get; set; } = () => null;
+
     private void ApplyPaymentMethod(PaymentMethod method)
     {
         if (SelectedOrder is null)
             return;
 
-        if (SelectedIsTable)
+        // Πάτησε αυτό που ήδη ισχύει: δεν αλλάζει τίποτα, οπότε ούτε κωδικός ούτε γραμμή στην αναφορά.
+        // Στο τραπέζι μετράει η είσπραξη του ατόμου (null όταν πλήρωσε με τα δύο, που είναι αλλαγή).
+        var current = SelectedIsTable
+            ? TablePaymentsService.Instance.MethodFor(SelectedOrder.OrderNumber)
+            : SelectedOrder.PaymentMethod;
+        if (current == method)
         {
-            // ΔΕΝ σημειώνουμε τρόπο πληρωμής σε άτομο που δεν έχει πληρώσει: θα έδειχνε 💶 ενώ στο
-            // ταμείο δεν μπήκε ευρώ. Η πληρωμή γίνεται από την οθόνη τραπεζιού· εδώ μόνο διορθώνεται.
-            if (TablePaymentsService.Instance.AmountFor(SelectedOrder.OrderNumber) == 0)
-            {
-                MessageBox.Show(
-                    "Αυτό το άτομο δεν έχει πληρώσει ακόμα (δεν έχει εξοφληθεί από την οθόνη τραπεζιού), " +
-                    "οπότε δεν υπάρχει πληρωμή για διόρθωση.\n\nΕξόφλησέ το πρώτα από το τραπέζι.",
-                    "Τρόπος πληρωμής", MessageBoxButton.OK, MessageBoxImage.Information);
-                ShowPaymentOptions = false;
-                return;
-            }
+            ShowPaymentOptions = false;
+            return;
+        }
 
-            // Το ΠΟΣΟ μετακινείται από τα μετρητά στην κάρτα (ή ανάποδα) στην αναφορά ημέρας, και ο
-            // τρόπος γράφεται και πάνω στην παραγγελία ώστε η διόρθωση να επιβιώσει στο αρχείο. Δεν
-            // διπλομετράει: η αναφορά ημέρας για τα τραπέζια μετράει μόνο τις εισπράξεις.
-            TablePaymentsService.Instance.SwitchMethod(SelectedOrder.OrderNumber, method);
-            _stats.UpdatePaymentMethod(SelectedOrder.OrderNumber, method);
-            RefreshPaymentLabels();
-        }
-        else
+        // ΔΕΝ σημειώνουμε τρόπο πληρωμής σε άτομο που δεν έχει πληρώσει: θα έδειχνε 💶 ενώ στο ταμείο
+        // δεν μπήκε ευρώ. Η πληρωμή γίνεται από την οθόνη τραπεζιού· εδώ μόνο διορθώνεται. Λέγεται ΠΡΙΝ
+        // τον κωδικό — δεν έχει νόημα να τον πληκτρολογήσει κανείς για κάτι που δεν θα γίνει.
+        if (SelectedIsTable && TablePaymentsService.Instance.AmountFor(SelectedOrder.OrderNumber) == 0)
         {
-            _stats.UpdatePaymentMethod(SelectedOrder.OrderNumber, method);
+            MessageBox.Show(
+                "Αυτό το άτομο δεν έχει πληρώσει ακόμα (δεν έχει εξοφληθεί από την οθόνη τραπεζιού), " +
+                "οπότε δεν υπάρχει πληρωμή για διόρθωση.\n\nΕξόφλησέ το πρώτα από το τραπέζι.",
+                "Τρόπος πληρωμής", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowPaymentOptions = false;
+            return;
         }
+
+        var who = AskStaffName();
+        if (who is null)
+            return;
+
+        _stats.CorrectPaymentMethod(SelectedOrder.OrderNumber, method, who);
+        RefreshPaymentLabels();
         ShowPaymentOptions = false;
     }
 
@@ -505,8 +520,23 @@ public partial class HistoryViewModel : ObservableObject
             "ΟΡΘΙΟΣ" => (Core.Models.OrderType.Pickup, null),
             _ => (Core.Models.OrderType.Apps, channelKey),
         };
-        _stats.UpdateChannel(SelectedOrder.OrderNumber, type, channel,
-            string.IsNullOrWhiteSpace(appOrderRef) ? null : appOrderRef.Trim());
+        var reference = string.IsNullOrWhiteSpace(appOrderRef) ? null : appOrderRef.Trim();
+
+        // Ίδιο κανάλι: το πολύ να διορθώθηκε ο κωδικός της πλατφόρμας — δεν μετακινεί λεφτά, οπότε
+        // περνάει χωρίς κωδικό υπαλλήλου και δεν γράφεται στην αναφορά.
+        if (SelectedOrder.Type == type && SelectedOrder.Channel == channel)
+        {
+            if (reference is not null && reference != SelectedOrder.AppOrderRef)
+                _stats.UpdateChannel(SelectedOrder.OrderNumber, type, channel, reference);
+            ShowChannelOptions = false;
+            return;
+        }
+
+        var who = AskStaffName();
+        if (who is null)
+            return;
+
+        _stats.CorrectChannel(SelectedOrder.OrderNumber, type, channel, reference, who);
         ShowChannelOptions = false;
     }
 

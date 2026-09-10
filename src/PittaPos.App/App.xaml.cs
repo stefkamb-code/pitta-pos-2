@@ -60,6 +60,15 @@ public partial class App : Application
                 "Προσοχή — προσωρινός κατάλογος", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
+        // ΒΑΡΔΙΑ: κάθε νέα μέρα ξεκινά σε ΠΡΩΙΝΗ — εδώ, ΠΡΙΝ ανοίξει η αρχική και ο server του κινητού,
+        // ώστε η πρώτη παραγγελία της μέρας να μη σφραγιστεί με τη χθεσινή βραδινή. Ξανάνοιγμα μέσα
+        // στην ίδια μέρα δεν αλλάζει τίποτα. Ο έλεγχος κάθε λεπτό πιάνει το ταμείο που έμεινε ανοιχτό
+        // όλη νύχτα: στις 5 το πρωί, μαζί με το κλείσιμο ημέρας (βλ. SettingsStore.StartNewDayShift).
+        SettingsStore.Instance.StartNewDayShift();
+        var newDayTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        newDayTimer.Tick += (_, _) => SettingsStore.Instance.StartNewDayShift();
+        newDayTimer.Start();
+
         // ΠΡΟΘΕΡΜΑΝΣΗ ΠΕΛΑΤΟΛΟΓΙΟΥ. Ο πελατολόγιος φορτωνόταν την πρώτη φορά που τον ζητούσε κάποιος
         // — δηλαδή πάνω στο πρώτο πληκτρολόγημα σε παραγγελία διανομής, με σαράντα MB από τον δίσκο
         // εκείνη ακριβώς τη στιγμή. Τώρα φορτώνει εδώ, στο παρασκήνιο, όσο ο ταμίας βλέπει την αρχική:
@@ -88,6 +97,12 @@ public partial class App : Application
         // Δεύτερο ταμείο: αντίγραφο του αρχείου παλιότερων ημερών, ώστε Ιστορικό και Στατιστικά να
         // δείχνουν τα ίδια με το κύριο και πίσω στον χρόνο (βλ. HistoryArchiveService).
         HistoryArchiveService.StartClientMirror();
+
+        // Δεύτερο ταμείο: ακυρώσεις και αλλαγές του Ιστορικού έρχονται από το κύριο με polling, που ξεκινά
+        // την πρώτη φορά που τις ζητήσει κάποιος — δηλαδή πάνω στην «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ», με άδεια λίστα,
+        // και το email έφευγε χωρίς αυτές. Ξεκινούν εδώ. (Στο κύριο απλώς διαβάζονται λίγο νωρίτερα.)
+        _ = CancellationLogService.Instance;
+        _ = OrderChangeLogService.Instance;
 
         // Αναγνώριση κλήσεων μέσω AMI του Grandstream UCM — ανενεργό αν δεν έχει ρυθμιστεί
         AmiClientService.Start();

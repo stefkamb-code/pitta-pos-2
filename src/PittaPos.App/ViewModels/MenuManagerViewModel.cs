@@ -17,6 +17,10 @@ public partial class ExtraToggleViewModel : ObservableObject
     public required string Name { get; init; }
     public required string PriceLabel { get; init; }
 
+    /// <summary>Το είχε ήδη το προϊόν όταν άνοιξε η φόρμα. Ένα τέτοιο έξτρα που ξετσεκάρεται και
+    /// ξανατσεκάρεται μένει εκεί που ήταν — ίσως εκεί το είχε σύρει ο ταμίας (βλ. MenuManagerViewModel.PlaceAlphabetically).</summary>
+    public bool WasChecked { get; init; }
+
     [ObservableProperty]
     private bool _isChecked;
 }
@@ -358,12 +362,26 @@ public partial class MenuManagerViewModel : ObservableObject
         foreach (var name in ordered)
         {
             var extra = _store.Extras.First(e => e.Name == name);
-            ExtraToggles.Add(new ExtraToggleViewModel
+            var isChecked = value?.ExtraNames is null || value.ExtraNames.Contains(extra.Name);
+            var toggle = new ExtraToggleViewModel
             {
                 Name = extra.Name,
                 PriceLabel = extra.Price > 0 ? Order.FormatPrice(extra.Price) : "δωρεάν",
-                IsChecked = value?.ExtraNames is null || value.ExtraNames.Contains(extra.Name),
-            });
+                IsChecked = isChecked,
+                WasChecked = isChecked,
+            };
+            toggle.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(ExtraToggleViewModel.IsChecked) || !toggle.IsChecked || toggle.WasChecked)
+                    return;
+                // ΜΕΤΑ το κλικ και όχι μέσα του: μετακινείται το ίδιο το κουτάκι που μόλις πατήθηκε.
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher is null)
+                    PlaceAlphabetically(toggle);
+                else
+                    dispatcher.BeginInvoke(() => PlaceAlphabetically(toggle));
+            };
+            ExtraToggles.Add(toggle);
         }
 
         // Ο κοινός κατάλογος μένει στη ΔΙΚΗ του σειρά — είναι άλλη λίστα, ανεξάρτητη από το προϊόν.
@@ -450,6 +468,31 @@ public partial class MenuManagerViewModel : ObservableObject
     /// της φόρμας — μέχρι τότε αλλάζει μόνο ό,τι βλέπεις στην οθόνη.</summary>
     public void MoveExtraTo(ExtraToggleViewModel dragged, ExtraToggleViewModel target) =>
         MoveWithin(ExtraToggles, dragged, target);
+
+    /// <summary>
+    /// Ένα έξτρα που μόλις τσεκαρίστηκε σε αυτό το προϊόν πηγαίνει ΑΜΕΣΩΣ στην αλφαβητική του θέση
+    /// ανάμεσα στα τσεκαρισμένα. Πριν έμενε κάτω, ανάμεσα στα ατσέκαρτα, και με την ΑΠΟΘΗΚΕΥΣΗ έμπαινε
+    /// τελευταίο — ο ταμίας το έβρισκε στο τέλος του customizer, εκτός αλφαβητικής σειράς.
+    /// <para>Γίνεται στη φόρμα και όχι στην αποθήκευση, ώστε ό,τι βλέπεις εδώ να είναι ακριβώς η σειρά
+    /// που θα δει ο ταμίας. Η θέση βγαίνει από το <see cref="MenuStore.AlphabeticalSlot"/>.</para>
+    /// </summary>
+    private void PlaceAlphabetically(ExtraToggleViewModel toggle)
+    {
+        // Μέχρι να τρέξει μπορεί να ξετσεκαρίστηκε ή να ξαναχτίστηκε η λίστα (άλλο προϊόν).
+        if (!toggle.IsChecked || !ExtraToggles.Contains(toggle))
+            return;
+        var others = ExtraToggles.Where(t => t.IsChecked && !ReferenceEquals(t, toggle)).ToList();
+        var slot = MenuStore.AlphabeticalSlot([.. others.Select(t => t.Name)], toggle.Name);
+        // Η θέση μέσα στα τσεκαρισμένα → θέση μέσα σε ΟΛΗ τη λίστα (που έχει και ατσέκαρτα ανάμεσα).
+        var to = slot < others.Count
+            ? ExtraToggles.IndexOf(others[slot])
+            : others.Count == 0 ? 0 : ExtraToggles.IndexOf(others[^1]) + 1;
+        var from = ExtraToggles.IndexOf(toggle);
+        if (from < to)
+            to--; // το ίδιο φεύγει πρώτα από τη θέση του, οπότε όσα είναι μετά ανεβαίνουν μία
+        if (from >= 0 && from != to)
+            ExtraToggles.Move(from, to);
+    }
 
     private static void MoveWithin(ObservableCollection<ExtraToggleViewModel> list,
         ExtraToggleViewModel dragged, ExtraToggleViewModel target)

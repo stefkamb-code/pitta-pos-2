@@ -17,9 +17,11 @@ public static class StaffRight
     public const string Consumption = "consumption";
 
     /// <summary>Με τη σειρά που εμφανίζονται στην οθόνη κωδικών.</summary>
+    /// <remarks>Το τικ της ΑΚΥΡΩΣΗΣ καλύπτει και τις αλλαγές πληρωμής/καναλιού στο Ιστορικό: ζητιέται ο
+    /// ίδιος προσωπικός κωδικός (βλ. HistoryViewModel.AskStaffName), γι' αυτό το λέει και η ετικέτα.</remarks>
     public static readonly (string Key, string Label)[] All =
     [
-        (Cancel, "ΑΚΥΡΩΣΕΙΣ"),
+        (Cancel, "ΑΚΥΡΩΣΕΙΣ & ΑΛΛΑΓΕΣ"),
         (LiveOrders, "ΖΩΝΤΑΝΕΣ"),
         (Stats, "ΣΤΑΤΙΣΤΙΚΑ"),
         (History, "ΙΣΤΟΡΙΚΟ"),
@@ -57,8 +59,13 @@ public class AppSettings
     public string Pin { get; set; } = "1992";
     /// <summary>Πόσα τραπέζια δείχνει το Βήμα 1 όταν επιλέγεται «ΤΡΑΠΕΖΙ».</summary>
     public int TableCount { get; set; } = MenuSeed.TableCount;
-    /// <summary>Τρέχουσα βάρδια — χειροκίνητος διακόπτης, ποτέ αυτόματος (για να μην μπερδεύεται).</summary>
+    /// <summary>Τρέχουσα βάρδια — μέσα στη μέρα ΜΟΝΟ χειροκίνητος διακόπτης (το απόγευμα δεν αλλάζει
+    /// ποτέ μόνη της). Η μόνη αυτόματη κίνηση: κάθε νέα μέρα ξεκινά σε ΠΡΩΙΝΗ (βλ. SettingsStore.StartNewDayShift).</summary>
     public bool IsEveningShift { get; set; }
+    /// <summary>Σε ποια ημέρα-επιχείρησης ανήκει η βάρδια που ισχύει. Όταν το ταμείο βρεθεί σε ΑΛΛΗ
+    /// μέρα, η βάρδια γυρίζει σε ΠΡΩΙΝΗ· μέσα στην ίδια μέρα δεν αγγίζεται, ό,τι κι αν γίνει (κλείσιμο
+    /// κατά λάθος, κόλλημα, αναβάθμιση). null = ρυθμίσεις από έκδοση πριν μπει το πεδίο.</summary>
+    public DateTime? ShiftDay { get; set; }
     /// <summary>Όνομα εκτυπωτή (Windows print queue) για σιωπηλή αυτόματη εκτύπωση — κενό = ανενεργή.</summary>
     public string PrinterName { get; set; } = "";
 
@@ -177,6 +184,10 @@ public class SettingsStore
     /// <summary>Σηκώνεται όταν αλλάζουν ρυθμίσεις που χρειάζονται ζωντανή ανανέωση αλλού (π.χ. αριθμός τραπεζιών).</summary>
     public event Action? Changed;
 
+    /// <summary>Πότε γράφτηκε τελευταία φορά το settings.json πριν ανοίξει αυτή η εκκίνηση — null αν δεν
+    /// υπήρχε. Χρειάζεται μία φορά, στο πρώτο άνοιγμα με το <see cref="AppSettings.ShiftDay"/>.</summary>
+    private readonly DateTime? _savedAtStartup;
+
     private SettingsStore()
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
@@ -185,7 +196,11 @@ public class SettingsStore
         try
         {
             if (File.Exists(_path))
+            {
+                // ΠΡΙΝ από οποιοδήποτε Save αυτής της εκκίνησης — βλ. StartNewDayShift.
+                _savedAtStartup = File.GetLastWriteTime(_path);
                 Settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new();
+            }
         }
         catch (Exception)
         {
@@ -405,13 +420,55 @@ public class SettingsStore
         await RefreshTableCountFromHostAsync();
     }
 
-    /// <summary>Χειροκίνητη αλλαγή τρέχουσας βάρδιας — δεν αλλάζει ποτέ μόνη της.</summary>
+    /// <summary>Χειροκίνητη αλλαγή τρέχουσας βάρδιας. Μέσα στη μέρα δεν αλλάζει ποτέ μόνη της — μόνο
+    /// η αρχή κάθε νέας μέρας τη γυρίζει σε ΠΡΩΙΝΗ (βλ. <see cref="StartNewDayShift"/>).</summary>
     public void SetShift(bool evening)
     {
         Settings.IsEveningShift = evening;
         Save();
         Changed?.Invoke();
         PushSharedSettingsIfClient();
+    }
+
+    /// <summary>
+    /// Κάθε ΝΕΑ μέρα ξεκινά σε ΠΡΩΙΝΗ βάρδια. Καλείται στο άνοιγμα του ταμείου και μετά κάθε λεπτό (βλ.
+    /// App.OnStartup) — έτσι πιάνει και το ταμείο που έμεινε ανοιχτό όλη νύχτα, στις 5 το πρωί.
+    ///
+    /// <para>Κριτήριο η ΗΜΕΡΑ-ΕΠΙΧΕΙΡΗΣΗΣ και όχι η ώρα του ρολογιού: ζητήθηκε ρητά, αν κάποιος κλείσει
+    /// κατά λάθος το πρόγραμμα απόγευμα ή βράδυ και το ξανανοίξει, να ΜΗΝ πάει σε πρωινή. Μέσα στην ίδια
+    /// μέρα λοιπόν το ξανάνοιγμα κρατά ό,τι ίσχυε· μόνο η πρώτη φορά της επόμενης μέρας αλλάζει κάτι.</para>
+    ///
+    /// <para>ΜΟΝΟ στο κύριο ταμείο: το δεύτερο (και οι Ζωντανές/Στατιστικά) παίρνουν τη βάρδια από εδώ.
+    /// Αν γύριζε και εκεί, θα έστελνε «πρωινή» στο κύριο ταμείο στη μέση της βραδινής.</para>
+    /// </summary>
+    public void StartNewDayShift()
+    {
+        if (RemoteSync.IsClient)
+            return;
+        var today = SalesStatsService.BusinessDay(DateTime.Now);
+
+        // Πρώτη φορά με αυτή την έκδοση: δεν ξέρουμε σε ποια μέρα ανήκει η βάρδια που ισχύει. Τη λέει η
+        // τελευταία φορά που γράφτηκαν οι ρυθμίσεις — κάθε αλλαγή βάρδιας τις γράφει. Έτσι μια
+        // αναβάθμιση στη μέση της βραδινής την κρατά (γράφτηκαν σήμερα), ενώ το πρωινό άνοιγμα με
+        // «βραδινή» από χθες γυρίζει σε πρωινή, όπως κάθε μέρα από δω και πέρα.
+        var firstTime = Settings.ShiftDay is null;
+        Settings.ShiftDay ??= _savedAtStartup is { } saved ? SalesStatsService.BusinessDay(saved) : today;
+        if (Settings.ShiftDay == today)
+        {
+            if (firstTime)
+                Save();
+            return;
+        }
+
+        var wasEvening = Settings.IsEveningShift;
+        Settings.ShiftDay = today;
+        Settings.IsEveningShift = false;
+        Save();
+        if (wasEvening)
+        {
+            AppLog.Write("shift", "Νέα μέρα — η βάρδια γύρισε μόνη της σε ΠΡΩΙΝΗ.");
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>Ορίζει τον εκτυπωτή για σιωπηλή αυτόματη εκτύπωση.</summary>
