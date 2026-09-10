@@ -129,7 +129,13 @@ public partial class ProductsViewModel : ObservableObject
             }
 
             // Με ιδιαιτερότητες: ΞΕΧΩΡΙΣΤΗ γραμμή η καθεμία — δύο ίδιες πίττες με διαφορετικά υλικά
-            // δεν είναι το ίδιο προϊόν και δεν πρέπει να ενωθούν.
+            // δεν είναι το ίδιο προϊόν και δεν πρέπει να ενωθούν. Οι ολόιδιες όμως γίνονται μία, όπως
+            // και όταν μπαίνουν με το χέρι (βλ. FindTwin).
+            if (FindTwin(null, product.Id, customization, unitPrice, false, name, product.NameForPrint) is { } same)
+            {
+                same.Quantity += soldLine.Quantity;
+                continue;
+            }
             Cart.Add(new CartLineViewModel(this, "s" + _customLineSeq++, product.Id, name, unitPrice)
             {
                 BasePrice = PriceOf(product),
@@ -484,24 +490,44 @@ public partial class ProductsViewModel : ObservableObject
         LineCustomization customization, int quantity, decimal unitPrice,
         bool noCharge, string name, string descLine1, string descLine2, string printName = "")
     {
-        var line = editingLine;
-        if (line is null)
+        // Ολόιδιο φαγητό υπάρχει ήδη στο δελτίο: ανεβαίνει η ποσότητά του, δεν ανοίγει δεύτερη γραμμή.
+        // Πριν, δύο διπλά κλικ στην ίδια πίττα έβγαζαν δύο γραμμές «1 × ΕΛ. γύρος» — και στο χαρτί της
+        // κουζίνας δύο φορές το ίδιο αντί για «2 × ΕΛ. γύρος».
+        if (editingLine is null
+            && FindTwin(null, product.Id, customization, unitPrice, noCharge, name, printName) is { } twin)
         {
-            line = new CartLineViewModel(this, "s" + _customLineSeq++, product.Id, product.Name, unitPrice)
-            {
-                BasePrice = PriceOf(product),
-            };
-            Cart.Add(line);
+            twin.Quantity += quantity;
         }
+        else
+        {
+            var line = editingLine;
+            if (line is null)
+            {
+                line = new CartLineViewModel(this, "s" + _customLineSeq++, product.Id, product.Name, unitPrice)
+                {
+                    BasePrice = PriceOf(product),
+                };
+                Cart.Add(line);
+            }
 
-        line.Name = name;
-        line.PrintName = printName;
-        line.Customization = customization;
-        line.UnitPrice = unitPrice;
-        line.Quantity = quantity;
-        line.NoCharge = noCharge;
-        line.DescLine1 = descLine1;
-        line.DescLine2 = descLine2;
+            line.Name = name;
+            line.PrintName = printName;
+            line.Customization = customization;
+            line.UnitPrice = unitPrice;
+            line.Quantity = quantity;
+            line.NoCharge = noCharge;
+            line.DescLine1 = descLine1;
+            line.DescLine2 = descLine2;
+
+            // Διόρθωση (✎) που την έκανε ίδια με άλλη γραμμή: γίνονται μία, στη θέση της πρώτης.
+            if (editingLine is not null
+                && FindTwin(line, product.Id, customization, unitPrice, noCharge, name, printName) is { } other)
+            {
+                var (keep, drop) = Cart.IndexOf(other) < Cart.IndexOf(line) ? (other, line) : (line, other);
+                keep.Quantity += drop.Quantity;
+                Cart.Remove(drop);
+            }
+        }
 
         // Το κουμπί ΠΡΟΣΘΗΚΗ φέρεται ΑΚΡΙΒΩΣ όπως το διπλό κλικ: η στήλη των υλικών δεν κλείνει, το
         // φαγητό μένει ανοιχτό και τα υλικά του ξαναγυρίζουν στα προεπιλεγμένα — έτοιμα για την
@@ -512,6 +538,33 @@ public partial class ProductsViewModel : ObservableObject
             ? new CustomizerViewModel(this, product, Customizer?.CategoryLabel ?? ActiveCategory?.Category.Name ?? "")
             : null;
         OnCartChanged();
+    }
+
+    /// <summary>
+    /// Γραμμή του δελτίου με ΑΚΡΙΒΩΣ το ίδιο φαγητό: ίδιο προϊόν, ίδιο ψωμί, ίδια «χωρίς», ίδια έξτρα
+    /// (και πόσα), ίδια σημείωση, διπλή πίτα, δωρεάν, τιμή — και ίδιο όνομα οθόνης/χαρτιού. Αρκεί μία
+    /// διαφορά για να μείνουν χωριστά: η πίττα χωρίς κρεμμύδι δεν είναι ίδια με τη σκέτη.
+    /// </summary>
+    /// <param name="except">Η γραμμή που δεν μετράει (αυτή που μόλις διορθώθηκε).</param>
+    private CartLineViewModel? FindTwin(CartLineViewModel? except, string productId, LineCustomization c,
+        decimal unitPrice, bool noCharge, string name, string printName) =>
+        Cart.FirstOrDefault(l => !ReferenceEquals(l, except)
+            && l.ProductId == productId
+            && l.Customization is { } lc && SameCustomization(lc, c)
+            && l.UnitPrice == unitPrice && l.NoCharge == noCharge
+            && l.Name == name && l.PrintName == printName);
+
+    /// <summary>Ίδιες ιδιαιτερότητες. Η σειρά των «χωρίς» δεν μετράει, ούτε τα έξτρα με ποσότητα 0.</summary>
+    private static bool SameCustomization(LineCustomization a, LineCustomization b)
+    {
+        if (a.Bread != b.Bread || a.Note != b.Note || a.DoublePita != b.DoublePita)
+            return false;
+        if (!a.Removed.ToHashSet().SetEquals(b.Removed))
+            return false;
+        var extrasA = a.Extras.Where(e => e.Value > 0).ToDictionary(e => e.Key, e => e.Value);
+        var extrasB = b.Extras.Where(e => e.Value > 0).ToDictionary(e => e.Key, e => e.Value);
+        return extrasA.Count == extrasB.Count
+               && extrasA.All(e => extrasB.TryGetValue(e.Key, out var n) && n == e.Value);
     }
 
     [RelayCommand]
