@@ -25,7 +25,11 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           -o publish
 
+      # Το .exe εδώ είναι μόνο για έλεγχο — το setup του μαγαζιού χτίζεται τοπικά (scripts/make-setup.sh).
+      # Κρατιέται 1 μέρα, και αν γεμίσει ο χώρος του GitHub το build ΔΕΝ βγαίνει «αποτυχία» (ούτε email).
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: PittaPos-Windows
           path: publish/
+          retention-days: 1
