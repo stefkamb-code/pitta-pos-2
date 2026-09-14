@@ -74,8 +74,9 @@ public partial class ReceiptWindow : Window
         // Το BOX εξαιρείται: εκεί παραδίδει δικός μας διανομέας και έχουμε πραγματικά στοιχεία.
         // Κρύβεται και στα ΤΡΑΠΕΖΙΑ: το «ΠΕΛΑΤΗΣ ΤΡΑΠΕΖΙ 6» επαναλάμβανε αυτούσια την επικεφαλίδα.
         // ΕΞΑΙΡΕΣΗ: e-food από τη γέφυρα που τη φέρνει ΔΙΚΟΣ ΜΑΣ διανομέας — εκεί έχουμε όνομα ΚΑΙ τηλέφωνο,
-        // και ο διανομέας τα χρειάζεται (βλ. EfoodOrderMapper: τηλέφωνο κρατιέται μόνο τότε). Οι e-food
-        // που περνάει ο ταμίας με το χέρι δεν έχουν τηλέφωνο, οπότε τυπώνονται ακριβώς όπως πριν.
+        // και ο διανομέας τα χρειάζεται (βλ. EfoodOrderReader: τηλέφωνο κρατιέται μόνο τότε). Οι e-food/Wolt
+        // που περνάει ο ταμίας με το χέρι δεν έχουν τηλέφωνο (η φόρμα πελάτη φαίνεται μόνο σε ΔΙΑΝΟΜΗ/BOX),
+        // οπότε τυπώνονται ακριβώς όπως πριν.
         var platformOrder = order.Type == Core.Models.OrderType.Apps && order.Channel != "BOX" && order.Phone.Length == 0;
         CustomerRow.Visibility = s.ReceiptShowCustomer && !platformOrder
             && order.Type != Core.Models.OrderType.Table && order.Who.Trim().Length > 0
