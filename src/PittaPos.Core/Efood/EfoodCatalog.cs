@@ -6,7 +6,8 @@ namespace PittaPos.Core.Efood;
 
 /// <summary>Μία επιλογή μέσα σε ομάδα του καταλόγου του e-food (π.χ. «Διπλή ελληνική πίττα», «Τυρί gouda»).</summary>
 /// <param name="Selected">Προεπιλεγμένη (π.χ. τα υλικά ενός burger, που ο πελάτης ξετσεκάρει).</param>
-public sealed record EfoodCatalogOption(string Code, string Name, string PrintedName, decimal Price, bool Selected);
+/// <param name="Id">Ο αριθμός της επιλογής — αυτός έρχεται σε κάθε παραγγελία ως integrator_id του material.</param>
+public sealed record EfoodCatalogOption(string Id, string Code, string Name, string PrintedName, decimal Price, bool Selected);
 
 /// <summary>Ομάδα επιλογών ενός προϊόντος του e-food (π.χ. «Επιλέξτε πίττα», «Υλικά», «Προσθέστε extra»).</summary>
 /// <param name="DependsOn">Ο κωδικός της ομάδας από την οποία εξαρτάται (π.χ. «Υλικά» ανοίγει μόνο με «ή επιλέξτε υλικά») — κενό αν καμία.</param>
@@ -48,6 +49,7 @@ public static class EfoodCatalogParser
                     Text(t["type"]),
                     Text(t["dependency_code"]) is var dependsOn && dependsOn != "0" ? dependsOn : "",
                     (t["options"] as JsonArray ?? []).OfType<JsonObject>().Select(o => new EfoodCatalogOption(
+                        Text(o["id"]),
                         Text(o["code"]),
                         Text(o["name"]),
                         Text(o["printed_name"]),

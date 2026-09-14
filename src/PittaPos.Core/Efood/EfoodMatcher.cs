@@ -73,8 +73,9 @@ public static class EfoodMatcher
         return result;
     }
 
-    /// <summary>Το κλειδί ενός προϊόντος του e-food: ο κωδικός του, αλλιώς ο αριθμός του.</summary>
-    public static string KeyOf(EfoodCatalogItem item) => item.Code.Length > 0 ? item.Code : item.Id;
+    /// <summary>Το κλειδί ενός προϊόντος του e-food: ο ΑΡΙΘΜΟΣ του — αυτόν φέρνει κάθε παραγγελία ως integrator_id
+    /// (έτσι ήρθαν οι πρώτες πραγματικές, 14/9/2026· το product.id έρχεται «no-valid-code-found»).</summary>
+    public static string KeyOf(EfoodCatalogItem item) => item.Id.Length > 0 ? item.Id : item.Code;
 
     private static EfoodSuggestion? Suggest(EfoodCatalogItem item, IEfoodMenu menu,
         Dictionary<string, (Product Product, MenuCategory Category)> byName)
