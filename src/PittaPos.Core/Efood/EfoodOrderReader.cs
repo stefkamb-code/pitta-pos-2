@@ -103,6 +103,22 @@ public static class EfoodOrderReader
             Unmatched: unmatched);
     }
 
+    /// <summary>Πώς βγαίνει στο χαρτί ένα προϊόν του e-food με αυτή την αντιστοίχιση, χωρίς επιλογές — η προεπισκόπηση της
+    /// ΑΝΤΙΣΤΟΙΧΙΣΗΣ. Περνάει από τον ίδιο δρόμο με τις παραγγελίες, ώστε ό,τι δείχνει η οθόνη να είναι ό,τι τυπώνεται.</summary>
+    public static string Preview(EfoodCatalogItem item, EfoodMatch? match, IEfoodMenu menu)
+    {
+        var product = new JsonObject
+        {
+            ["name"] = item.Name, ["price"] = item.Price, ["quantity"] = 1, ["integrator_id"] = item.Id, ["materials"] = new JsonArray(),
+        };
+        var order = new JsonObject { ["products"] = new JsonArray(product) };
+        // Χωρίς τις ομάδες επιλογών: αλλιώς τα προεπιλεγμένα υλικά ενός burger θα έβγαιναν όλα «χωρίς».
+        var matches = match is null ? new List<EfoodMatch>() : [match];
+        var line = Map(order, menu, new EfoodContext([item with { Tiers = [] }], matches)).Lines[0];
+        var name = line.PrintName.Length > 0 ? line.PrintName : line.Name;
+        return line.Details.Length == 0 ? name : name + " · " + line.Details.Replace("\n", " · ");
+    }
+
     private static EfoodLine Line(JsonObject item, IEfoodMenu menu, EfoodContext context, CatalogIndex index,
         List<string> unmatched, bool addMaterials)
     {
@@ -125,8 +141,12 @@ public static class EfoodOrderReader
             found = match.ProductId.Length > 0 ? index.ById(match.ProductId) : null;
             mappedBread = match.Bread;
         }
-        else
+        else if (context.Item(efoodId) is null)
             found = index.Find(efoodId, efoodName);
+        else
+            // Το e-food το ξέρει αλλά δεν έχει αντιστοιχιστεί (π.χ. ίδιο όνομα με άλλη τιμή): με το όνομα του e-food
+            // μέχρι να το δει άνθρωπος στην ΑΝΤΙΣΤΟΙΧΙΣΗ — όχι μαντεψιά με το όνομα.
+            found = null;
 
         if (found is not { } ours)
         {

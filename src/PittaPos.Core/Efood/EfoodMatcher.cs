@@ -31,6 +31,17 @@ public sealed class EfoodMatch
     public bool Confirmed { get; set; }
 }
 
+/// <summary>Πού βρίσκεται μια γραμμή της ΑΝΤΙΣΤΟΙΧΙΣΗΣ.</summary>
+public enum EfoodMatchState
+{
+    /// <summary>Θέλει ματιά: καμία γραμμή, ή το προϊόν του ταμείου δεν υπάρχει πια — τυπώνεται με το όνομα του e-food.</summary>
+    Pending,
+    /// <summary>Αυτόματα, με ίδιο όνομα και ίδια τιμή.</summary>
+    Auto,
+    /// <summary>Το επιβεβαίωσε άνθρωπος — και το «δεν υπάρχει στο ταμείο».</summary>
+    Confirmed,
+}
+
 /// <summary>Αυτόματη πρόταση για ένα προϊόν του e-food.</summary>
 /// <param name="SamePrice">Ίδια τιμή με την τιμή εφαρμογών του ταμείου — αλλιώς θέλει ματιά από άνθρωπο (π.χ. η
 /// «Λαχανικών» του νηστίσιμου μενού δεν είναι η σαλάτα «Λαχανικών» του ταμείου).</param>
@@ -76,6 +87,12 @@ public static class EfoodMatcher
     /// <summary>Το κλειδί ενός προϊόντος του e-food: ο ΑΡΙΘΜΟΣ του — αυτόν φέρνει κάθε παραγγελία ως integrator_id
     /// (έτσι ήρθαν οι πρώτες πραγματικές, 14/9/2026· το product.id έρχεται «no-valid-code-found»).</summary>
     public static string KeyOf(EfoodCatalogItem item) => item.Id.Length > 0 ? item.Id : item.Code;
+
+    public static EfoodMatchState StateOf(EfoodMatch? match, IEfoodMenu menu) =>
+        match is null ? EfoodMatchState.Pending
+        : match.ProductId.Length > 0 && !menu.Categories.Any(c => c.Products.Any(p => p.Id == match.ProductId)) ? EfoodMatchState.Pending
+        : match.Confirmed ? EfoodMatchState.Confirmed
+        : EfoodMatchState.Auto;
 
     private static EfoodSuggestion? Suggest(EfoodCatalogItem item, IEfoodMenu menu,
         Dictionary<string, (Product Product, MenuCategory Category)> byName)

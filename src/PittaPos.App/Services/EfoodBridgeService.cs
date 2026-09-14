@@ -148,6 +148,11 @@ public sealed class EfoodBridgeService
                 }
                 await PostAsync(url, key, $"/till/orders/{efoodId}/ack", null);
             }
+
+            // Ο κατάλογος του e-food για την ΑΝΤΙΣΤΟΙΧΙΣΗ, φρέσκος κάθε λίγες ώρες — στο παρασκήνιο, και ποτέ εις βάρος
+            // των παραγγελιών που μόλις μπήκαν.
+            try { EfoodMatchStore.Instance.RefreshIfDue(TimeSpan.FromHours(6)); }
+            catch (Exception ex) { SetError("e-food κατάλογος: " + ex.Message); }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -165,7 +170,7 @@ public sealed class EfoodBridgeService
     /// τυπώνει όποιος καλεί, αφού σημειώσει ότι μπήκε.</summary>
     private static CompletedOrder Record(JsonObject json)
     {
-        var map = EfoodOrderReader.Map(json, EfoodMenu.Live);
+        var map = EfoodOrderReader.Map(json, EfoodMenu.Live, MatchContext(json));
         var number = SalesStatsService.Instance.NextOrderNumber(hasOwnNumber: true);
         var evening = SettingsStore.Instance.Settings.IsEveningShift;
 
@@ -211,6 +216,27 @@ public sealed class EfoodBridgeService
             AppLog.Write("efood", $"#{map.Ref}: δεν βρέθηκαν στον κατάλογο του ταμείου: {string.Join(", ", map.Unmatched)}");
 
         return order;
+    }
+
+    /// <summary>Ο κατάλογος του e-food και η ΑΝΤΙΣΤΟΙΧΙΣΗ για την ανάγνωση. Ό,τι κι αν πάει στραβά εδώ, η παραγγελία
+    /// μπαίνει με τα ονόματα του e-food αντί να μείνει έξω. Αν έρθει προϊόν που δεν ξέρει ο κατάλογος (το μαγαζί
+    /// πρόσθεσε κάτι στο e-food), ο κατάλογος ξαναέρχεται στο παρασκήνιο για τις επόμενες.</summary>
+    private static EfoodContext MatchContext(JsonObject order)
+    {
+        try
+        {
+            var matching = EfoodMatchStore.Instance;
+            var ids = (order["products"] as JsonArray ?? []).OfType<JsonObject>()
+                .Select(p => p["integrator_id"] is JsonValue v ? (v.TryGetValue(out string? s) ? s ?? "" : v.ToJsonString()) : "");
+            if (ids.Any(id => id.Length > 0 && !matching.Knows(id)))
+                matching.RefreshIfDue(TimeSpan.Zero);
+            return matching.Context();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("efood", "Η αντιστοίχιση δεν διαβάστηκε — η παραγγελία μπαίνει με τα ονόματα του e-food: " + ex.Message);
+            return EfoodContext.Empty;
+        }
     }
 
     private static decimal? Money(JsonNode? node) =>

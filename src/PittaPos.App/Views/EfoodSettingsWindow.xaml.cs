@@ -18,7 +18,11 @@ public partial class EfoodSettingsWindow : Window
         KeyBox.Text = _store.Settings.EfoodTillKey;
         AutoAcceptBox.Text = _store.Settings.EfoodAutoAcceptMinutes.ToString();
         ClientNote.Visibility = RemoteSync.IsClient ? Visibility.Visible : Visibility.Collapsed;
+        // Η αντιστοίχιση ζει στο κύριο ταμείο, εκεί που μπαίνουν οι παραγγελίες.
+        MatchPanel.Visibility = RemoteSync.IsClient ? Visibility.Collapsed : Visibility.Visible;
         ShowStatus();
+        if (!RemoteSync.IsClient)
+            ShowMatching();
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
@@ -35,6 +39,24 @@ public partial class EfoodSettingsWindow : Window
             StatusText.Text = $"✓ Τελευταία επικοινωνία {last:HH:mm:ss} · μπήκαν {bridge.ImportedSinceStart} από το άνοιγμα.";
         else
             StatusText.Text = "Περιμένω την πρώτη επικοινωνία…";
+    }
+
+    /// <summary>Πόσα προϊόντα του e-food θέλουν ακόμα ματιά.</summary>
+    private void ShowMatching()
+    {
+        var matching = EfoodMatchStore.Instance;
+        var pending = matching.PendingCount;
+        MatchText.Text = matching.Catalog.Count == 0
+            ? "Ο κατάλογος του e-food δεν έχει έρθει ακόμα — έρχεται μόλις ανοίξει η αντιστοίχιση."
+            : pending > 0
+                ? $"{pending} προς επιβεβαίωση — μέχρι τότε αυτά τυπώνονται με το όνομα του e-food."
+                : $"✓ Και τα {matching.Catalog.Count} προϊόντα του e-food έχουν αντιστοιχιστεί.";
+    }
+
+    private void Match_Click(object sender, RoutedEventArgs e)
+    {
+        new EfoodMatchWindow { Owner = this }.ShowDialog();
+        ShowMatching();
     }
 
     /// <summary>Αποθηκεύει και δοκιμάζει ΑΜΕΣΩΣ — ένα λάθος κλειδί πρέπει να φανεί εδώ, όχι όταν λείψει

@@ -64,6 +64,27 @@ if (samples is not null)
     var none = EfoodOrderReader.Map(OrderFrom("order-12.json"), menu, explicitNone);
     Check(none.Lines[1] is { Name: "Burger απλό", ProductId: "" } && none.Lines[1].Details == "χωρίς:\nντομάτα",
         "ρητό «δεν υπάρχει στο ταμείο» → με το όνομα του e-food, χωρίς μαντεψιές, αλλά με τα υλικά του");
+
+    var known = EfoodOrderReader.Map(OrderFrom("order-11.json"), menu, new EfoodContext(subset, []));
+    Check(known.Lines.All(l => l.ProductId == "") && known.Lines[0].Name == "Πίττα κοτόπουλο" && known.Unmatched.Count == 3,
+        "το ξέρει ο κατάλογος του e-food αλλά δεν έχει αντιστοίχιση → με το όνομα του e-food, όχι μαντεψιά με το όνομα");
+
+    Console.WriteLine("--- γραμμές της ΑΝΤΙΣΤΟΙΧΙΣΗΣ");
+    var autos = EfoodContext.AutoMatches(subset, [], menu);
+    Check(autos.Count == subset.Count && EfoodContext.AutoMatches(subset, autos, menu).Count == 0,
+        $"αυτόματες γραμμές για τα {subset.Count} με ίδια τιμή ({autos.Count}), και δεύτερη φορά καμία καινούρια");
+    Check(EfoodMatcher.StateOf(null, menu) == EfoodMatchState.Pending
+          && EfoodMatcher.StateOf(autos[0], menu) == EfoodMatchState.Auto
+          && EfoodMatcher.StateOf(new EfoodMatch { EfoodId = "1", ProductId = "δεν-υπάρχει-πια", Confirmed = true }, menu) == EfoodMatchState.Pending
+          && EfoodMatcher.StateOf(new EfoodMatch { EfoodId = "1", Confirmed = true }, menu) == EfoodMatchState.Confirmed,
+        "κατάσταση: καμία γραμμή / αυτόματη / σβησμένο προϊόν ταμείου = προς επιβεβαίωση / «δεν υπάρχει στο ταμείο» επιβεβαιωμένο");
+    var chickenItem = subset.First(i => i.Name == "Πίττα κοτόπουλο");
+    var chickenPreview = EfoodOrderReader.Preview(chickenItem, autos.First(m => m.EfoodId == chickenItem.Id), menu);
+    Check(chickenPreview == o11.Lines[0].PrintName, $"προεπισκόπηση «{chickenPreview}» = ό,τι τύπωσε η παραγγελία");
+    var burgerItem = subset.First(i => i.Name == "Burger απλό");
+    var burgerPreview = EfoodOrderReader.Preview(burgerItem, autos.First(m => m.EfoodId == burgerItem.Id), menu);
+    Check(burgerPreview == o12.Lines[1].PrintName, $"προεπισκόπηση burger «{burgerPreview}» χωρίς «χωρίς:» από τα προεπιλεγμένα");
+    Check(EfoodOrderReader.Preview(burgerItem, null, menu) == "Burger απλό", "χωρίς αντιστοίχιση → το όνομα του e-food");
 }
 
 Console.WriteLine("--- χωρίς κατάλογο: με τα ονόματα, και τίποτα δεν χάνεται");

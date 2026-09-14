@@ -46,17 +46,27 @@ public sealed class EfoodContext
     /// </summary>
     public static EfoodContext Build(IReadOnlyList<EfoodCatalogItem> catalog, IEnumerable<EfoodMatch> saved, IEfoodMenu menu)
     {
-        var matches = new Dictionary<string, EfoodMatch>(StringComparer.Ordinal);
-        foreach (var match in saved)
-            if (match.EfoodId.Length > 0)
-                matches[match.EfoodId] = match;
+        var all = saved.Where(m => m.EfoodId.Length > 0).ToList();
+        all.AddRange(AutoMatches(catalog, all, menu));
+        return new EfoodContext(catalog, all);
+    }
+
+    /// <summary>
+    /// Οι ΝΕΕΣ αυτόματες γραμμές: για όσα προϊόντα του καταλόγου δεν έχουν ήδη γραμμή και η πρόταση έχει ΙΔΙΑ τιμή. Το
+    /// ταμείο τις κρατάει μόλις βγουν, ώστε μια μεταγενέστερη αλλαγή τιμής στο μενού του ταμείου να μην ξε-αντιστοιχίσει
+    /// ό,τι ήδη δούλευε.
+    /// </summary>
+    public static IReadOnlyList<EfoodMatch> AutoMatches(IReadOnlyList<EfoodCatalogItem> catalog, IEnumerable<EfoodMatch> existing, IEfoodMenu menu)
+    {
+        var known = new HashSet<string>(existing.Select(m => m.EfoodId), StringComparer.Ordinal);
         var suggestions = EfoodMatcher.SuggestAll(catalog, menu);
+        var added = new List<EfoodMatch>();
         foreach (var item in catalog)
         {
-            var key = EfoodMatcher.KeyOf(item);
-            if (matches.ContainsKey(key) || suggestions.GetValueOrDefault(key) is not { SamePrice: true } suggestion)
+            if (item.Id.Length == 0 || !known.Add(item.Id)
+                || suggestions.GetValueOrDefault(EfoodMatcher.KeyOf(item)) is not { SamePrice: true } suggestion)
                 continue;
-            matches[key] = new EfoodMatch
+            added.Add(new EfoodMatch
             {
                 EfoodId = item.Id,
                 EfoodCode = item.Code,
@@ -64,8 +74,8 @@ public sealed class EfoodContext
                 EfoodCategory = item.Category,
                 ProductId = suggestion.Product.Id,
                 Bread = suggestion.Bread,
-            };
+            });
         }
-        return new EfoodContext(catalog, matches.Values);
+        return added;
     }
 }
