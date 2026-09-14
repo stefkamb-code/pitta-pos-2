@@ -22,21 +22,27 @@ public sealed record EfoodImport(string Ref, string Who, string Phone, string Ad
 /// <summary>
 /// Μεταφράζει το JSON του e-food (βλ. «Integration with 3rd Party Systems (v2)») σε παραγγελία ταμείου.
 ///
-/// <para><b>Με τους κωδικούς του ταμείου.</b> Ο κατάλογος του e-food στέλνεται από το ίδιο το ταμείο
-/// (<see cref="EfoodCatalogBuilder"/>), οπότε κάθε προϊόν και κάθε επιλογή γυρίζει με τον δικό μας κωδικό
-/// (integrator_id): η γραμμή βγαίνει ΑΚΡΙΒΩΣ όπως θα την έβγαζε ο customizer — «ΑΡ. Γύρος», «χωρίς: κρεμμύδι»,
-/// «+ Μπέικον» — και μετράει στο σωστό προϊόν στα στατιστικά και στον ΦΠΑ. Χωρίς κωδικό (κατάλογος που δεν τον
-/// έστειλε το ταμείο), δοκιμάζεται το όνομα.</para>
+/// <para><b>Ο κατάλογος του e-food μένει όπως τον έχει το κατάστημα</b> — δεν τον αλλάζουμε ποτέ. Κάθε προϊόν του
+/// e-food βρίσκεται στον κατάλογο του ταμείου (σήμερα με το όνομα· η ΑΝΤΙΣΤΟΙΧΙΣΗ χτίζεται πάνω στον πραγματικό
+/// κατάλογο του e-food) και η γραμμή βγαίνει ΑΚΡΙΒΩΣ όπως θα την έβγαζε ο customizer του ταμείου — «ΑΡ. Γύρος»,
+/// «χωρίς: κρεμμύδι», «+ Μπέικον», με το όνομα εκτύπωσης του ταμείου — και μετράει στο σωστό προϊόν στα στατιστικά
+/// και στον ΦΠΑ. Τίποτα από όσα έχει ρυθμίσει το μαγαζί δεν αλλάζει.</para>
 ///
 /// <para><b>ΠΟΤΕ δεν πετάει εξαίρεση, ΠΟΤΕ δεν χάνει κάτι.</b> Ό,τι δεν αναγνωρίζεται τυπώνεται με το όνομα που
 /// ήρθε: το χειρότερο που επιτρέπεται είναι ένα δελτίο με ονόματα του e-food — ποτέ μια παραγγελία που δεν μπήκε,
 /// γιατί το e-food δεν την ξαναστέλνει και ο πελάτης περιμένει.</para>
 ///
 /// <para>ΠΡΟΣ ΕΠΙΒΕΒΑΙΩΣΗ ΣΤΟ SANDBOX (η τεκμηρίωση δεν τα λέει ρητά): αν η τιμή του προϊόντος περιλαμβάνει ήδη
-/// τις επιλογές (materials) — εδώ προστίθενται· και αν τα προϊόντα μιας προσφοράς εμφανίζονται ΚΑΙ στα products.</para>
+/// τις επιλογές (materials) — εδώ προστίθενται· πώς ονομάζει το e-food τις αφαιρέσεις υλικών· και αν τα προϊόντα
+/// μιας προσφοράς εμφανίζονται ΚΑΙ στα products.</para>
 /// </summary>
 public static class EfoodOrderReader
 {
+    /// <summary>Πώς γράφεται μια αφαίρεση υλικού: «Χωρίς κρεμμύδι».</summary>
+    private const string WithoutPrefix = "Χωρίς ";
+
+    private const string DoublePitaName = "Διπλή πίτα";
+
     public static EfoodImport Map(JsonObject order, IEfoodMenu menu)
     {
         var customer = order["customer"] as JsonObject;
@@ -128,8 +134,7 @@ public static class EfoodOrderReader
         {
             if (!Apply(material, product, category, menu, customization))
             {
-                // Κάτι που δεν ξέρουμε (μετονομάστηκε από τότε που στάλθηκε ο κατάλογος, ή το πρόσθεσε το e-food):
-                // τυπώνεται με το όνομα που ήρθε — ποτέ δεν χάνεται.
+                // Κάτι που δεν ξέρει το ταμείο: τυπώνεται με το όνομα που ήρθε — ποτέ δεν χάνεται.
                 unmatched.Add(efoodName + " → " + Text(material["name"]));
                 if (Describe(material) is { Length: > 0 } text)
                     foreign.Add(text);
@@ -142,37 +147,32 @@ public static class EfoodOrderReader
         return new EfoodLine(composed.Name, quantity, revenue, details, product.Id, opens ? customization : null, composed.PrintName);
     }
 
-    /// <summary>Μία επιλογή του e-food πάνω στη γραμμή: με τον κωδικό μας, αλλιώς με το όνομα.</summary>
+    /// <summary>Μία επιλογή του e-food πάνω στη γραμμή, με το όνομα: ψωμί, «Χωρίς …», διπλή πίτα ή έξτρα του ταμείου.</summary>
     /// <returns>false αν δεν αναγνωρίστηκε.</returns>
     private static bool Apply(JsonObject material, Product product, MenuCategory category, IEfoodMenu menu, LineCustomization c)
     {
         var name = Text(material["name"]);
-        var parsed = EfoodCodes.ParseOption(Text(material["integrator_id"]));
-        // Κωδικός άλλου προϊόντος δεν μετράει ως δικός μας — πέφτει στο όνομα.
-        var (kind, hash) = parsed is { } p && p.ProductId == product.Id ? (p.Kind, p.Hash) : ((string?)null, "");
-        var isWithout = name.StartsWith(EfoodCatalogBuilder.WithoutPrefix, StringComparison.CurrentCultureIgnoreCase);
+        if (name.Length == 0 || !menu.OpensIngredients(product))
+            return false;
 
-        if ((kind == EfoodCodes.Bread || (kind is null && menu.HasBreadChoice(category.Name)))
-            && Resolve(MenuSeed.BreadOptions, hash, name) is { } bread)
+        if (menu.HasBreadChoice(category.Name) && Match(MenuSeed.BreadOptions, name) is { } bread)
         {
             c.Bread = bread;
             return true;
         }
-        if ((kind == EfoodCodes.Ingredient || (kind is null && isWithout))
-            && Resolve(menu.IngredientsFor(product), hash, isWithout ? name[EfoodCatalogBuilder.WithoutPrefix.Length..] : name) is { } ingredient)
+        if (name.StartsWith(WithoutPrefix, StringComparison.CurrentCultureIgnoreCase)
+            && Match(menu.IngredientsFor(product), name[WithoutPrefix.Length..]) is { } ingredient)
         {
             if (!c.Removed.Contains(ingredient))
                 c.Removed.Add(ingredient);
             return true;
         }
-        if (kind == EfoodCodes.DoublePita
-            || (kind is null && string.Equals(name, EfoodCatalogBuilder.DoublePitaName, StringComparison.CurrentCultureIgnoreCase)))
+        if (menu.SupportsDoublePita(category.Name) && string.Equals(name, DoublePitaName, StringComparison.CurrentCultureIgnoreCase))
         {
             c.DoublePita = true;
             return true;
         }
-        if ((kind == EfoodCodes.Extra || (kind is null && !isWithout))
-            && Resolve(menu.Extras.Select(e => e.Name).ToList(), hash, name) is { } extra)
+        if (Match(menu.Extras.Select(e => e.Name).ToList(), name) is { } extra)
         {
             c.Extras[extra] = c.Extras.GetValueOrDefault(extra) + Math.Max(1, Count(material["quantity"]));
             return true;
@@ -234,11 +234,9 @@ public static class EfoodOrderReader
             string.Join("\n", details));
     }
 
-    /// <summary>Το όνομα του καταλόγου που αντιστοιχεί στο hash του κωδικού — αλλιώς στο όνομα που ήρθε.</summary>
-    private static string? Resolve(IReadOnlyList<string> candidates, string hash, string name)
+    /// <summary>Το όνομα του ταμείου που ταιριάζει (χωρίς διάκριση πεζών/κεφαλαίων), αλλιώς null.</summary>
+    private static string? Match(IReadOnlyList<string> candidates, string name)
     {
-        if (hash.Length > 0 && candidates.FirstOrDefault(n => EfoodCodes.Hash(n) == hash) is { } byHash)
-            return byHash;
         var wanted = name.Trim();
         return candidates.FirstOrDefault(n => string.Equals(n.Trim(), wanted, StringComparison.CurrentCultureIgnoreCase));
     }
@@ -250,7 +248,7 @@ public static class EfoodOrderReader
             return "";
         var quantity = Math.Max(1, Count(material["quantity"]));
         var notes = Text(material["notes"]);
-        var prefix = name.StartsWith(EfoodCatalogBuilder.WithoutPrefix, StringComparison.CurrentCultureIgnoreCase) ? "" : "+ ";
+        var prefix = name.StartsWith(WithoutPrefix, StringComparison.CurrentCultureIgnoreCase) ? "" : "+ ";
         return prefix + name + (quantity > 1 ? " ×" + quantity : "") + (notes.Length > 0 ? " (" + notes + ")" : "");
     }
 
@@ -318,8 +316,8 @@ public static class EfoodOrderReader
         return 0;
     }
 
-    /// <summary>Προϊόντα του καταλόγου με κωδικό (το κανονικό) και με όνομα (για κατάλογο που δεν έστειλε το ταμείο).
-    /// Διπλός κωδικός ή όνομα: μετράει το πρώτο, όπως και στο κινητό του σερβιτόρου.</summary>
+    /// <summary>Προϊόντα του καταλόγου με κωδικό και με όνομα. Διπλός κωδικός ή όνομα: μετράει το πρώτο, όπως και στο
+    /// κινητό του σερβιτόρου.</summary>
     private sealed class CatalogIndex
     {
         private readonly Dictionary<string, (Product, MenuCategory)> _byId = new(StringComparer.Ordinal);

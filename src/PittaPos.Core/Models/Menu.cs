@@ -36,11 +36,6 @@ public class MenuCategory
     /// <summary>Σε ποια κατηγορία ΦΠΑ ανήκουν τα προϊόντα της — βλ. <see cref="Models.VatKind"/>.
     /// null = δεν έχει αποφασιστεί, το MenuStore το μαντεύει από το όνομα (ίδια λογική με τα παραπάνω).</summary>
     public VatKind? VatKind { get; set; }
-
-    /// <summary>Αν η κατηγορία στέλνεται στο e-food μαζί με τον κατάλογο (βλ. Efood.EfoodCatalogBuilder). Σβηστό σε
-    /// ό,τι δεν είναι για πελάτες — π.χ. ΠΡΟΣΩΠΙΚΟ, που δεν έχει καμία σχέση με το e-food.
-    /// null = δεν έχει αποφασιστεί, το MenuStore το μαντεύει από το όνομα (ίδια λογική με τα παραπάνω).</summary>
-    public bool? OnEfood { get; set; }
 }
 
 /// <summary>

@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Threading;
@@ -207,7 +206,7 @@ public sealed class EfoodBridgeService
         if (map.PlatformTotal > 0 && Math.Abs(map.PlatformTotal - fees - map.Total) >= 0.01m
             && !(json["discounts"] is JsonArray { Count: > 0 } || json["coupons"] is JsonArray { Count: > 0 }))
             AppLog.Write("efood", $"#{map.Ref}: γραμμές {map.Total} ≠ e-food {map.PlatformTotal} (μεταφορικά/σακούλες/tip {fees})");
-        // Μπήκαν κανονικά με το όνομα του e-food — γράφεται για να φανεί αν ο κατάλογος του e-food είναι παλιός.
+        // Μπήκαν κανονικά με το όνομα του e-food — γράφεται για να φανεί τι λείπει από την αντιστοίχιση.
         if (map.Unmatched.Count > 0)
             AppLog.Write("efood", $"#{map.Ref}: δεν βρέθηκαν στον κατάλογο του ταμείου: {string.Join(", ", map.Unmatched)}");
 
@@ -217,51 +216,6 @@ public sealed class EfoodBridgeService
     private static decimal? Money(JsonNode? node) =>
         node is JsonValue v && v.TryGetValue(out decimal d) ? d : null;
 
-    /// <summary>Ο κατάλογος είναι μεγάλο σώμα και η γέφυρα περιμένει το e-food να τον επεξεργαστεί ολόκληρο.</summary>
-    private static readonly HttpClient CatalogHttp = new() { Timeout = TimeSpan.FromSeconds(180) };
-
-    /// <summary>
-    /// Στέλνει ΟΛΟ τον κατάλογο του ταμείου στο e-food, μέσω της γέφυρας (βλ. EfoodCatalogBuilder): ό,τι είχε το
-    /// e-food αντικαθίσταται, και από εκεί και πέρα κάθε παραγγελία γυρίζει με τους κωδικούς του ταμείου.
-    /// </summary>
-    public static async Task<(bool Ok, string Message)> PushCatalogAsync(EfoodCatalogBuilder.Result catalog)
-    {
-        if (!Instance.Configured(out var url, out var key))
-            return (false, "Αποθήκευσε πρώτα διεύθυνση γέφυρας και κλειδί.");
-        foreach (var warning in catalog.Warnings)
-            AppLog.Write("efood", "κατάλογος: " + warning);
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url + "/till/catalog")
-            {
-                Content = new StringContent(catalog.Body.ToJsonString(), Encoding.UTF8, "application/json"),
-            };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-            using var response = await CatalogHttp.SendAsync(request);
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-                return (false, "Η γέφυρα δεν δέχεται το κλειδί αυτού του καταστήματος.");
-
-            var text = await response.Content.ReadAsStringAsync();
-            JsonObject? reply = null;
-            try { reply = JsonNode.Parse(text) as JsonObject; }
-            catch (JsonException) { }
-            if (response.IsSuccessStatusCode && reply?["ok"] is JsonValue okValue && okValue.TryGetValue(out bool ok) && ok)
-            {
-                AppLog.Write("efood", $"κατάλογος: στάλθηκαν {catalog.Categories} κατηγορίες, {catalog.Products} προϊόντα");
-                return (true, $"Στάλθηκε: {catalog.Categories} κατηγορίες, {catalog.Products} προϊόντα.");
-            }
-
-            // Η απάντηση του e-food, όπως ήρθε — κομμένη, ώστε να χωράει στην οθόνη· ολόκληρη στο log.
-            var status = reply?["status"]?.ToString() ?? ((int)response.StatusCode).ToString();
-            var body = reply?["body"]?.ToString() ?? text;
-            AppLog.Write("efood", $"κατάλογος: δεν έγινε δεκτός ({status}): {body}");
-            return (false, $"Το e-food δεν τον δέχτηκε ({status}): {(body.Length > 240 ? body[..240] + "…" : body)}");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException or InvalidOperationException)
-        {
-            return (false, "Δεν απαντά η γέφυρα: " + ex.Message);
-        }
-    }
 
     private async Task AcceptAsync(string url, string key, long efoodId, int minutes, string displayNumber)
     {
