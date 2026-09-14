@@ -99,6 +99,37 @@ if (drink is not null)
     Check(Map(pickup).Notes.StartsWith("ΠΑΡΑΛΑΒΗ — πληρωμένη"), "παραλαβή πληρωμένη με κάρτα");
 }
 
+// Ο πραγματικός κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
+if (args.Length > 0 && File.Exists(args[0]))
+{
+    Console.WriteLine("--- κατάλογος του e-food: ανάγνωση και αυτόματη αντιστοίχιση");
+    var catalogItems = EfoodCatalogParser.Parse(File.ReadAllText(args[0], Encoding.UTF8));
+    var suggestions = EfoodMatcher.SuggestAll(catalogItems, menu);
+    var green = catalogItems.Count(i => suggestions[EfoodMatcher.KeyOf(i)] is { SamePrice: true });
+    var yellow = catalogItems.Count(i => suggestions[EfoodMatcher.KeyOf(i)] is { SamePrice: false });
+    Check(catalogItems.Count > 0 && catalogItems.All(i => i.Code.Length > 0 && i.Name.Length > 0),
+        $"διαβάστηκαν {catalogItems.Count} προϊόντα, όλα με κωδικό και όνομα");
+    Check(catalogItems.Select(EfoodMatcher.KeyOf).Distinct().Count() == catalogItems.Count, "κάθε προϊόν του e-food με μοναδικό κωδικό");
+    Console.WriteLine($"     αυτόματα με ίδια τιμή: {green} · πρόταση με άλλη τιμή: {yellow} · χωρίς πρόταση: {catalogItems.Count - green - yellow}");
+
+    EfoodSuggestion? For(string efoodName, string category) =>
+        catalogItems.FirstOrDefault(i => i.Name == efoodName && i.Category == category) is { } found ? suggestions[EfoodMatcher.KeyOf(found)] : null;
+    var arabic = For("Αραβική πίττα κοτόπουλο", "Αραβικές πίττες");
+    Check(arabic is { Bread: "Αραβική", SamePrice: true } && EfoodMatcher.Normalize(arabic.Product.Name) == "πιττα κοτοπουλο",
+        $"«Αραβική πίττα κοτόπουλο» → {arabic?.Product.Name} + {arabic?.Bread}");
+    var sandwich = For("Σάντουιτς κοτόπουλο", "Σάντουιτς");
+    Check(sandwich is { Bread: "Ψωμί" } && EfoodMatcher.Normalize(sandwich.Product.Name) == "πιττα κοτοπουλο",
+        $"«Σάντουιτς κοτόπουλο» → {sandwich?.Product.Name} + {sandwich?.Bread}");
+    var fasting = For("Λαχανικών", "Νηστίσιμο menu");
+    Check(fasting is { SamePrice: false }, "ίδιο όνομα με άλλη τιμή («Λαχανικών» νηστίσιμο) → θέλει επιβεβαίωση, όχι αυτόματο");
+    var efoodPita = catalogItems.First(i => i.Name == "Πίττα κοτόπουλο" && i.Category == "Τυλιχτά");
+    Check(efoodPita.Tiers.Any(t => t.Name == "Επιλέξτε πίττα" && t.Options.Any(o => o.Name == "Διπλή ελληνική πίττα"))
+          && efoodPita.Tiers.Any(t => t.Name == "Υλικά" && t.DependsOn.Length > 0),
+        "οι ομάδες επιλογών διαβάζονται (πίττα, «Υλικά» που εξαρτώνται από «ή επιλέξτε υλικά»)");
+    foreach (var item in catalogItems.Where(i => suggestions[EfoodMatcher.KeyOf(i)] is not { SamePrice: true }))
+        Console.WriteLine($"     {(suggestions[EfoodMatcher.KeyOf(item)] is { } s ? "?  " + s.Product.Name + (s.Bread.Length > 0 ? " + " + s.Bread : "") : "-  ———")}  ←  [{item.Category}] {item.Name} {item.Price:0.00}");
+}
+
 Console.WriteLine(fails == 0 ? "ALL PASSED" : fails + " FAILED");
 return fails == 0 ? 0 : 1;
 
