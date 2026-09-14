@@ -1,0 +1,159 @@
+{
+  "orders": [
+    {
+      "id": 64657507,
+      "short_code": "12",
+      "brand": "efood",
+      "timezone": "Europe/Athens",
+      "timestamp": "2026-09-14T14:41:07Z",
+      "promised_customer_timestamp": "2026-09-14T15:11:02.000Z",
+      "rider_pickup_timestamp": null,
+      "preparation_time_minutes": null,
+      "restaurant": {
+        "id": 6982372,
+        "vendor_external_id": "9e4c3d9a-4c29-463c-ab71-792c665f194c"
+      },
+      "customer": {
+        "id": 1,
+        "address_id": "1",
+        "name": "Test",
+        "surname": "Customer",
+        "address": "Test Street 1,14122,Athina",
+        "city": "Αθήνα",
+        "area": "Ηράκλειο",
+        "neighborhood": "",
+        "postal_code": "14122",
+        "street": "Test Street",
+        "street_number": "1",
+        "floor": "1",
+        "telephone": "+300000000000",
+        "longitude": 23.7,
+        "latitude": 38.0,
+        "doorbell": "test",
+        "alternate_telephone": "+300000000000",
+        "notes": ""
+      },
+      "tip": 0,
+      "delivery_fee": 0.5,
+      "bags": {
+        "count": 0,
+        "amount": 0
+      },
+      "type": "delivery",
+      "transport_method": {
+        "title": "",
+        "value": "",
+        "from": null,
+        "to": null,
+        "key": "delivery",
+        "delivery_provider": "vendor_delivery"
+      },
+      "price": 16,
+      "environmental_fee": 0,
+      "pvc_recycling_fee": 0,
+      "payment_type": "cash",
+      "products": [
+        {
+          "id": "no-valid-code-found",
+          "name": "Πίττα χοιρινό",
+          "price": 9.1,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 1,
+          "notes": "",
+          "integrator_id": "1423306750",
+          "materials": [
+            {
+              "id": "no-valid-code-found",
+              "name": "Διπλή ελληνική πίττα",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077514"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Μόνο με",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077516"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Ντομάτα",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077518"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Πατάτες",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077522"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Προσθέστε Τυρί gouda",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077533"
+            }
+          ]
+        },
+        {
+          "id": "no-valid-code-found",
+          "name": "Burger απλό",
+          "price": 6.4,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 1,
+          "notes": "",
+          "integrator_id": "1423306810",
+          "materials": [
+            {
+              "id": "no-valid-code-found",
+              "name": "Μαρούλι",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079537"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Ροζ σάλτσα παππού",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079539"
+            }
+          ]
+        }
+      ],
+      "discounts": [],
+      "coupons": [],
+      "joker": [],
+      "extra_parameters": []
+    }
+  ]
+}

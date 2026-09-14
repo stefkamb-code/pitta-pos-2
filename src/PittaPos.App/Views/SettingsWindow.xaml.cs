@@ -88,6 +88,13 @@ public partial class SettingsWindow : Window
     private void OpenEmail_Click(object sender, RoutedEventArgs e) =>
         new EmailSettingsWindow { Owner = this }.ShowDialog();
 
+    /// <summary>Μόνο ο ιδιοκτήτης: το κλειδί της γέφυρας ανοίγει τις παραγγελίες e-food του καταστήματος.</summary>
+    private void OpenEfood_Click(object sender, RoutedEventArgs e)
+    {
+        if (PinDialog.RequireAdmin(this))
+            new EfoodSettingsWindow { Owner = this }.ShowDialog();
+    }
+
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Light_Click(object sender, RoutedEventArgs e) { _store.SetTheme("light"); RefreshUi(); }

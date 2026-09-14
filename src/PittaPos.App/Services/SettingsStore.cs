@@ -69,6 +69,14 @@ public class AppSettings
     /// <summary>Όνομα εκτυπωτή (Windows print queue) για σιωπηλή αυτόματη εκτύπωση — κενό = ανενεργή.</summary>
     public string PrinterName { get; set; } = "";
 
+    // ---- Γέφυρα e-food (βλ. EfoodBridgeService) — ΜΟΝΟ στο κύριο ταμείο, δεν συγχρονίζεται ----
+    /// <summary>Η διεύθυνση της γέφυρας, π.χ. https://bridge.example.gr — κενό = ανενεργή.</summary>
+    public string EfoodBridgeUrl { get; set; } = "";
+    /// <summary>Το κλειδί ΑΥΤΟΥ του ταμείου στη γέφυρα (το ξεχωρίζει από τα άλλα καταστήματα).</summary>
+    public string EfoodTillKey { get; set; } = "";
+    /// <summary>Αυτόματη αποδοχή στο e-food με αυτόν τον χρόνο παράδοσης σε λεπτά — 0 = όχι.</summary>
+    public int EfoodAutoAcceptMinutes { get; set; }
+
     /// <summary>Κωδικός ΣΕΡΒΙΤΟΡΟΥ — μόνο για την εφαρμογή του κινητού (βλ. WaiterApiService). Δεν
     /// ανοίγει Στατιστικά/Ιστορικό/Κατάλογο στο ταμείο και δεν ακυρώνει: ο σερβιτόρος τον έχει στο
     /// τηλέφωνό του και δεν πρέπει να του δίνει τίποτα άλλο. Κενό = δεν έχει οριστεί, οπότε το κινητό
@@ -469,6 +477,16 @@ public class SettingsStore
             AppLog.Write("shift", "Νέα μέρα — η βάρδια γύρισε μόνη της σε ΠΡΩΙΝΗ.");
             Changed?.Invoke();
         }
+    }
+
+    /// <summary>Γέφυρα e-food. Τοπικά μόνο: τις παραγγελίες τις τραβάει το κύριο ταμείο, που έχει και τον
+    /// εκτυπωτή — ένα δεύτερο ταμείο με τα ίδια στοιχεία δεν πρέπει να τις τραβάει δεύτερη φορά.</summary>
+    public void SetEfoodBridge(string url, string tillKey, int autoAcceptMinutes)
+    {
+        Settings.EfoodBridgeUrl = url.Trim().TrimEnd('/');
+        Settings.EfoodTillKey = tillKey.Trim();
+        Settings.EfoodAutoAcceptMinutes = Math.Clamp(autoAcceptMinutes, 0, 180);
+        Save();
     }
 
     /// <summary>Ορίζει τον εκτυπωτή για σιωπηλή αυτόματη εκτύπωση.</summary>

@@ -120,6 +120,15 @@
                 <TextBlock Text="Σε ποιο mail θα φτάνει η αναλυτική αναφορά ημέρας όταν πατάς «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ ΣΤΟ EMAIL», και από ποιον λογαριασμό θα στέλνεται."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
+                <!-- e-food -->
+                <TextBlock Text="E-FOOD" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Button Content="E-FOOD" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
+                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                        HorizontalContentAlignment="Center" Click="OpenEfood_Click"/>
+                <TextBlock Text="Σύνδεση με τη γέφυρα e-food: οι παραγγελίες μπαίνουν και τυπώνονται μόνες τους. Ανοίγει με τον κωδικό του ιδιοκτήτη."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+
                 <!-- theme -->
                 <TextBlock Text="ΕΜΦΑΝΙΣΗ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
