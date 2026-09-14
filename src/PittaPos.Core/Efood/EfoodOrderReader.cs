@@ -14,36 +14,36 @@ public sealed record EfoodLine(string Name, int Quantity, decimal Revenue, strin
 /// αριθμός παραγγελίας της πλατφόρμας.</param>
 /// <param name="OwnDelivery">Τη φέρνει ΔΙΚΟΣ ΜΑΣ διανομέας (vendor_delivery) — μόνο τότε κρατάμε τηλέφωνο και
 /// διεύθυνση, γιατί μόνο τότε τα χρειαζόμαστε.</param>
-/// <param name="PlatformTotal">Το σύνολο που δήλωσε το e-food (price) — για έλεγχο, όχι για τον τζίρο.</param>
-/// <param name="Unmatched">Ό,τι δεν βρέθηκε στον κατάλογο του ταμείου (προϊόντα ή επιλογές) — για το log.</param>
+/// <param name="PlatformTotal">Το σύνολο που δήλωσε το e-food (price, μαζί με μεταφορικά) — για έλεγχο, όχι για τον τζίρο.</param>
+/// <param name="Unmatched">Ό,τι δεν βρέθηκε στον κατάλογο του ταμείου — για το log.</param>
 public sealed record EfoodImport(string Ref, string Who, string Phone, string Address, string Floor, string Notes,
     decimal Total, IReadOnlyList<EfoodLine> Lines, bool OwnDelivery, decimal PlatformTotal, IReadOnlyList<string> Unmatched);
 
 /// <summary>
-/// Μεταφράζει το JSON του e-food (βλ. «Integration with 3rd Party Systems (v2)») σε παραγγελία ταμείου.
+/// Μεταφράζει μια παραγγελία του e-food σε παραγγελία ταμείου — πάνω σε ό,τι έδειξαν οι πρώτες πραγματικές (sandbox,
+/// 14/9/2026), όχι μόνο στην τεκμηρίωση:
 ///
-/// <para><b>Ο κατάλογος του e-food μένει όπως τον έχει το κατάστημα</b> — δεν τον αλλάζουμε ποτέ. Κάθε προϊόν του
-/// e-food βρίσκεται στον κατάλογο του ταμείου (σήμερα με το όνομα· η ΑΝΤΙΣΤΟΙΧΙΣΗ χτίζεται πάνω στον πραγματικό
-/// κατάλογο του e-food) και η γραμμή βγαίνει ΑΚΡΙΒΩΣ όπως θα την έβγαζε ο customizer του ταμείου — «ΑΡ. Γύρος»,
-/// «χωρίς: κρεμμύδι», «+ Μπέικον», με το όνομα εκτύπωσης του ταμείου — και μετράει στο σωστό προϊόν στα στατιστικά
-/// και στον ΦΠΑ. Τίποτα από όσα έχει ρυθμίσει το μαγαζί δεν αλλάζει.</para>
+/// <list type="bullet">
+/// <item>Κάθε προϊόν και κάθε επιλογή φέρνει τον αριθμό του καταλόγου του e-food ως <c>integrator_id</c>· με την
+///   ΑΝΤΙΣΤΟΙΧΙΣΗ (<see cref="EfoodContext"/>) γίνεται προϊόν του ταμείου με ψωμί, και η γραμμή βγαίνει με το όνομα και το
+///   όνομα εκτύπωσης του ταμείου, όπως του ταμία («ΑΡ. Κοτόπουλο», «ΕΛ. ΔΙΠΛΗ ΠΙΤΑ χοιρινό»).</item>
+/// <item>Η τιμή του προϊόντος ΠΕΡΙΕΧΕΙ ήδη τις επιλογές (διπλή πίτα + gouda → 9,10, οι επιλογές με 0). Αν ποτέ έρθουν
+///   τιμές και στις επιλογές, κρίνεται με το σύνολο του e-food αν προστίθενται (βλ. <see cref="MaterialsAreExtra"/>).</item>
+/// <item>«Απ' όλα» = όπως είναι· «Μόνο με» + υλικά = «μόνο με: …»· σε προεπιλεγμένα υλικά (burger) το e-food στέλνει όσα
+///   ΕΜΕΙΝΑΝ, οπότε όσα λείπουν = «χωρίς: …»· «Προσθέστε Χ» = «+ Χ»· κάθε άλλη επιλογή (σάλτσα, τυρί) τυπώνεται όπως ήρθε.</item>
+/// </list>
 ///
-/// <para><b>ΠΟΤΕ δεν πετάει εξαίρεση, ΠΟΤΕ δεν χάνει κάτι.</b> Ό,τι δεν αναγνωρίζεται τυπώνεται με το όνομα που
-/// ήρθε: το χειρότερο που επιτρέπεται είναι ένα δελτίο με ονόματα του e-food — ποτέ μια παραγγελία που δεν μπήκε,
-/// γιατί το e-food δεν την ξαναστέλνει και ο πελάτης περιμένει.</para>
-///
-/// <para>ΠΡΟΣ ΕΠΙΒΕΒΑΙΩΣΗ ΣΤΟ SANDBOX (η τεκμηρίωση δεν τα λέει ρητά): αν η τιμή του προϊόντος περιλαμβάνει ήδη
-/// τις επιλογές (materials) — εδώ προστίθενται· πώς ονομάζει το e-food τις αφαιρέσεις υλικών· και αν τα προϊόντα
-/// μιας προσφοράς εμφανίζονται ΚΑΙ στα products.</para>
+/// <para><b>ΠΟΤΕ δεν πετάει εξαίρεση, ΠΟΤΕ δεν χάνει κάτι.</b> Ό,τι δεν αναγνωρίζεται τυπώνεται με το όνομα που ήρθε: το
+/// χειρότερο που επιτρέπεται είναι ένα δελτίο με ονόματα του e-food — ποτέ μια παραγγελία που δεν μπήκε.</para>
 /// </summary>
 public static class EfoodOrderReader
 {
-    /// <summary>Πώς γράφεται μια αφαίρεση υλικού: «Χωρίς κρεμμύδι».</summary>
+    private const string AddPrefix = "Προσθέστε ";
     private const string WithoutPrefix = "Χωρίς ";
 
-    private const string DoublePitaName = "Διπλή πίτα";
+    public static EfoodImport Map(JsonObject order, IEfoodMenu menu) => Map(order, menu, EfoodContext.Empty);
 
-    public static EfoodImport Map(JsonObject order, IEfoodMenu menu)
+    public static EfoodImport Map(JsonObject order, IEfoodMenu menu, EfoodContext context)
     {
         var customer = order["customer"] as JsonObject;
         var transport = order["transport_method"] as JsonObject;
@@ -59,15 +59,16 @@ public static class EfoodOrderReader
         var reference = shortCode.Length > 0 && shortCode != "null" ? shortCode : Text(order["id"]);
         var who = $"{Text(customer?["name"])} {Text(customer?["surname"])}".Trim();
 
+        var products = (order["products"] as JsonArray ?? []).OfType<JsonObject>().ToList();
+        var offers = (order["offers"] as JsonArray ?? []).OfType<JsonObject>().ToList();
+        var addMaterials = MaterialsAreExtra(order, products, offers);
         var index = new CatalogIndex(menu);
         var unmatched = new List<string>();
         var lines = new List<EfoodLine>();
-        foreach (var node in order["products"] as JsonArray ?? [])
-            if (node is JsonObject product)
-                lines.Add(Line(product, menu, index, unmatched));
-        foreach (var node in order["offers"] as JsonArray ?? [])
-            if (node is JsonObject offer)
-                lines.Add(OfferLine(offer, menu, index, unmatched));
+        foreach (var product in products)
+            lines.Add(Line(product, menu, context, index, unmatched, addMaterials));
+        foreach (var offer in offers)
+            lines.Add(OfferLine(offer, menu, context, index, unmatched));
 
         var notes = new List<string>();
         if (ownDelivery)
@@ -102,154 +103,279 @@ public static class EfoodOrderReader
             Unmatched: unmatched);
     }
 
-    private static EfoodLine Line(JsonObject item, IEfoodMenu menu, CatalogIndex index, List<string> unmatched)
+    private static EfoodLine Line(JsonObject item, IEfoodMenu menu, EfoodContext context, CatalogIndex index,
+        List<string> unmatched, bool addMaterials)
     {
         var efoodName = Text(item["name"]);
         if (efoodName.Length == 0)
             efoodName = "Προϊόν e-food";
-        var quantity = Math.Max(1, Count(item["quantity"]));
-        var price = Money(item["price"]) ?? 0m;
-        // Τιμή προσφοράς, όταν υπάρχει και είναι όντως μικρότερη.
-        if (Money(item["discount_price"]) is { } discounted && discounted > 0 && discounted < price)
-            price = discounted;
+        var quantity = Quantity(item);
+        var unit = UnitPrice(item) + (addMaterials ? MaterialsMoney(item) : 0m);
+        var revenue = Math.Round(unit * quantity, 2, MidpointRounding.AwayFromZero);
         var note = Text(item["notes"]);
+        var efoodId = Text(item["integrator_id"]);
         var materials = (item["materials"] as JsonArray ?? []).OfType<JsonObject>().ToList();
-        var materialsMoney = materials.Sum(m => (Money(m["price"]) ?? 0m) * Math.Max(1, Count(m["quantity"])));
-        var revenue = Math.Round((price + materialsMoney) * quantity, 2, MidpointRounding.AwayFromZero);
+        var reading = ReadOptions(materials, context.Item(efoodId), context);
 
-        if (index.Find(Text(item["integrator_id"]), efoodName) is not { } found)
+        (Product Product, MenuCategory Category)? found;
+        var mappedBread = "";
+        if (context.Match(efoodId) is { } match)
+        {
+            // Ρητή αντιστοίχιση — ακόμα και «δεν υπάρχει στο ταμείο» (κενό προϊόν) την ακολουθούμε, χωρίς μαντεψιές.
+            found = match.ProductId.Length > 0 ? index.ById(match.ProductId) : null;
+            mappedBread = match.Bread;
+        }
+        else
+            found = index.Find(efoodId, efoodName);
+
+        if (found is not { } ours)
         {
             unmatched.Add(efoodName);
             var plain = new List<string>();
+            if (reading.DoubleText.Length > 0)
+                plain.Add(reading.DoubleText);
+            else if (reading.BreadText.Length > 0)
+                plain.Add(reading.BreadText);
             if (note.Length > 0)
                 plain.Add(note);
-            plain.AddRange(materials.Select(Describe).Where(d => d.Length > 0));
+            plain.AddRange(reading.Lines());
             return new EfoodLine(efoodName, quantity, revenue, string.Join("\n", plain));
         }
 
-        var (product, category) = found;
-        var customization = new LineCustomization { Bread = MenuSeed.BreadOptions[0], Note = note };
-        var foreign = new List<string>();
+        var (product, category) = ours;
+        var opens = menu.OpensIngredients(product);
+        var customization = new LineCustomization
+        {
+            Bread = reading.Bread ?? (mappedBread.Length > 0 ? mappedBread : MenuSeed.BreadOptions[0]),
+            DoublePita = reading.DoublePita,
+            Note = note,
+        };
+        // Δομημένα ό,τι ταιριάζει με τον κατάλογο του ταμείου — για «ΜΙΑ ΑΠΟ ΤΑ ΙΔΙΑ» και στατιστικά· το χαρτί το λέει το κείμενο.
+        foreach (var removed in reading.Without)
+            if (Pick(menu.IngredientsFor(product), removed) is { } ingredient && !customization.Removed.Contains(ingredient))
+                customization.Removed.Add(ingredient);
+        var extrasNames = menu.Extras.Select(e => e.Name).ToList();
+        foreach (var extra in reading.Extras)
+            if (Pick(extrasNames, extra) is { } ourExtra)
+                customization.Extras[ourExtra] = customization.Extras.GetValueOrDefault(ourExtra) + 1;
+
+        var hasBread = opens && menu.HasBreadChoice(category.Name);
+        var doublePita = opens && customization.DoublePita && menu.SupportsDoublePita(category.Name);
+        var fuse = hasBread && menu.FuseBreadIntoName(category.Name);
+        string Compose(string baseName) => doublePita
+            ? MenuSeed.ComposeDoublePitaName(baseName, category.Name, customization.Bread)
+            : fuse ? MenuSeed.ComposeCustomizedName(baseName, customization.Bread) : baseName;
+
+        var details = new List<string>();
+        if (hasBread && !fuse && !doublePita)
+            details.Add(customization.Bread);
+        else if (!hasBread && reading.BreadText.Length > 0)
+            details.Add(reading.BreadText);
+        if (reading.DoublePita && !doublePita)
+            details.Add(reading.DoubleText);
+        if (note.Length > 0)
+            details.Add(note);
+        details.AddRange(reading.Lines());
+        if (context.Item(efoodId) is null)
+            unmatched.AddRange(reading.Unknown.Select(u => efoodName + " → " + u));
+
+        return new EfoodLine(Compose(product.Name), quantity, revenue, string.Join("\n", details), product.Id,
+            opens ? customization : null, Compose(product.NameForPrint));
+    }
+
+    /// <summary>Τι σημαίνουν οι επιλογές (materials) ενός προϊόντος — με τον κατάλογο του e-food αν τον έχουμε, αλλιώς με τα ονόματα.</summary>
+    private static OptionReading ReadOptions(List<JsonObject> materials, EfoodCatalogItem? item, EfoodContext context)
+    {
+        var reading = new OptionReading();
+        var present = new HashSet<string>(StringComparer.Ordinal);
         foreach (var material in materials)
         {
-            if (!Apply(material, product, category, menu, customization))
+            var name = Text(material["name"]);
+            if (name.Length == 0)
+                continue;
+            var id = Text(material["integrator_id"]);
+            present.Add(id);
+            var quantity = Math.Max(1, Count(material["quantity"]));
+            var label = quantity > 1 ? name + " ×" + quantity : name;
+            var info = context.Option(id);
+            var tier = info?.Tier;
+            var normalized = EfoodMatcher.Normalize(name);
+            var tierName = tier is null ? "" : EfoodMatcher.Normalize(tier.Name);
+
+            // Ψωμί / διπλή πίτα («Επιλέξτε πίττα»: Ελληνική, Αραβική, Διπλή ελληνική).
+            if (tierName.Contains("πιττα") || tierName.Contains("πιτα") || (tier is null && IsBreadName(normalized)))
             {
-                // Κάτι που δεν ξέρει το ταμείο: τυπώνεται με το όνομα που ήρθε — ποτέ δεν χάνεται.
-                unmatched.Add(efoodName + " → " + Text(material["name"]));
-                if (Describe(material) is { Length: > 0 } text)
-                    foreign.Add(text);
+                if (normalized.Contains("διπλ"))
+                {
+                    reading.DoublePita = true;
+                    reading.DoubleText = name;
+                }
+                if (BreadOf(normalized) is { } bread)
+                {
+                    reading.Bread = bread;
+                    reading.BreadText = name;
+                }
+                else if (!normalized.Contains("διπλ"))
+                    reading.Other.Add(label);
+                continue;
             }
+            // «Απ' όλα (…)» = όπως είναι — τίποτα στο χαρτί.
+            if (normalized.StartsWith("απ' ολα", StringComparison.Ordinal) || normalized.StartsWith("απ ολα", StringComparison.Ordinal))
+                continue;
+            if (normalized is "μονο με" or "η επιλεξτε υλικα")
+            {
+                reading.OnlyWithMode = true;
+                continue;
+            }
+            if (tier is not null && tier.Type == "checkbox")
+            {
+                if (tier.DependsOn.Length > 0)
+                    reading.OnlyWith.Add(name);          // τα υλικά του «Μόνο με»
+                else if (!info!.Value.Option.Selected)
+                    reading.Extras.Add(StripAdd(label));  // προσθήκη (τα προεπιλεγμένα που έμειναν δεν γράφονται)
+                continue;
+            }
+            if (tier is not null)
+            {
+                reading.Other.Add(label);                 // σάλτσα, τυρί, «Σβήσιμο σε μπύρα» — όπως ήρθε
+                continue;
+            }
+            if (name.StartsWith(AddPrefix, StringComparison.CurrentCultureIgnoreCase))
+                reading.Extras.Add(StripAdd(label));
+            else if (name.StartsWith(WithoutPrefix, StringComparison.CurrentCultureIgnoreCase))
+                reading.Without.Add(name[WithoutPrefix.Length..]);
+            else
+                reading.Unknown.Add(label);
         }
-
-        var opens = menu.OpensIngredients(product);
-        var composed = Compose(menu, category, product, customization);
-        var details = string.Join("\n", new[] { composed.Details, string.Join("\n", foreign) }.Where(s => s.Length > 0));
-        return new EfoodLine(composed.Name, quantity, revenue, details, product.Id, opens ? customization : null, composed.PrintName);
+        // Χωρίς κατάλογο: μετά από «Μόνο με», ό,τι άγνωστο ήρθε είναι τα υλικά του.
+        if (reading.OnlyWithMode && reading.Unknown.Count > 0)
+        {
+            reading.OnlyWith.AddRange(reading.Unknown);
+            reading.Unknown.Clear();
+        }
+        // Προεπιλεγμένα υλικά (π.χ. burger): το e-food στέλνει όσα ΕΜΕΙΝΑΝ — όσα λείπουν τα έβγαλε ο πελάτης.
+        if (item is not null)
+            foreach (var tier in item.Tiers.Where(t => t.Type == "checkbox" && t.DependsOn.Length == 0))
+                foreach (var option in tier.Options.Where(o => o.Selected && !present.Contains(o.Id)))
+                    reading.Without.Add(option.PrintedName.Length > 0 ? option.PrintedName : option.Name);
+        return reading;
     }
 
-    /// <summary>Μία επιλογή του e-food πάνω στη γραμμή, με το όνομα: ψωμί, «Χωρίς …», διπλή πίτα ή έξτρα του ταμείου.</summary>
-    /// <returns>false αν δεν αναγνωρίστηκε.</returns>
-    private static bool Apply(JsonObject material, Product product, MenuCategory category, IEfoodMenu menu, LineCustomization c)
+    private sealed class OptionReading
     {
-        var name = Text(material["name"]);
-        if (name.Length == 0 || !menu.OpensIngredients(product))
-            return false;
+        public string? Bread;
+        public string BreadText = "";
+        public bool DoublePita;
+        public string DoubleText = "";
+        public bool OnlyWithMode;
+        public readonly List<string> OnlyWith = [];
+        public readonly List<string> Without = [];
+        public readonly List<string> Extras = [];
+        public readonly List<string> Other = [];
+        public readonly List<string> Unknown = [];
 
-        if (menu.HasBreadChoice(category.Name) && Match(MenuSeed.BreadOptions, name) is { } bread)
+        /// <summary>Οι γραμμές κάτω από το όνομα, με το ύφος του ταμία: «μόνο με:» / «χωρίς:» σε δική τους γραμμή, ένα υλικό
+        /// ανά γραμμή, «+ extra».</summary>
+        public IEnumerable<string> Lines()
         {
-            c.Bread = bread;
-            return true;
+            if (OnlyWithMode)
+            {
+                if (OnlyWith.Count == 0)
+                    yield return "σκέτο";
+                else
+                {
+                    yield return "μόνο με:";
+                    foreach (var name in OnlyWith)
+                        yield return Lower(name);
+                }
+            }
+            if (Without.Count > 0)
+            {
+                yield return "χωρίς:";
+                foreach (var name in Without)
+                    yield return Lower(name);
+            }
+            foreach (var extra in Extras)
+                yield return "+ " + extra;
+            foreach (var other in Other)
+                yield return other;
+            foreach (var unknown in Unknown)
+                yield return unknown;
         }
-        if (name.StartsWith(WithoutPrefix, StringComparison.CurrentCultureIgnoreCase)
-            && Match(menu.IngredientsFor(product), name[WithoutPrefix.Length..]) is { } ingredient)
-        {
-            if (!c.Removed.Contains(ingredient))
-                c.Removed.Add(ingredient);
-            return true;
-        }
-        if (menu.SupportsDoublePita(category.Name) && string.Equals(name, DoublePitaName, StringComparison.CurrentCultureIgnoreCase))
-        {
-            c.DoublePita = true;
-            return true;
-        }
-        if (Match(menu.Extras.Select(e => e.Name).ToList(), name) is { } extra)
-        {
-            c.Extras[extra] = c.Extras.GetValueOrDefault(extra) + Math.Max(1, Count(material["quantity"]));
-            return true;
-        }
-        return false;
     }
+
+    private static bool IsBreadName(string normalized) =>
+        normalized is "αραβικη" or "ελληνικη" or "ψωμι"
+        || (normalized.Contains("πιτ") && (normalized.Contains("αραβικ") || normalized.Contains("ελληνικ") || normalized.Contains("διπλ")));
+
+    private static string? BreadOf(string normalized) =>
+        normalized.Contains("αραβικ") ? "Αραβική"
+        : normalized.Contains("ελληνικ") ? "Ελληνική"
+        : normalized.Contains("ψωμ") ? "Ψωμί"
+        : null;
+
+    private static string StripAdd(string label) =>
+        label.StartsWith(AddPrefix, StringComparison.CurrentCultureIgnoreCase) ? label[AddPrefix.Length..] : label;
+
+    private static string Lower(string text) => text.Length > 0 ? char.ToLower(text[0]) + text[1..] : text;
 
     /// <summary>
-    /// Όνομα γραμμής, όνομα για το χαρτί και λεπτομέρειες — ΑΚΡΙΒΩΣ όπως τα συνθέτει ο customizer του ταμείου
-    /// (CustomizerViewModel.Add): το ψωμί χωνεύεται στο όνομα («ΑΡ. Γύρος») ή πάει σε δική του γραμμή (ΜΕΡΙΔΕΣ), η
-    /// διπλή πίτα μπαίνει μπροστά, και από κάτω σημείωση, «χωρίς:/μόνο με:/σκέτο» και «+ έξτρα».
+    /// Η τιμή του προϊόντος περιέχει ήδη τις επιλογές; Στις πραγματικές παραγγελίες ΝΑΙ (οι επιλογές έρχονται με 0), ενώ η
+    /// τεκμηρίωση δείχνει τιμές και στις επιλογές. Όταν έρθουν τιμές, κρίνεται ανά παραγγελία με το σύνολο που δήλωσε το
+    /// e-food: προστίθενται μόνο αν έτσι βγαίνει πιο κοντά στο σύνολο — ποτέ διπλομέτρημα.
     /// </summary>
-    private static (string Name, string PrintName, string Details) Compose(IEfoodMenu menu, MenuCategory category, Product product,
-        LineCustomization c)
+    private static bool MaterialsAreExtra(JsonObject order, List<JsonObject> products, List<JsonObject> offers)
     {
-        var opens = menu.OpensIngredients(product);
-        var hasBread = opens && menu.HasBreadChoice(category.Name);
-        var doublePita = opens && c.DoublePita && menu.SupportsDoublePita(category.Name);
-        var fuse = hasBread && menu.FuseBreadIntoName(category.Name);
-
-        string ComposeName(string baseName) => doublePita
-            ? MenuSeed.ComposeDoublePitaName(baseName, category.Name, c.Bread)
-            : fuse ? MenuSeed.ComposeCustomizedName(baseName, c.Bread) : baseName;
-
-        var breadLine = hasBread && !fuse && !doublePita ? c.Bread : "";
-        var mods = new List<string>();
-        if (opens)
-        {
-            mods.AddRange(MenuSeed.DescribeRemovedIngredients(c.Removed, menu.IngredientsFor(product).ToList()));
-            var extrasOrder = EfoodMenuRules.ExtrasFor(product, menu.Extras).Select(e => e.Name).ToList();
-            foreach (var (extra, quantity) in c.Extras.Where(kv => kv.Value > 0)
-                         .OrderBy(kv => extrasOrder.IndexOf(kv.Key) is var i && i >= 0 ? i : int.MaxValue))
-                mods.Add("+ " + extra + (quantity > 1 ? " ×" + quantity : ""));
-        }
-        var details = string.Join("\n", new[] { breadLine, c.Note, string.Join("\n", mods) }.Where(s => s.Length > 0));
-        return (ComposeName(product.Name), ComposeName(product.NameForPrint), details);
+        var materials = products.Sum(p => MaterialsMoney(p) * Quantity(p));
+        if (materials == 0)
+            return false;
+        var fees = (Money(order["delivery_fee"]) ?? 0m) + (Money((order["bags"] as JsonObject)?["amount"]) ?? 0m) + (Money(order["tip"]) ?? 0m);
+        var offersMoney = offers.Sum(o => OfferPrice(o) * Math.Max(1, Count(o["iteration"])));
+        var without = products.Sum(p => UnitPrice(p) * Quantity(p)) + offersMoney + fees;
+        var platform = Money(order["price"]) ?? 0m;
+        return Math.Abs(without + materials - platform) < Math.Abs(without - platform);
     }
 
-    private static EfoodLine OfferLine(JsonObject offer, IEfoodMenu menu, CatalogIndex index, List<string> unmatched)
+    private static int Quantity(JsonObject item) => Math.Max(1, Count(item["quantity"]));
+
+    private static decimal UnitPrice(JsonObject item)
+    {
+        var price = Money(item["price"]) ?? 0m;
+        // Τιμή προσφοράς, όταν υπάρχει και είναι όντως μικρότερη.
+        return Money(item["discount_price"]) is { } discounted && discounted > 0 && discounted < price ? discounted : price;
+    }
+
+    private static decimal MaterialsMoney(JsonObject item) =>
+        (item["materials"] as JsonArray ?? []).OfType<JsonObject>().Sum(m => (Money(m["price"]) ?? 0m) * Math.Max(1, Count(m["quantity"])));
+
+    private static decimal OfferPrice(JsonObject offer) =>
+        Money(offer["discount_price"]) is { } discounted && discounted > 0 ? discounted : Money(offer["price"]) ?? 0m;
+
+    private static EfoodLine OfferLine(JsonObject offer, IEfoodMenu menu, EfoodContext context, CatalogIndex index, List<string> unmatched)
     {
         var name = Text(offer["name"]);
         if (name.Length == 0)
             name = "Προσφορά e-food";
         var quantity = Math.Max(1, Count(offer["iteration"]));
-        var price = Money(offer["discount_price"]) is { } discounted && discounted > 0
-            ? discounted
-            : Money(offer["price"]) ?? 0m;
         var details = new List<string>();
         foreach (var node in offer["products"] as JsonArray ?? [])
         {
             if (node is not JsonObject item || Text(item["name"]).Length == 0)
                 continue;
             // Ίδια ανάγνωση με τα κανονικά προϊόντα — μόνο για το κείμενο· ο τζίρος είναι η τιμή της προσφοράς.
-            var line = Line(item, menu, index, unmatched);
+            var line = Line(item, menu, context, index, unmatched, addMaterials: false);
             details.Add((line.Quantity > 1 ? line.Quantity + " × " : "") + line.Name);
             details.AddRange(line.Details.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(d => "  " + d));
         }
-        return new EfoodLine(name, quantity, Math.Round(price * quantity, 2, MidpointRounding.AwayFromZero),
+        return new EfoodLine(name, quantity, Math.Round(OfferPrice(offer) * quantity, 2, MidpointRounding.AwayFromZero),
             string.Join("\n", details));
     }
 
-    /// <summary>Το όνομα του ταμείου που ταιριάζει (χωρίς διάκριση πεζών/κεφαλαίων), αλλιώς null.</summary>
-    private static string? Match(IReadOnlyList<string> candidates, string name)
+    /// <summary>Το όνομα του ταμείου που είναι το ίδιο (χωρίς τόνους/κεφαλαία), αλλιώς null.</summary>
+    private static string? Pick(IReadOnlyList<string> candidates, string name)
     {
-        var wanted = name.Trim();
-        return candidates.FirstOrDefault(n => string.Equals(n.Trim(), wanted, StringComparison.CurrentCultureIgnoreCase));
-    }
-
-    private static string Describe(JsonObject material)
-    {
-        var name = Text(material["name"]);
-        if (name.Length == 0)
-            return "";
-        var quantity = Math.Max(1, Count(material["quantity"]));
-        var notes = Text(material["notes"]);
-        var prefix = name.StartsWith(WithoutPrefix, StringComparison.CurrentCultureIgnoreCase) ? "" : "+ ";
-        return prefix + name + (quantity > 1 ? " ×" + quantity : "") + (notes.Length > 0 ? " (" + notes + ")" : "");
+        var wanted = EfoodMatcher.Normalize(name);
+        return candidates.FirstOrDefault(n => EfoodMatcher.Normalize(n) == wanted);
     }
 
     private static string AddressOf(JsonObject? customer)
@@ -316,12 +442,12 @@ public static class EfoodOrderReader
         return 0;
     }
 
-    /// <summary>Προϊόντα του καταλόγου με κωδικό και με όνομα. Διπλός κωδικός ή όνομα: μετράει το πρώτο, όπως και στο
-    /// κινητό του σερβιτόρου.</summary>
+    /// <summary>Προϊόντα του καταλόγου του ταμείου με κωδικό και με όνομα (χωρίς τόνους/κεφαλαία). Διπλός κωδικός ή όνομα:
+    /// μετράει το πρώτο, όπως και στο κινητό του σερβιτόρου.</summary>
     private sealed class CatalogIndex
     {
         private readonly Dictionary<string, (Product, MenuCategory)> _byId = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, (Product, MenuCategory)> _byName = new(StringComparer.CurrentCultureIgnoreCase);
+        private readonly Dictionary<string, (Product, MenuCategory)> _byName = new(StringComparer.Ordinal);
 
         public CatalogIndex(IEfoodMenu menu)
         {
@@ -329,13 +455,16 @@ public static class EfoodOrderReader
                 foreach (var product in category.Products)
                 {
                     _byId.TryAdd(product.Id, (product, category));
-                    _byName.TryAdd(product.Name.Trim(), (product, category));
+                    _byName.TryAdd(EfoodMatcher.Normalize(product.Name), (product, category));
                 }
         }
 
+        public (Product Product, MenuCategory Category)? ById(string productId) =>
+            _byId.TryGetValue(productId, out var found) ? found : null;
+
         public (Product Product, MenuCategory Category)? Find(string code, string name) =>
             code.Length > 0 && _byId.TryGetValue(code, out var byId) ? byId
-            : _byName.TryGetValue(name.Trim(), out var byName) ? byName
+            : _byName.TryGetValue(EfoodMatcher.Normalize(name), out var byName) ? byName
             : null;
     }
 }

@@ -5,11 +5,10 @@ using PittaPos.Core.Data;
 using PittaPos.Core.Efood;
 using PittaPos.Core.Models;
 
-// ΕΛΕΓΧΟΣ της ανάγνωσης παραγγελιών e-food, χωρίς ταμείο: «παραγγελίες» με τα ονόματα του καταλόγου του ταμείου
-// (MenuSeed) πρέπει να βγαίνουν ΑΚΡΙΒΩΣ όπως θα τις περνούσε ο ταμίας — ίδιο όνομα, ίδιες λεπτομέρειες, ίδιο χαρτί.
-// Η αντιστοίχιση με τα ονόματα του e-food χτίζεται πάνω στον πραγματικό κατάλογο του e-food.
+// ΕΛΕΓΧΟΣ του e-food στο ταμείο, χωρίς ταμείο: οι ΠΡΑΓΜΑΤΙΚΕΣ παραγγελίες του sandbox (14/9/2026, με σβησμένα
+// προσωπικά στοιχεία) πάνω στον κατάλογο του e-food και στον MenuSeed, και ό,τι γίνεται όταν δεν υπάρχει κατάλογος.
 //
-//   dotnet run --project tools/EfoodCheck
+//   dotnet run --project tools/EfoodCheck [-- <ολόκληρος κατάλογος e-food.json>]
 
 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("el-GR");
 Console.OutputEncoding = Encoding.UTF8;
@@ -21,97 +20,91 @@ void Check(bool ok, string what)
     if (!ok) fails++;
 }
 
-Console.WriteLine("--- παραγγελίες: βγαίνουν όπως θα τις περνούσε ο ταμίας");
-var (pita, pitaCategory) = Find((p, c) => menu.HasBreadChoice(c.Name) && menu.FuseBreadIntoName(c.Name) && menu.SupportsDoublePita(c.Name)
-    && p.Customizable && menu.IngredientsFor(p).Count >= 4 && EfoodMenuRules.ExtrasFor(p, menu.Extras).Count > 0);
-Check(pita is not null, $"πίττα με ψωμί στο όνομα, υλικά, έξτρα και διπλή πίτα: {pita?.Name} ({pitaCategory?.Name})");
-if (pita is not null && pitaCategory is not null)
+Console.WriteLine("--- πραγματικές παραγγελίες του sandbox (14/9/2026), με τον κατάλογο του e-food");
+var samples = FindSamples();
+Check(samples is not null, "βρέθηκαν τα δείγματα (tools/EfoodCheck/samples)");
+if (samples is not null)
 {
-    var price = pita.DeliveryPrice ?? pita.Price;
-    var ingredient = menu.IngredientsFor(pita)[1];
-    var extras = EfoodMenuRules.ExtrasFor(pita, menu.Extras);
-    var extra = extras.FirstOrDefault(e => e.Price > 0) ?? extras[0];
+    var subset = EfoodCatalogParser.Parse(File.ReadAllText(Path.Combine(samples, "catalog-subset.json"), Encoding.UTF8));
+    var context = EfoodContext.Build(subset, [], menu);
+    JsonObject OrderFrom(string file) =>
+        (JsonNode.Parse(File.ReadAllText(Path.Combine(samples, file), Encoding.UTF8))!["orders"]![0] as JsonObject)!;
 
-    var line = Map(Order(Item(pita.Name, price, 2, "καλοψημένη", "",
-        ("Αραβική", 0m), ("Χωρίς " + Lower(ingredient), 0m), (extra.Name, extra.Price)))).Lines[0];
-    Check(line.Name == MenuSeed.ComposeCustomizedName(pita.Name, "Αραβική")
-          && line.PrintName == MenuSeed.ComposeCustomizedName(pita.NameForPrint, "Αραβική"), $"ψωμί μέσα στο όνομα, όπως του ταμία: «{line.Name}»");
-    Check(line.Details == $"καλοψημένη\nχωρίς:\n{Lower(ingredient)}\n+ {extra.Name}",
-        "σημείωση, «χωρίς:», «+ έξτρα», με τη σειρά του ταμία: " + line.Details.Replace("\n", " | "));
-    Check(line.Quantity == 2 && line.Revenue == (price + extra.Price) * 2, $"τζίρος (τιμή + έξτρα) × 2 = {line.Revenue}");
-    Check(line.ProductId == pita.Id && line.Customization is { Bread: "Αραβική", DoublePita: false } custom
-          && custom.Removed.SequenceEqual(new[] { ingredient }) && custom.Extras.GetValueOrDefault(extra.Name) == 1,
-        "ίδιο προϊόν και ιδιαιτερότητες — για στατιστικά, ΦΠΑ και «ΜΙΑ ΑΠΟ ΤΑ ΙΔΙΑ»");
+    var chicken = Product("Πίττα κοτόπουλο");
+    var pork = Product("Πίττα χοιρινό");
+    var o11 = EfoodOrderReader.Map(OrderFrom("order-11.json"), menu, context);
+    Check(o11.Lines.Count == 3 && o11.Unmatched.Count == 0, $"#11: 3 γραμμές, όλες βρέθηκαν ({string.Join(", ", o11.Unmatched)})");
+    Check(o11.Lines[0].Name == MenuSeed.ComposeCustomizedName(chicken.Product.Name, "Ελληνική") && o11.Lines[0].Details == ""
+          && o11.Lines[0].Revenue == 7.20m && o11.Lines[0].ProductId == chicken.Product.Id,
+        $"Πίττα κοτόπουλο «Απ' όλα» → «{o11.Lines[0].Name}», τίποτα από κάτω, 7,20");
+    Check(o11.Lines[1].Name == "Κοτόπουλο μερίδα" && o11.Lines[1].Details == "Αραβική" && o11.Lines[1].Revenue == 10.80m,
+        $"Κοτόπουλο μερίδα με αραβική → «Αραβική» από κάτω, 10,80 ({o11.Lines[1].Details.Replace("\n", " | ")})");
+    Check(o11.Lines[2] is { Name: "Coca-Cola 330ml", Details: "" } && o11.Lines[2].Revenue == 1.90m, "Coca-Cola 330ml, 1,90");
+    Check(o11.Total == 19.90m && o11.PlatformTotal == 20.40m && o11.Notes.StartsWith("ΜΕΤΡΗΤΑ €20,40") && o11.Notes.Contains("xwris maxairopirouno"),
+        $"19,90 + 0,50 μεταφορικά = 20,40 του e-food · «{o11.Notes}»");
 
-    var doublePrice = menu.DoublePitaPriceFor(pitaCategory.Name);
-    var doubled = Map(Order(Item(pita.Name, price, 1, "", "", ("Διπλή πίτα", doublePrice)))).Lines[0];
-    Check(doubled.Name == MenuSeed.ComposeDoublePitaName(pita.Name, pitaCategory.Name, "Ελληνική")
-          && doubled.Revenue == price + doublePrice, $"διπλή πίτα: «{doubled.Name}» {doubled.Revenue}");
+    var o12 = EfoodOrderReader.Map(OrderFrom("order-12.json"), menu, context);
+    Check(o12.Lines.Count == 2 && o12.Unmatched.Count == 0, "#12: 2 γραμμές, όλες βρέθηκαν");
+    Check(o12.Lines[0].Name == MenuSeed.ComposeDoublePitaName(pork.Product.Name, pork.Category.Name, "Ελληνική"),
+        $"διπλή ελληνική → «{o12.Lines[0].Name}»");
+    Check(o12.Lines[0].Details == "μόνο με:\nντομάτα\nπατάτες\n+ Τυρί gouda",
+        "«Μόνο με» ντομάτα, πατάτες + gouda: " + o12.Lines[0].Details.Replace("\n", " | "));
+    Check(o12.Lines[0].Revenue == 9.10m && o12.Lines[0].Customization is { DoublePita: true, Bread: "Ελληνική" },
+        "9,10 όπως το χρέωσε το e-food (η τιμή έχει ήδη μέσα διπλή πίτα και gouda — δεν διπλομετράμε)");
+    Check(o12.Lines[1].Name == "Burger απλό" && o12.Lines[1].Details == "χωρίς:\nντομάτα" && o12.Lines[1].Revenue == 6.40m,
+        "burger με ξετσεκαρισμένη ντομάτα → «χωρίς: ντομάτα» (το e-food στέλνει όσα έμειναν): " + o12.Lines[1].Details.Replace("\n", " | "));
+    Check(o12.Total == 15.50m && o12.PlatformTotal == 16m, "15,50 + 0,50 = 16,00 του e-food");
 
-    var everything = menu.IngredientsFor(pita).Select(i => ("Χωρίς " + Lower(i), 0m)).ToArray();
-    Check(Map(Order(Item(pita.Name, price, 1, "", "", everything))).Lines[0].Details == "σκέτο", "όλα «Χωρίς» → σκέτο");
+    var noCatalog = EfoodOrderReader.Map(OrderFrom("order-12.json"), menu);
+    Check(noCatalog.Lines[0].Name == MenuSeed.ComposeDoublePitaName(pork.Product.Name, pork.Category.Name, "Ελληνική")
+          && noCatalog.Lines[0].Details == "μόνο με:\nντομάτα\nπατάτες\n+ Τυρί gouda" && noCatalog.Total == 15.50m,
+        "ακόμα και χωρίς κατάλογο: βρίσκεται με το όνομα, διπλή πίτα, «μόνο με», σωστό σύνολο");
 
-    var plain = Map(Order(Item(pita.Name, price, 1, "", ""))).Lines[0];
-    Check(plain.Name == MenuSeed.ComposeCustomizedName(pita.Name, "Ελληνική") && plain.Details == "",
-        "χωρίς καμία επιλογή → η προεπιλογή του ταμείου (Ελληνική), τίποτα από κάτω");
-
-    var byCode = Map(Order(Item("Όνομα όπως το γράφει το e-food", price, 1, "", pita.Id))).Lines[0];
-    Check(byCode.ProductId == pita.Id && byCode.Name == MenuSeed.ComposeCustomizedName(pita.Name, "Ελληνική"),
-        "με κωδικό του ταμείου: βγαίνει με το όνομα του ταμείου, όχι του e-food");
-
-    var odd = Map(Order(Item(pita.Name, price, 1, "", "", ("Τρούφα", 2.5m))));
-    Check(odd.Lines[0].Details == "+ Τρούφα" && odd.Lines[0].Revenue == price + 2.5m && odd.Unmatched.Count == 1,
-        "άγνωστη επιλογή → «+ Τρούφα» στο χαρτί και στον τζίρο, και γράφεται στο log");
+    var explicitNone = new EfoodContext(subset, [new EfoodMatch { EfoodId = "1423306810", EfoodName = "Burger απλό" }]);
+    var none = EfoodOrderReader.Map(OrderFrom("order-12.json"), menu, explicitNone);
+    Check(none.Lines[1] is { Name: "Burger απλό", ProductId: "" } && none.Lines[1].Details == "χωρίς:\nντομάτα",
+        "ρητό «δεν υπάρχει στο ταμείο» → με το όνομα του e-food, χωρίς μαντεψιές, αλλά με τα υλικά του");
 }
 
-var (meal, mealCategory) = Find((p, c) => menu.HasBreadChoice(c.Name) && !menu.FuseBreadIntoName(c.Name) && menu.OpensIngredients(p));
-Check(meal is not null, $"μερίδα με ψωμί σε δική του γραμμή: {meal?.Name} ({mealCategory?.Name})");
-if (meal is not null)
+Console.WriteLine("--- χωρίς κατάλογο: με τα ονόματα, και τίποτα δεν χάνεται");
 {
-    var line = Map(Order(Item(meal.Name, meal.Price, 1, "", "", ("Ψωμί", 0m)))).Lines[0];
-    Check(line.Name == meal.Name && line.Details.Split('\n')[0] == "Ψωμί", $"«{line.Name}» με «Ψωμί» από κάτω");
-}
-
-var (drink, _) = Find((p, _) => !menu.OpensIngredients(p));
-Check(drink is not null, $"προϊόν χωρίς υλικά: {drink?.Name}");
-if (drink is not null)
-{
-    var line = Map(Order(Item(drink.Name, drink.Price, 3, "χωρίς πάγο", ""))).Lines[0];
-    Check(line.Name == drink.Name && line.Details == "χωρίς πάγο" && line.Customization is null && line.Quantity == 3
-          && line.ProductId == drink.Id, "χωρίς υλικά: όνομα όπως είναι, μόνο η σημείωση του πελάτη");
-
-    var stranger = Map(Order(Item("Κάτι άλλο", 3m, 1, "", "den-yparxei", ("Σάλτσα", 0.5m))));
-    Check(stranger.Lines[0].Name == "Κάτι άλλο" && stranger.Lines[0].ProductId == "" && stranger.Lines[0].Details == "+ Σάλτσα"
-          && stranger.Lines[0].Revenue == 3.5m && stranger.Unmatched.Contains("Κάτι άλλο"),
-        "άγνωστο προϊόν → μπαίνει με το όνομα του e-food, τίποτα δεν χάνεται");
+    var line = Map(Order(Item("Coca-Cola 330ml", 1.9m, 3, "χωρίς πάγο"))).Lines[0];
+    Check(line is { Name: "Coca-Cola 330ml", Details: "χωρίς πάγο", Customization: null, Quantity: 3 } && line.Revenue == 5.70m,
+        "αναψυκτικό × 3 με σημείωση πελάτη");
+    var meal = Map(Order(Item("Κοτόπουλο μερίδα", 10.8m, 1, "", ("Αραβική πίττα", 0m)))).Lines[0];
+    Check(meal.Name == "Κοτόπουλο μερίδα" && meal.Details == "Αραβική", "μερίδα με «Αραβική πίττα» → «Αραβική» από κάτω");
+    var stranger = Map(Order(Item("Κάτι άλλο", 3m, 1, "", ("Σάλτσα", 0m))));
+    Check(stranger.Lines[0] is { Name: "Κάτι άλλο", ProductId: "", Details: "Σάλτσα" } && stranger.Lines[0].Revenue == 3m
+          && stranger.Unmatched.Contains("Κάτι άλλο"), "άγνωστο προϊόν → με το όνομα του e-food και ό,τι επιλογές ήρθαν");
+    var documented = Map(Order(Item("Coca-Cola 330ml", 1.9m, 2, "", ("Λεμόνι", 0.5m))));
+    Check(documented.Total == 4.80m, $"επιλογές με τιμή (όπως στην τεκμηρίωση) και σύνολο του e-food που τις περιέχει → προστίθενται ({documented.Total})");
 
     Console.WriteLine("--- πάνω μέρος του δελτίου");
-    var own = Map(Order(Item(drink.Name, drink.Price, 1, "", "")));
+    var own = Map(Order(Item("Coca-Cola 330ml", 1.9m, 1, "")));
     Check(own.OwnDelivery && own.Phone == "6900000000" && own.Notes.StartsWith("ΜΕΤΡΗΤΑ") && own.Notes.Contains("ΧΩΡΙΣ ΜΑΧΑΙΡΟΠΙΡΟΥΝΑ"),
         "δική μας διανομή: τηλέφωνο, «ΜΕΤΡΗΤΑ … εισπράττει ο διανομέας», «ΧΩΡΙΣ ΜΑΧΑΙΡΟΠΙΡΟΥΝΑ»");
-    var platform = Order(Item(drink.Name, drink.Price, 1, "", ""));
+    var platform = Order(Item("Coca-Cola 330ml", 1.9m, 1, ""));
     platform["transport_method"]!["delivery_provider"] = "platform_delivery";
     var rider = Map(platform);
     Check(!rider.OwnDelivery && rider.Phone == "" && rider.Address == "", "rider του e-food: κανένα τηλέφωνο ή διεύθυνση στο χαρτί");
-    var pickup = Order(Item(drink.Name, drink.Price, 1, "", ""));
+    var pickup = Order(Item("Coca-Cola 330ml", 1.9m, 1, ""));
     pickup["type"] = "takeaway";
     pickup["payment_type"] = "credit_card";
     Check(Map(pickup).Notes.StartsWith("ΠΑΡΑΛΑΒΗ — πληρωμένη"), "παραλαβή πληρωμένη με κάρτα");
 }
 
-// Ο πραγματικός κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
+// Ο ολόκληρος κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
 if (args.Length > 0 && File.Exists(args[0]))
 {
-    Console.WriteLine("--- κατάλογος του e-food: ανάγνωση και αυτόματη αντιστοίχιση");
+    Console.WriteLine("--- ολόκληρος κατάλογος του e-food: ανάγνωση και αυτόματη αντιστοίχιση");
     var catalogItems = EfoodCatalogParser.Parse(File.ReadAllText(args[0], Encoding.UTF8));
     var suggestions = EfoodMatcher.SuggestAll(catalogItems, menu);
     var green = catalogItems.Count(i => suggestions[EfoodMatcher.KeyOf(i)] is { SamePrice: true });
     var yellow = catalogItems.Count(i => suggestions[EfoodMatcher.KeyOf(i)] is { SamePrice: false });
-    Check(catalogItems.Count > 0 && catalogItems.All(i => i.Code.Length > 0 && i.Name.Length > 0),
-        $"διαβάστηκαν {catalogItems.Count} προϊόντα, όλα με κωδικό και όνομα");
-    Check(catalogItems.Select(EfoodMatcher.KeyOf).Distinct().Count() == catalogItems.Count, "κάθε προϊόν του e-food με μοναδικό κωδικό");
+    Check(catalogItems.Count > 0 && catalogItems.All(i => i.Id.Length > 0 && i.Name.Length > 0),
+        $"διαβάστηκαν {catalogItems.Count} προϊόντα, όλα με αριθμό και όνομα");
+    Check(catalogItems.Select(EfoodMatcher.KeyOf).Distinct().Count() == catalogItems.Count, "κάθε προϊόν του e-food με μοναδικό αριθμό");
     Console.WriteLine($"     αυτόματα με ίδια τιμή: {green} · πρόταση με άλλη τιμή: {yellow} · χωρίς πρόταση: {catalogItems.Count - green - yellow}");
-
     EfoodSuggestion? For(string efoodName, string category) =>
         catalogItems.FirstOrDefault(i => i.Name == efoodName && i.Category == category) is { } found ? suggestions[EfoodMatcher.KeyOf(found)] : null;
     var arabic = For("Αραβική πίττα κοτόπουλο", "Αραβικές πίττες");
@@ -120,14 +113,7 @@ if (args.Length > 0 && File.Exists(args[0]))
     var sandwich = For("Σάντουιτς κοτόπουλο", "Σάντουιτς");
     Check(sandwich is { Bread: "Ψωμί" } && EfoodMatcher.Normalize(sandwich.Product.Name) == "πιττα κοτοπουλο",
         $"«Σάντουιτς κοτόπουλο» → {sandwich?.Product.Name} + {sandwich?.Bread}");
-    var fasting = For("Λαχανικών", "Νηστίσιμο menu");
-    Check(fasting is { SamePrice: false }, "ίδιο όνομα με άλλη τιμή («Λαχανικών» νηστίσιμο) → θέλει επιβεβαίωση, όχι αυτόματο");
-    var efoodPita = catalogItems.First(i => i.Name == "Πίττα κοτόπουλο" && i.Category == "Τυλιχτά");
-    Check(efoodPita.Tiers.Any(t => t.Name == "Επιλέξτε πίττα" && t.Options.Any(o => o.Name == "Διπλή ελληνική πίττα"))
-          && efoodPita.Tiers.Any(t => t.Name == "Υλικά" && t.DependsOn.Length > 0),
-        "οι ομάδες επιλογών διαβάζονται (πίττα, «Υλικά» που εξαρτώνται από «ή επιλέξτε υλικά»)");
-    foreach (var item in catalogItems.Where(i => suggestions[EfoodMatcher.KeyOf(i)] is not { SamePrice: true }))
-        Console.WriteLine($"     {(suggestions[EfoodMatcher.KeyOf(item)] is { } s ? "?  " + s.Product.Name + (s.Bread.Length > 0 ? " + " + s.Bread : "") : "-  ———")}  ←  [{item.Category}] {item.Name} {item.Price:0.00}");
+    Check(For("Λαχανικών", "Νηστίσιμο menu") is { SamePrice: false }, "ίδιο όνομα με άλλη τιμή («Λαχανικών» νηστίσιμο) → θέλει επιβεβαίωση");
 }
 
 Console.WriteLine(fails == 0 ? "ALL PASSED" : fails + " FAILED");
@@ -137,38 +123,52 @@ return fails == 0 ? 0 : 1;
 
 EfoodImport Map(JsonObject order) => EfoodOrderReader.Map(order, menu);
 
-(Product? Product, MenuCategory? Category) Find(Func<Product, MenuCategory, bool> match)
+(Product Product, MenuCategory Category) Product(string name)
 {
     foreach (var category in menu.Categories)
         foreach (var product in category.Products)
-            if (match(product, category))
+            if (EfoodMatcher.Normalize(product.Name) == EfoodMatcher.Normalize(name))
                 return (product, category);
-    return (null, null);
+    throw new InvalidOperationException("δεν υπάρχει στον MenuSeed: " + name);
 }
 
-/// <summary>Ένα προϊόν όπως θα ερχόταν μέσα σε παραγγελία e-food.</summary>
-static JsonObject Item(string name, decimal price, int quantity, string notes, string integratorId,
-    params (string Name, decimal Price)[] materials) => new()
+static string? FindSamples()
 {
-    ["id"] = "e1", ["name"] = name, ["price"] = price, ["discount_price"] = null, ["quantity"] = quantity,
-    ["notes"] = notes, ["integrator_id"] = integratorId,
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "tools", "EfoodCheck", "samples");
+        if (Directory.Exists(candidate))
+            return candidate;
+    }
+    return null;
+}
+
+/// <summary>Ένα προϊόν όπως έρχεται μέσα σε παραγγελία e-food: η τιμή περιέχει ήδη τις επιλογές.</summary>
+static JsonObject Item(string name, decimal price, int quantity, string notes, params (string Name, decimal Price)[] materials) => new()
+{
+    ["id"] = "no-valid-code-found", ["name"] = name, ["price"] = price, ["discount_price"] = null, ["quantity"] = quantity,
+    ["notes"] = notes, ["integrator_id"] = "",
     ["materials"] = new JsonArray(materials.Select(m => (JsonNode?)new JsonObject
     {
-        ["id"] = "m", ["name"] = m.Name, ["quantity"] = 1, ["price"] = m.Price, ["notes"] = "", ["integrator_id"] = "",
+        ["id"] = "no-valid-code-found", ["name"] = m.Name, ["quantity"] = 1, ["price"] = m.Price, ["notes"] = "", ["integrator_id"] = "",
     }).ToArray()),
 };
 
-static JsonObject Order(params JsonObject[] items) => new()
+/// <summary>Παραγγελία με σύνολο = γραμμές + επιλογές με τιμή (όπως στην τεκμηρίωση).</summary>
+static JsonObject Order(params JsonObject[] items)
 {
-    ["id"] = 123456, ["short_code"] = "", ["type"] = "delivery", ["price"] = 10m, ["payment_type"] = "cash",
-    ["customer"] = new JsonObject { ["name"] = "Δοκιμή", ["surname"] = "Πελάτης", ["telephone"] = "6900000000", ["address"] = "Λεωφ. Δοκιμής 1" },
-    ["transport_method"] = new JsonObject { ["key"] = "delivery", ["delivery_provider"] = "vendor_delivery" },
-    ["products"] = new JsonArray(items.Cast<JsonNode?>().ToArray()),
-    ["offers"] = new JsonArray(),
-    ["extra_parameters"] = new JsonArray("no-cutlery"),
-};
-
-static string Lower(string text) => text.Length > 0 ? char.ToLower(text[0]) + text[1..] : text;
+    var total = items.Sum(i => (i["price"]!.GetValue<decimal>() + i["materials"]!.AsArray().Sum(m => m!["price"]!.GetValue<decimal>()))
+                               * i["quantity"]!.GetValue<int>());
+    return new JsonObject
+    {
+        ["id"] = 123456, ["short_code"] = "", ["type"] = "delivery", ["price"] = total, ["payment_type"] = "cash",
+        ["customer"] = new JsonObject { ["name"] = "Δοκιμή", ["surname"] = "Πελάτης", ["telephone"] = "6900000000", ["address"] = "Λεωφ. Δοκιμής 1" },
+        ["transport_method"] = new JsonObject { ["key"] = "delivery", ["delivery_provider"] = "vendor_delivery" },
+        ["products"] = new JsonArray(items.Cast<JsonNode?>().ToArray()),
+        ["offers"] = new JsonArray(),
+        ["extra_parameters"] = new JsonArray("no-cutlery"),
+    };
+}
 
 /// <summary>Ο MenuSeed με τους κανόνες του MenuStore (ιδιότητες κατηγορίας, αλλιώς οι παλιοί κανόνες ονόματος).</summary>
 sealed class SeedMenu : IEfoodMenu
