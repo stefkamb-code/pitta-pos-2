@@ -127,6 +127,11 @@ public class MenuStore
                 c.DoublePitaLarge = MenuSeed.GuessLargePita(c.Name);
                 changed = true;
             }
+            if (c.OnEfood is null)
+            {
+                c.OnEfood = MenuSeed.GuessOnEfood(c.Name);
+                changed = true;
+            }
         }
         if (changed | MigrateDoublePitaPrices())
             SaveToDisk();
@@ -416,6 +421,7 @@ public class MenuStore
             HasBread = c.HasBread,
             FuseBreadIntoName = c.FuseBreadIntoName,
             SupportsDoublePita = c.SupportsDoublePita,
+            OnEfood = c.OnEfood,
             Products = c.Products.Select(p => new Product
             {
                 Id = p.Id, Name = p.Name, NameEn = p.NameEn, PrintName = p.PrintName,

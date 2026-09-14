@@ -1,5 +1,6 @@
 using System.Windows;
 using PittaPos.App.Services;
+using PittaPos.Core.Efood;
 
 namespace PittaPos.App.Views;
 
@@ -68,5 +69,41 @@ public partial class EfoodSettingsWindow : Window
         var (ok, message) = await EfoodBridgeService.TestAsync(url, key);
         StatusText.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
         StatusText.Text = (ok ? "✓ " : "✕ ") + message;
+    }
+
+    /// <summary>Στέλνει ΟΛΟ τον κατάλογο του ταμείου στο e-food — πρώτα ερώτηση στη μέση, γιατί αντικαθιστά ό,τι έχει
+    /// εκεί. Με τις αποθηκευμένες ρυθμίσεις, όχι με ό,τι είναι γραμμένο στα πεδία χωρίς αποθήκευση.</summary>
+    private async void PushCatalog_Click(object sender, RoutedEventArgs e)
+    {
+        if (_store.Settings.EfoodBridgeUrl.Length == 0 || _store.Settings.EfoodTillKey.Length == 0)
+        {
+            ShowCatalogStatus(false, "✕ Αποθήκευσε πρώτα διεύθυνση γέφυρας και κλειδί.");
+            return;
+        }
+        var catalog = EfoodCatalogBuilder.Build(EfoodMenu.Live);
+        if (catalog.Products == 0)
+        {
+            ShowCatalogStatus(false, "✕ Ο κατάλογος του ταμείου είναι άδειος.");
+            return;
+        }
+        // Ποιες κατηγορίες μένουν έξω (π.χ. ΠΡΟΣΩΠΙΚΟ) — να φαίνεται πριν πατηθεί, όχι μετά.
+        var excluded = catalog.Excluded.Count > 0 ? $"\n\nΔεν στέλνονται: {string.Join(", ", catalog.Excluded)}." : "";
+        if (!ConfirmDialog.Ask(this, "ΑΠΟΣΤΟΛΗ ΚΑΤΑΛΟΓΟΥ",
+                $"Ο κατάλογος του e-food θα αντικατασταθεί ολόκληρος με του ταμείου: {catalog.Categories} κατηγορίες, " +
+                $"{catalog.Products} προϊόντα, με τις τιμές εφαρμογών." + excluded,
+                "ΑΠΟΣΤΟΛΗ"))
+            return;
+
+        CatalogButton.IsEnabled = false;
+        ShowCatalogStatus(true, "Αποστολή…");
+        var (ok, message) = await EfoodBridgeService.PushCatalogAsync(catalog);
+        CatalogButton.IsEnabled = true;
+        ShowCatalogStatus(ok, (ok ? "✓ " : "✕ ") + message);
+    }
+
+    private void ShowCatalogStatus(bool ok, string text)
+    {
+        CatalogStatus.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
+        CatalogStatus.Text = text;
     }
 }

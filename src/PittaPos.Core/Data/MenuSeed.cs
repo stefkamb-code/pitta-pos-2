@@ -113,6 +113,11 @@ public static partial class MenuSeed
         return !name.Contains("ΜΙΚΡ") && !name.Contains("ΜΙΝΙ");
     }
 
+    /// <summary>Αν η κατηγορία είναι για το e-food, μαντεμένο από το όνομα — μόνο ως αρχική τιμή για κατηγορία που
+    /// δεν το έχει δηλωμένο (βλ. MenuCategory.OnEfood). Έξω μένει μόνο το ΠΡΟΣΩΠΙΚΟ.</summary>
+    public static bool GuessOnEfood(string categoryLabel) =>
+        !categoryLabel.ToUpperInvariant().Contains("ΠΡΟΣΩΠΙΚ");
+
     private const string DoublePitaLabel = "ΔΙΠΛΗ ΠΙΤΑ";
 
     /// <summary>Όνομα γραμμής παραγγελίας όταν είναι επιλεγμένη διπλή πίτα, π.χ. «ΕΛ. ΔΙΠΛΗ ΠΙΤΑ Κοτόπουλο»

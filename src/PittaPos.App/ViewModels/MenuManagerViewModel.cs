@@ -161,6 +161,9 @@ public partial class MenuManagerViewModel : ObservableObject
     [ObservableProperty] private bool _categoryFuseBread;
     [ObservableProperty] private bool _categoryDoublePita;
 
+    /// <summary>Αν η κατηγορία στέλνεται στο e-food (βλ. EfoodCatalogBuilder) — σβηστό π.χ. στο ΠΡΟΣΩΠΙΚΟ.</summary>
+    [ObservableProperty] private bool _categoryOnEfood;
+
     /// <summary>Μεγάλη ή μικρή πίτα — καθορίζει ΠΟΙΑ από τις δύο χρεώσεις παίρνει η κατηγορία. Στα
     /// ΚΛΑΣΙΚΑ ΜΙΚΡΑ μπαίνει πάντα η μικρή, στις ΠΙΤΤΕΣ και ΠΙΤΤΕΣ ΠΑΠΠΟΥ πάντα η μεγάλη.</summary>
     [ObservableProperty]
@@ -283,6 +286,7 @@ public partial class MenuManagerViewModel : ObservableObject
         CategoryDoublePita = value?.SupportsDoublePita ?? false;
         CategoryPitaLarge = value?.DoublePitaLarge ?? (value is null || MenuSeed.GuessLargePita(value.Name));
         CategoryVat = value?.VatKind ?? (value is null ? VatKind.Food : MenuSeed.GuessVatKind(value.Name));
+        CategoryOnEfood = value?.OnEfood ?? (value is null || MenuSeed.GuessOnEfood(value.Name));
         ShowVatOptions = false; // κλειστές σε κάθε αλλαγή κατηγορίας
         _loadingCategoryFlags = false;
         OnPropertyChanged(nameof(CategoryFuseBreadEnabled));
@@ -309,6 +313,8 @@ public partial class MenuManagerViewModel : ObservableObject
     }
 
     partial void OnCategoryFuseBreadChanged(bool value) => SaveCategoryFlag(c => c.FuseBreadIntoName = value);
+
+    partial void OnCategoryOnEfoodChanged(bool value) => SaveCategoryFlag(c => c.OnEfood = value);
 
     partial void OnCategoryDoublePitaChanged(bool value)
     {
@@ -690,6 +696,7 @@ public partial class MenuManagerViewModel : ObservableObject
                 FuseBreadIntoName = MenuSeed.FuseBreadIntoName(upper),
                 SupportsDoublePita = MenuSeed.SupportsDoublePita(upper),
                 VatKind = MenuSeed.GuessVatKind(upper),
+                OnEfood = MenuSeed.GuessOnEfood(upper),
             };
             _store.Categories.Add(category);
             _store.Save();
