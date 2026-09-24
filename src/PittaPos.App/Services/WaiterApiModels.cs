@@ -83,9 +83,12 @@ public sealed record OrderLineRequest(
 /// ανά άτομο, το κινητό στέλνει <c>false</c> για κάθε άτομο εκτός από το τελευταίο: οι παραγγελίες
 /// καταχωρούνται κανονικά μία-μία (μία απόδειξη ανά άτομο), αλλά η κουζίνα παίρνει <b>ΕΝΑ</b> δελτίο
 /// με όλο το τραπέζι μαζί, όταν κλείσει και το τελευταίο άτομο. Προεπιλογή true, ώστε παλιό APK και
-/// κάθε άλλη παραγγελία να τυπώνουν όπως πάντα.</summary>
+/// κάθε άλλη παραγγελία να τυπώνουν όπως πάντα.
+/// <paramref name="SubmissionId"/> = ένας αριθμός ανά αποστολή, ίδιος σε κάθε ξαναπάτημα της ίδιας παραγγελίας:
+/// αν έρθει δεύτερη φορά, το ταμείο απαντά «ΟΚ» χωρίς να την ξαναγράψει ή να την ξανατυπώσει. Παλιό APK = null =
+/// όπως πριν.</summary>
 public sealed record SubmitOrderRequest(int Table, string Pin, List<OrderLineRequest> Lines, string? Note = null,
-    bool PrintNow = true);
+    bool PrintNow = true, string? SubmissionId = null);
 
 /// <summary>Μία γραμμή από ήδη καταχωρημένη παραγγελία τραπεζιού.</summary>
 /// <summary><paramref name="Person"/> = σε ποιο άτομο του τραπεζιού χρεώνεται (0-based, null = σε

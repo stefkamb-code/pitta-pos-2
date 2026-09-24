@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Collections.Concurrent;
+using System.Globalization;
 using System.Windows;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -118,7 +119,7 @@ public static class WaiterApiService
                 var req = await ctx.Request.ReadFromJsonAsync<SubmitOrderRequest>();
                 if (req is null)
                     return Results.BadRequest(new { error = "Άκυρο αίτημα" });
-                var (status, body) = await SubmitOrderAsync(req);
+                var (status, body) = await SubmitOnceAsync(req);
                 return Results.Json(body, statusCode: status);
             });
             app.MapPost("/api/tables/{table:int}/settle", async (HttpContext ctx, int table) =>
@@ -809,6 +810,47 @@ public static class WaiterApiService
     /// δικτυακό round-trip ΑΝΑΜΕΣΑ τους σε κανονικό await — όχι μέσα σε OnUi/Dispatcher.Invoke, για να
     /// μην μπλοκάρεται το UI thread περιμένοντας δίκτυο.
     /// </summary>
+    /// <summary>Οι αποστολές των τελευταίων ωρών, με το αποτέλεσμά τους — βλ. <see cref="SubmitOnceAsync"/>.</summary>
+    private static readonly ConcurrentDictionary<string, (DateTime At, Lazy<Task<(int Status, object Body)>> Result)> Submissions =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// <b>ΙΔΙΑ ΑΠΟΣΤΟΛΗ ΔΥΟ ΦΟΡΕΣ = ΜΙΑ ΠΑΡΑΓΓΕΛΙΑ.</b> Στο μαγαζί μια παραγγελία τραπεζιού από το κινητό γράφτηκε και
+    /// τυπώθηκε δύο φορές (24/9/2026). Δύο δρόμοι οδηγούσαν εκεί: διπλό πάτημα πριν σβήσει το κουμπί, ή απάντηση που
+    /// άργησε πάνω από 8″ — το κινητό έλεγε «Αποτυχία αποστολής» ενώ η παραγγελία είχε περάσει, και ο σερβιτόρος την
+    /// ξανάστελνε. Το κινητό (APK 3.2+) στέλνει πια τον ίδιο <c>SubmissionId</c> σε κάθε ξαναπάτημα· εδώ η δεύτερη
+    /// φορά παίρνει την απάντηση της πρώτης — ακόμα κι αν η πρώτη τρέχει ακόμα — χωρίς να ξαναγραφτεί ή να
+    /// ξανατυπωθεί τίποτα.
+    /// </summary>
+    private static async Task<(int Status, object Body)> SubmitOnceAsync(SubmitOrderRequest req)
+    {
+        var id = req.SubmissionId?.Trim() ?? "";
+        if (id.Length == 0)
+            return await SubmitOrderAsync(req);
+
+        var now = DateTime.Now;
+        foreach (var old in Submissions.Where(s => now - s.Value.At > TimeSpan.FromHours(12)).Select(s => s.Key).ToList())
+            Submissions.TryRemove(old, out _);
+
+        var mine = new Lazy<Task<(int Status, object Body)>>(() => SubmitOrderAsync(req));
+        var entry = Submissions.GetOrAdd(id, (now, mine));
+        if (!ReferenceEquals(entry.Result, mine))
+            AppLog.Write("waiter-api", $"Τραπέζι {req.Table}: η ίδια αποστολή ήρθε ξανά ({id}) — δεν γράφτηκε ούτε τυπώθηκε δεύτερη φορά.");
+        try
+        {
+            var result = await entry.Result.Value;
+            // Απορρίφθηκε (λάθος κωδικός, άκυρο τραπέζι): το ξαναπάτημα δοκιμάζει από την αρχή.
+            if (result.Status != 200)
+                Submissions.TryRemove(id, out _);
+            return result;
+        }
+        catch
+        {
+            Submissions.TryRemove(id, out _);
+            throw;
+        }
+    }
+
     private static async Task<(int Status, object Body)> SubmitOrderAsync(SubmitOrderRequest req)
     {
         // Κύριο ταμείο: ΟΛΑ μέσα σε μία κλήση στο UI thread — «πάρε αριθμό», καταχώρηση και εκτύπωση
