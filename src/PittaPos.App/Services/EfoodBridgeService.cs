@@ -205,12 +205,11 @@ public sealed class EfoodBridgeService
         if (final != order.OrderNumber)
             order = SalesStatsService.WithOrderNumber(order, final);
 
-        // Αν το σύνολο των γραμμών δεν βγαίνει ίδιο με ό,τι λέει το e-food (μαζί με μεταφορικά/σακούλες, μείον κουπόνι
-        // ή joker του καταστήματος), γράφεται — εκεί θα φανεί αν κάτι δεν μετράει σωστά.
+        // Αν το σύνολο των γραμμών (ήδη μετά από κουπόνι/Πεινιάτα) μαζί με μεταφορικά/σακούλες δεν βγαίνει ίδιο με ό,τι
+        // λέει το e-food, γράφεται — εκεί θα φανεί αν κάτι δεν μετράει σωστά.
         var fees = EfoodOrderReader.Fees(json);
-        var discount = EfoodOrderReader.VendorDiscount(json);
-        if (map.PlatformTotal > 0 && Math.Abs(map.PlatformTotal - (map.Total + fees - discount)) >= 0.01m)
-            AppLog.Write("efood", $"#{map.Ref}: γραμμές {map.Total} + μεταφορικά/σακούλες {fees} − έκπτωση {discount} ≠ e-food {map.PlatformTotal}");
+        if (map.PlatformTotal > 0 && Math.Abs(map.PlatformTotal - (map.Total + fees)) >= 0.01m)
+            AppLog.Write("efood", $"#{map.Ref}: γραμμές {map.Total} + μεταφορικά/σακούλες {fees} ≠ e-food {map.PlatformTotal}");
         // Μπήκαν κανονικά με το όνομα του e-food — γράφεται για να φανεί τι λείπει από την αντιστοίχιση.
         if (map.Unmatched.Count > 0)
             AppLog.Write("efood", $"#{map.Ref}: δεν βρέθηκαν στον κατάλογο του ταμείου: {string.Join(", ", map.Unmatched)}");

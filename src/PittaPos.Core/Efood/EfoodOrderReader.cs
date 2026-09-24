@@ -70,6 +70,14 @@ public static class EfoodOrderReader
         foreach (var offer in offers)
             lines.Add(OfferLine(offer, menu, context, index, unmatched));
 
+        // Κουπόνι / Πεινιάτα του καταστήματος: τζίρος = ό,τι μένει μετά την έκπτωση, μοιρασμένη αναλογικά στις γραμμές
+        // ώστε και οι κατηγορίες να βγαίνουν με το καθαρό (απόφαση χρήστη 24/9).
+        var discounts = VendorDiscounts(order).ToList();
+        var gross = lines.Sum(l => l.Revenue);
+        var discount = Math.Min(gross, discounts.Sum(d => d.Amount));
+        if (discount > 0)
+            lines = Discounted(lines, gross, discount);
+
         var notes = new List<string>();
         if (ownDelivery)
             notes.Add(payment == "cash"
@@ -81,6 +89,8 @@ public static class EfoodOrderReader
                 : "ΠΑΡΑΛΑΒΗ — πληρωμένη");
         else
             notes.Add("ΔΙΑΝΟΜΗ e-food");
+        foreach (var (joker, amount) in discounts)
+            notes.Add((joker ? "ΕΚΠΤΩΣΗ ΠΕΙΝΙΑΤΑΣ −" : "ΕΚΠΤΩΣΗ ΚΟΥΠΟΝΙΟΥ −") + Order.FormatPrice(amount));
         // Το φιλοδώρημα ΔΕΝ είναι μέσα στο price (#16, 24/9: 17,10 + 0,50 = 17,60 με tip 1) — είναι του διανομέα μας.
         if ((ownDelivery || takeaway) && Money(order["tip"]) is > 0m and var tip)
             notes.Add("ΦΙΛΟΔΩΡΗΜΑ " + Order.FormatPrice(tip));
@@ -366,9 +376,31 @@ public static class EfoodOrderReader
     /// <summary>Έκπτωση που πληρώνει το κατάστημα: κουπόνι ή «Τυχερή Πεινιάτα» (joker). Το e-food στέλνει κουπόνι ΜΟΝΟ όταν
     /// το πληρώνει το κατάστημα, και το joker έρχεται ΚΑΙ ως standard_discount με το ίδιο ποσό (#19, 24/9) — γι' αυτό
     /// μετράνε τα coupons + joker, ποτέ και τα discounts.</summary>
-    public static decimal VendorDiscount(JsonObject order) =>
+    public static decimal VendorDiscount(JsonObject order) => VendorDiscounts(order).Sum(d => d.Amount);
+
+    private static IEnumerable<(bool Joker, decimal Amount)> VendorDiscounts(JsonObject order) =>
         new[] { order["coupons"], order["joker"] }.SelectMany(n => (n as JsonArray ?? []).OfType<JsonObject>())
-            .Sum(d => Money(d["amount"]) ?? 0m);
+            .Where(d => d["paid_by_vendor"] is not JsonValue paid || !paid.TryGetValue(out bool byVendor) || byVendor)
+            .Select(d => (d["is_joker"] is JsonValue j && j.TryGetValue(out bool isJoker) && isJoker, Money(d["amount"]) ?? 0m))
+            .Where(d => d.Item2 > 0);
+
+    /// <summary>Οι γραμμές με την έκπτωση μοιρασμένη αναλογικά· ό,τι λεπτό περισσεύει από τη στρογγυλοποίηση πάει στη
+    /// μεγαλύτερη γραμμή, ώστε το σύνολο να είναι ακριβώς μικτό − έκπτωση.</summary>
+    private static List<EfoodLine> Discounted(List<EfoodLine> lines, decimal gross, decimal discount)
+    {
+        var net = gross - discount;
+        var result = lines.Select(l => l with
+        {
+            Revenue = gross == 0 ? 0m : Math.Round(l.Revenue * net / gross, 2, MidpointRounding.AwayFromZero),
+        }).ToList();
+        var rest = net - result.Sum(l => l.Revenue);
+        if (rest != 0 && result.Count > 0)
+        {
+            var largest = result.IndexOf(result.MaxBy(l => l.Revenue)!);
+            result[largest] = result[largest] with { Revenue = result[largest].Revenue + rest };
+        }
+        return result;
+    }
 
     private static int Quantity(JsonObject item) => Math.Max(1, Count(item["quantity"]));
 
