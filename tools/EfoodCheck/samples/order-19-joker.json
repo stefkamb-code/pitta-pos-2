@@ -1,0 +1,98 @@
+{
+  "orders": [
+    {
+      "id": 64658054,
+      "short_code": "19",
+      "brand": "efood",
+      "timezone": "Europe/Athens",
+      "timestamp": "2026-09-24T11:09:05Z",
+      "promised_customer_timestamp": "2026-09-24T11:39:01.000Z",
+      "rider_pickup_timestamp": null,
+      "preparation_time_minutes": null,
+      "restaurant": {
+        "id": 6982372,
+        "vendor_external_id": "9e4c3d9a-4c29-463c-ab71-792c665f194c"
+      },
+      "customer": {
+        "id": 1,
+        "address_id": "1",
+        "name": "Test",
+        "surname": "Customer",
+        "address": "Test Street 1,14122,Athina",
+        "city": "Αθήνα",
+        "area": "Ηράκλειο",
+        "neighborhood": "",
+        "postal_code": "14122",
+        "street": "Test Street",
+        "street_number": "1",
+        "floor": "TEST ORDER efood",
+        "telephone": "+300000000000",
+        "longitude": 23.7,
+        "latitude": 38.0,
+        "doorbell": "TEST ORDER efood",
+        "alternate_telephone": "no-phone",
+        "notes": "TEST ORDER efood"
+      },
+      "tip": 0,
+      "delivery_fee": 0.5,
+      "bags": {
+        "count": 0,
+        "amount": 0
+      },
+      "type": "delivery",
+      "transport_method": {
+        "title": "",
+        "value": "",
+        "from": null,
+        "to": null,
+        "key": "delivery",
+        "delivery_provider": "vendor_delivery"
+      },
+      "price": 24.8,
+      "environmental_fee": 0,
+      "pvc_recycling_fee": 0,
+      "payment_type": "cash",
+      "products": [
+        {
+          "id": "no-valid-code-found",
+          "name": "Λουκάνικο σκέτο μερίδα",
+          "price": 6.8,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 4,
+          "notes": "",
+          "integrator_id": "1423306847",
+          "materials": []
+        },
+        {
+          "id": "no-valid-code-found",
+          "name": "Φιλέτο κοτόπουλο σκέτο μερίδα",
+          "price": 7.1,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 1,
+          "notes": "",
+          "integrator_id": "1423306845",
+          "materials": []
+        }
+      ],
+      "discounts": [
+        {
+          "type": "standard_discount",
+          "amount": 10
+        }
+      ],
+      "coupons": [],
+      "joker": [
+        {
+          "amount": 10,
+          "is_joker": true,
+          "paid_by_vendor": true
+        }
+      ],
+      "extra_parameters": []
+    }
+  ]
+}

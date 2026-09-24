@@ -205,12 +205,12 @@ public sealed class EfoodBridgeService
         if (final != order.OrderNumber)
             order = SalesStatsService.WithOrderNumber(order, final);
 
-        // Για το sandbox: αν το σύνολο των γραμμών δεν βγαίνει ίδιο με ό,τι λέει το e-food (αφού βγουν
-        // μεταφορικά/σακούλες/φιλοδώρημα), γράφεται — εκεί θα φανεί αν τα έξτρα μετράνε σωστά.
-        var fees = (Money(json["delivery_fee"]) ?? 0) + (Money((json["bags"] as JsonObject)?["amount"]) ?? 0) + (Money(json["tip"]) ?? 0);
-        if (map.PlatformTotal > 0 && Math.Abs(map.PlatformTotal - fees - map.Total) >= 0.01m
-            && !(json["discounts"] is JsonArray { Count: > 0 } || json["coupons"] is JsonArray { Count: > 0 }))
-            AppLog.Write("efood", $"#{map.Ref}: γραμμές {map.Total} ≠ e-food {map.PlatformTotal} (μεταφορικά/σακούλες/tip {fees})");
+        // Αν το σύνολο των γραμμών δεν βγαίνει ίδιο με ό,τι λέει το e-food (μαζί με μεταφορικά/σακούλες, μείον κουπόνι
+        // ή joker του καταστήματος), γράφεται — εκεί θα φανεί αν κάτι δεν μετράει σωστά.
+        var fees = EfoodOrderReader.Fees(json);
+        var discount = EfoodOrderReader.VendorDiscount(json);
+        if (map.PlatformTotal > 0 && Math.Abs(map.PlatformTotal - (map.Total + fees - discount)) >= 0.01m)
+            AppLog.Write("efood", $"#{map.Ref}: γραμμές {map.Total} + μεταφορικά/σακούλες {fees} − έκπτωση {discount} ≠ e-food {map.PlatformTotal}");
         // Μπήκαν κανονικά με το όνομα του e-food — γράφεται για να φανεί τι λείπει από την αντιστοίχιση.
         if (map.Unmatched.Count > 0)
             AppLog.Write("efood", $"#{map.Ref}: δεν βρέθηκαν στον κατάλογο του ταμείου: {string.Join(", ", map.Unmatched)}");
@@ -238,10 +238,6 @@ public sealed class EfoodBridgeService
             return EfoodContext.Empty;
         }
     }
-
-    private static decimal? Money(JsonNode? node) =>
-        node is JsonValue v && v.TryGetValue(out decimal d) ? d : null;
-
 
     private async Task AcceptAsync(string url, string key, long efoodId, int minutes, string displayNumber)
     {

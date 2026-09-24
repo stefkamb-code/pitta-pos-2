@@ -1,0 +1,96 @@
+{
+  "orders": [
+    {
+      "id": 64658042,
+      "short_code": "18",
+      "brand": "efood",
+      "timezone": "Europe/Athens",
+      "timestamp": "2026-09-24T10:39:16Z",
+      "promised_customer_timestamp": "2026-09-24T11:09:12.000Z",
+      "rider_pickup_timestamp": null,
+      "preparation_time_minutes": null,
+      "restaurant": {
+        "id": 6982372,
+        "vendor_external_id": "9e4c3d9a-4c29-463c-ab71-792c665f194c"
+      },
+      "customer": {
+        "id": 1,
+        "address_id": "0",
+        "name": "Test",
+        "surname": "Customer",
+        "address": "",
+        "city": "",
+        "area": "",
+        "neighborhood": "",
+        "postal_code": "",
+        "street": "",
+        "street_number": "",
+        "floor": "",
+        "telephone": "+300000000000",
+        "longitude": 0,
+        "latitude": 0,
+        "doorbell": "",
+        "alternate_telephone": "no-phone",
+        "notes": "TEST ORDER efood"
+      },
+      "tip": 0,
+      "delivery_fee": 0,
+      "bags": {
+        "count": 0,
+        "amount": 0
+      },
+      "type": "takeaway",
+      "transport_method": {
+        "title": "",
+        "value": "",
+        "from": null,
+        "to": null,
+        "key": "takeaway",
+        "delivery_provider": null
+      },
+      "price": 14.4,
+      "environmental_fee": 0,
+      "pvc_recycling_fee": 0,
+      "payment_type": "credit_card",
+      "products": [
+        {
+          "id": "no-valid-code-found",
+          "name": "Πίττα κοτόπουλο",
+          "price": 7.2,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 2,
+          "notes": "",
+          "integrator_id": "1423306749",
+          "materials": [
+            {
+              "id": "no-valid-code-found",
+              "name": "Ελληνική πίττα",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077478"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Απ` όλα (κίτρινη σάλτσα, ντομάτα, μαρούλι & κρεμμύδι)",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291077480"
+            }
+          ]
+        }
+      ],
+      "discounts": [],
+      "coupons": [],
+      "joker": [],
+      "extra_parameters": []
+    }
+  ]
+}

@@ -81,6 +81,9 @@ public static class EfoodOrderReader
                 : "ΠΑΡΑΛΑΒΗ — πληρωμένη");
         else
             notes.Add("ΔΙΑΝΟΜΗ e-food");
+        // Το φιλοδώρημα ΔΕΝ είναι μέσα στο price (#16, 24/9: 17,10 + 0,50 = 17,60 με tip 1) — είναι του διανομέα μας.
+        if ((ownDelivery || takeaway) && Money(order["tip"]) is > 0m and var tip)
+            notes.Add("ΦΙΛΟΔΩΡΗΜΑ " + Order.FormatPrice(tip));
         if ((order["extra_parameters"] as JsonArray ?? []).Any(p => Text(p) == "no-cutlery"))
             notes.Add("ΧΩΡΙΣ ΜΑΧΑΙΡΟΠΙΡΟΥΝΑ");
         // Τα σχόλια του πελάτη («χτύπα δυνατά») αφορούν όποιον παραδίδει — αν είναι ο rider του e-food, τα έχει
@@ -349,12 +352,23 @@ public static class EfoodOrderReader
         var materials = products.Sum(p => MaterialsMoney(p) * Quantity(p));
         if (materials == 0)
             return false;
-        var fees = (Money(order["delivery_fee"]) ?? 0m) + (Money((order["bags"] as JsonObject)?["amount"]) ?? 0m) + (Money(order["tip"]) ?? 0m);
+        var fees = Fees(order);
         var offersMoney = offers.Sum(o => OfferPrice(o) * Math.Max(1, Count(o["iteration"])));
-        var without = products.Sum(p => UnitPrice(p) * Quantity(p)) + offersMoney + fees;
+        var without = products.Sum(p => UnitPrice(p) * Quantity(p)) + offersMoney + fees - VendorDiscount(order);
         var platform = Money(order["price"]) ?? 0m;
         return Math.Abs(without + materials - platform) < Math.Abs(without - platform);
     }
+
+    /// <summary>Ό,τι έχει μέσα το price του e-food πέρα από τα προϊόντα: μεταφορικά και σακούλες. ΟΧΙ το φιλοδώρημα.</summary>
+    public static decimal Fees(JsonObject order) =>
+        (Money(order["delivery_fee"]) ?? 0m) + (Money((order["bags"] as JsonObject)?["amount"]) ?? 0m);
+
+    /// <summary>Έκπτωση που πληρώνει το κατάστημα: κουπόνι ή «Τυχερή Πεινιάτα» (joker). Το e-food στέλνει κουπόνι ΜΟΝΟ όταν
+    /// το πληρώνει το κατάστημα, και το joker έρχεται ΚΑΙ ως standard_discount με το ίδιο ποσό (#19, 24/9) — γι' αυτό
+    /// μετράνε τα coupons + joker, ποτέ και τα discounts.</summary>
+    public static decimal VendorDiscount(JsonObject order) =>
+        new[] { order["coupons"], order["joker"] }.SelectMany(n => (n as JsonArray ?? []).OfType<JsonObject>())
+            .Sum(d => Money(d["amount"]) ?? 0m);
 
     private static int Quantity(JsonObject item) => Math.Max(1, Count(item["quantity"]));
 

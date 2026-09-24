@@ -1,0 +1,139 @@
+{
+  "orders": [
+    {
+      "id": 64658038,
+      "short_code": "16",
+      "brand": "efood",
+      "timezone": "Europe/Athens",
+      "timestamp": "2026-09-24T10:34:29Z",
+      "promised_customer_timestamp": "2026-09-24T11:04:24.000Z",
+      "rider_pickup_timestamp": null,
+      "preparation_time_minutes": null,
+      "restaurant": {
+        "id": 6982372,
+        "vendor_external_id": "9e4c3d9a-4c29-463c-ab71-792c665f194c"
+      },
+      "customer": {
+        "id": 1,
+        "address_id": "1",
+        "name": "Test",
+        "surname": "Customer",
+        "address": "Test Street 1,14122,Athina",
+        "city": "Αθήνα",
+        "area": "Ηράκλειο",
+        "neighborhood": "",
+        "postal_code": "14122",
+        "street": "Test Street",
+        "street_number": "1",
+        "floor": "TEST ORDER efood",
+        "telephone": "+300000000000",
+        "longitude": 23.7,
+        "latitude": 38.0,
+        "doorbell": "TEST ORDER efood",
+        "alternate_telephone": "no-phone",
+        "notes": "TEST ORDER efood"
+      },
+      "tip": 1,
+      "delivery_fee": 0.5,
+      "bags": {
+        "count": 0,
+        "amount": 0
+      },
+      "type": "delivery",
+      "transport_method": {
+        "title": "",
+        "value": "",
+        "from": null,
+        "to": null,
+        "key": "delivery",
+        "delivery_provider": "vendor_delivery"
+      },
+      "price": 17.6,
+      "environmental_fee": 0,
+      "pvc_recycling_fee": 0,
+      "payment_type": "credit_card",
+      "products": [
+        {
+          "id": "no-valid-code-found",
+          "name": "Σάντουιτς κοτόπουλο",
+          "price": 7.2,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 1,
+          "notes": "",
+          "integrator_id": "1423306785",
+          "materials": [
+            {
+              "id": "no-valid-code-found",
+              "name": "Απ` όλα (κίτρινη σάλτσα, ντομάτα, μαρούλι & κρεμμύδι)",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291078740"
+            }
+          ]
+        },
+        {
+          "id": "no-valid-code-found",
+          "name": "Πίττα club μπιφτέκι",
+          "price": 9.9,
+          "discount_price": null,
+          "environmental_fee": 0,
+          "pvc_recycling_fee": 0,
+          "quantity": 1,
+          "notes": "",
+          "integrator_id": "1423306824",
+          "materials": [
+            {
+              "id": "no-valid-code-found",
+              "name": "Μαγιονέζα",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079749"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Μαρούλι",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079750"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Μπέικον",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079751"
+            },
+            {
+              "id": "no-valid-code-found",
+              "name": "Ντομάτα",
+              "notes": "",
+              "quantity": 1,
+              "price": 0,
+              "environmental_fee": 0,
+              "pvc_recycling_fee": 0,
+              "integrator_id": "1291079752"
+            }
+          ]
+        }
+      ],
+      "discounts": [],
+      "coupons": [],
+      "joker": [],
+      "extra_parameters": []
+    }
+  ]
+}

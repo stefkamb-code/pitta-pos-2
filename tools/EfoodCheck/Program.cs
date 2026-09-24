@@ -27,6 +27,9 @@ if (samples is not null)
 {
     var subset = EfoodCatalogParser.Parse(File.ReadAllText(Path.Combine(samples, "catalog-subset.json"), Encoding.UTF8));
     var context = EfoodContext.Build(subset, [], menu);
+    var relayed = new JsonObject { ["ok"] = true, ["status"] = 200, ["body"] = File.ReadAllText(Path.Combine(samples, "catalog-subset.json"), Encoding.UTF8) };
+    Check(EfoodCatalogParser.Parse(relayed.ToJsonString()).Count == subset.Count,
+        "ο κατάλογος όπως τον φέρνει η γέφυρα (GET /till/catalog: { ok, status, body }) διαβάζεται ίδιος");
     JsonObject OrderFrom(string file) =>
         (JsonNode.Parse(File.ReadAllText(Path.Combine(samples, file), Encoding.UTF8))!["orders"]![0] as JsonObject)!;
 
@@ -68,6 +71,34 @@ if (samples is not null)
     var known = EfoodOrderReader.Map(OrderFrom("order-11.json"), menu, new EfoodContext(subset, []));
     Check(known.Lines.All(l => l.ProductId == "") && known.Lines[0].Name == "Πίττα κοτόπουλο" && known.Unmatched.Count == 3,
         "το ξέρει ο κατάλογος του e-food αλλά δεν έχει αντιστοίχιση → με το όνομα του e-food, όχι μαντεψιά με το όνομα");
+
+    Console.WriteLine("--- οι 4 του e-food (24/9/2026): κάρτα, κουπόνι, παραλαβή, joker");
+    bool Adds(string file, EfoodImport map)
+    {
+        var json = OrderFrom(file);
+        return map.PlatformTotal == map.Total + EfoodOrderReader.Fees(json) - EfoodOrderReader.VendorDiscount(json);
+    }
+    var o16 = EfoodOrderReader.Map(OrderFrom("order-16-card.json"), menu, context);
+    Check(o16.OwnDelivery && o16.Total == 17.10m && Adds("order-16-card.json", o16),
+        $"#16 κάρτα: 17,10 + 0,50 = 17,60 του e-food — το φιλοδώρημα 1,00 ΔΕΝ είναι μέσα ({o16.Total})");
+    Check(o16.Notes.StartsWith("ΠΛΗΡΩΜΕΝΗ ΜΕ ΚΑΡΤΑ · ΦΙΛΟΔΩΡΗΜΑ €1,00"), $"«{o16.Notes}»");
+
+    var o17 = EfoodOrderReader.Map(OrderFrom("order-17-coupon.json"), menu, context);
+    Check(o17.Total == 14.40m && EfoodOrderReader.VendorDiscount(OrderFrom("order-17-coupon.json")) == 2m && Adds("order-17-coupon.json", o17),
+        $"#17 κουπόνι του καταστήματος: 14,40 + 0,50 − 2,00 = 12,90 του e-food ({o17.Total})");
+    Check(o17.Notes.StartsWith("ΠΛΗΡΩΜΕΝΗ ΜΕ ΚΑΡΤΑ") && !o17.Notes.Contains("ΦΙΛΟΔΩΡΗΜΑ"), $"«{o17.Notes}»");
+
+    var o18 = EfoodOrderReader.Map(OrderFrom("order-18-takeaway.json"), menu, context);
+    Check(o18.Lines.Count == 1 && o18.Lines[0].Quantity == 2 && o18.Lines[0].Revenue == 14.40m
+          && o18.Lines[0].Name == MenuSeed.ComposeCustomizedName(chicken.Product.Name, "Ελληνική") && Adds("order-18-takeaway.json", o18),
+        $"#18 παραλαβή: 2 × «{o18.Lines[0].Name}» = 14,40 (το price του προϊόντος είναι ανά τεμάχιο)");
+    Check(!o18.OwnDelivery && o18.Phone == "" && o18.Address == "" && o18.Notes.StartsWith("ΠΑΡΑΛΑΒΗ — πληρωμένη"), $"«{o18.Notes}»");
+
+    var o19 = EfoodOrderReader.Map(OrderFrom("order-19-joker.json"), menu, context);
+    Check(o19.Total == 34.30m && EfoodOrderReader.VendorDiscount(OrderFrom("order-19-joker.json")) == 10m && Adds("order-19-joker.json", o19),
+        $"#19 joker: 34,30 + 0,50 − 10 = 24,80 — το standard_discount είναι το ίδιο 10, όχι δεύτερη έκπτωση ({o19.Total})");
+    Check(o19.Notes.StartsWith("ΜΕΤΡΗΤΑ €24,80 — εισπράττει ο διανομέας"), $"μετρητά = ό,τι πληρώνει ο πελάτης: «{o19.Notes}»");
+    Console.WriteLine("     δεν βρέθηκαν χωρίς αντιστοίχιση: " + string.Join(", ", new[] { o16, o17, o18, o19 }.SelectMany(o => o.Unmatched)));
 
     Console.WriteLine("--- γραμμές της ΑΝΤΙΣΤΟΙΧΙΣΗΣ");
     var autos = EfoodContext.AutoMatches(subset, [], menu);

@@ -31,6 +31,13 @@ public static class EfoodCatalogParser
         try { root = JsonNode.Parse(json); }
         catch (JsonException ex) { throw new FormatException("Ο κατάλογος του e-food δεν διαβάζεται: " + ex.Message, ex); }
 
+        // Η γέφυρα φέρνει την απάντηση του e-food τυλιγμένη ως κείμενο: { ok, status, body: "{ data: … }" }.
+        if (root?["body"] is JsonValue relayed && relayed.TryGetValue(out string? inner))
+        {
+            try { root = JsonNode.Parse(inner); }
+            catch (JsonException ex) { throw new FormatException("Ο κατάλογος του e-food δεν διαβάζεται: " + ex.Message, ex); }
+        }
+
         if (root?["data"]?["menu"]?["categories"] is not JsonArray categories)
             throw new FormatException("Η απάντηση του e-food δεν έχει κατάλογο (data.menu.categories).");
 
