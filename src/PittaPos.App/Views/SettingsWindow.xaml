@@ -129,6 +129,15 @@
                 <TextBlock Text="Σύνδεση με τη γέφυρα e-food: οι παραγγελίες μπαίνουν και τυπώνονται μόνες τους. Ανοίγει με τον κωδικό του ιδιοκτήτη."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
+                <!-- site διαχείρισης -->
+                <TextBlock Text="SITE ΔΙΑΧΕΙΡΙΣΗΣ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Button Content="SITE ΔΙΑΧΕΙΡΙΣΗΣ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="250"
+                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                        HorizontalContentAlignment="Center" Click="OpenSite_Click"/>
+                <TextBlock Text="Σύνδεση με το site: στέλνει τις παραγγελίες και παίρνει από εκεί τον πάροχο ΑΑΔΕ και τα τερματικά κάρτας. Ανοίγει με τον κωδικό του ιδιοκτήτη."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
+
                 <!-- theme -->
                 <TextBlock Text="ΕΜΦΑΝΙΣΗ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>

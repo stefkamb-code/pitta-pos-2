@@ -1,0 +1,61 @@
+<Window x:Class="PittaPos.App.Views.SiteSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:PittaPos.App.Controls"
+        Title="SITE ΔΙΑΧΕΙΡΙΣΗΣ" Height="560" Width="640"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}">
+    <!-- Ολο το περιεχομενο μεγαλωνει/μικραινει μαζι με το παραθυρο (βλ. Controls/ScaleHost). -->
+    <ctl:ScaleHost DesignWidth="624" DesignHeight="521">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- header -->
+        <Border Grid.Row="0" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,2" Padding="18,0">
+            <DockPanel VerticalAlignment="Center">
+                <Button DockPanel.Dock="Left" Content="←" FontSize="16" Style="{StaticResource GlyphButton}"
+                        Margin="0,0,12,0" Click="Back_Click"/>
+                <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
+                       Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock DockPanel.Dock="Left" Text="SITE ΔΙΑΧΕΙΡΙΣΗΣ" FontWeight="ExtraBold" FontSize="14"
+                           Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
+                <Border/>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="30,26" MaxWidth="520" HorizontalAlignment="Left">
+
+                <TextBlock Text="Το ταμείο στέλνει τις παραγγελίες της ημέρας στο site και παίρνει από εκεί τον πάροχο ΑΑΔΕ και τα τερματικά κάρτας του μαγαζιού. Άδεια πεδία = ανενεργό."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,18"/>
+                <TextBlock x:Name="ClientNote" Visibility="Collapsed" FontSize="12" FontWeight="ExtraBold" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Accent}" Margin="0,0,0,18"
+                           Text="Αυτό είναι δεύτερο ταμείο — το site ρυθμίζεται στο ΚΥΡΙΟ ταμείο."/>
+
+                <TextBlock Text="Διεύθυνση site" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                <TextBox x:Name="UrlBox" Style="{StaticResource PosTextBox}" Height="46" FontSize="14"
+                         Width="460" HorizontalAlignment="Left" Margin="0,0,0,14"/>
+
+                <TextBlock Text="Κλειδί αυτού του καταστήματος" FontSize="12"
+                           Foreground="{DynamicResource Neutral700}" Margin="0,0,0,4"/>
+                <TextBox x:Name="KeyBox" Style="{StaticResource PosTextBox}" Height="46" FontSize="14"
+                         Width="460" HorizontalAlignment="Left" Margin="0,0,0,22"/>
+
+                <Button Content="ΑΠΟΘΗΚΕΥΣΗ ΚΑΙ ΔΟΚΙΜΗ" Height="52" FontSize="14" FontWeight="ExtraBold" Width="260"
+                        HorizontalAlignment="Left" Style="{StaticResource FlatButton}"
+                        HorizontalContentAlignment="Center" Click="Save_Click"/>
+                <TextBlock x:Name="StatusText" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"
+                           Foreground="{DynamicResource Neutral500}"/>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+    </ctl:ScaleHost>
+</Window>

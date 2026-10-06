@@ -127,6 +127,25 @@ if (mode == "payloads")
     return 0;
 }
 
+if (mode == "site")
+{
+    // Οι ρυθμίσεις ΑΑΔΕ του μαγαζιού από το site διαχείρισης, όπως θα τις πάρει το ταμείο.
+    var url = Environment.GetEnvironmentVariable("SITE_URL") ?? "http://127.0.0.1:5410";
+    var storeKey = Environment.GetEnvironmentVariable("STORE_KEY") ?? "";
+    var cache = Path.Combine(Path.GetTempPath(), "fiscalcheck-settings.json");
+    var client = new FiscalSettingsClient(new HttpClient(), cache);
+    var (s, fresh, err) = await client.LoadAsync(url, storeKey);
+    Console.WriteLine(fresh ? "Από το site:" : $"Από το αντίγραφο ({err}):");
+    Console.WriteLine($"  πάροχος {s.Provider} · {s.Env} · χρήστης {s.User} · κλειδί {(s.Key.Length > 0 ? "••••" + s.Key[^Math.Min(4, s.Key.Length)..] : "—")}");
+    Console.WriteLine($"  τερματικά: {string.Join(", ", s.Terminals.Select(t => $"{t.Name} ({t.Acquirer} {t.TerminalId})"))}");
+    Console.WriteLine($"  απόδειξη: {(s.Receipt == "other" ? "άλλος εκτυπωτής " + s.ReceiptPrinter : "ίδιος εκτυπωτής")}");
+    var again = await new FiscalSettingsClient(new HttpClient(), cache).LoadAsync("http://127.0.0.1:1", storeKey);
+    Check(!again.Fresh && again.Settings.Provider == s.Provider, "Χωρίς site: δουλεύει με το αντίγραφο (" + again.Error + ")");
+    Check(FiscalProviders.Create(s, new HttpClient()).Name == s.Provider || s.Provider.Length == 0, "Ο πάροχος του μαγαζιού διαλέγεται από τις ρυθμίσεις");
+    File.Delete(cache);
+    return failures == 0 ? 0 : 1;
+}
+
 IFiscalProvider provider;
 if (mode == "wrapp")
 {

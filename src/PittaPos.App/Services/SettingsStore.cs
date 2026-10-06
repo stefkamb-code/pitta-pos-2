@@ -77,6 +77,12 @@ public class AppSettings
     /// <summary>Αυτόματη αποδοχή στο e-food με αυτόν τον χρόνο παράδοσης σε λεπτά — 0 = όχι.</summary>
     public int EfoodAutoAcceptMinutes { get; set; }
 
+    // ---- Site διαχείρισης (βλ. SiteLinkService) — ΜΟΝΟ στο κύριο ταμείο, δεν συγχρονίζεται ----
+    /// <summary>Η διεύθυνση του site, π.χ. https://admin.example.gr — κενό = ανενεργό.</summary>
+    public string SiteUrl { get; set; } = "";
+    /// <summary>Το κλειδί ΑΥΤΟΥ του ταμείου στο site (το ξεχωρίζει από τα άλλα καταστήματα).</summary>
+    public string SiteKey { get; set; } = "";
+
     /// <summary>Κωδικός ΣΕΡΒΙΤΟΡΟΥ — μόνο για την εφαρμογή του κινητού (βλ. WaiterApiService). Δεν
     /// ανοίγει Στατιστικά/Ιστορικό/Κατάλογο στο ταμείο και δεν ακυρώνει: ο σερβιτόρος τον έχει στο
     /// τηλέφωνό του και δεν πρέπει να του δίνει τίποτα άλλο. Κενό = δεν έχει οριστεί, οπότε το κινητό
@@ -486,6 +492,15 @@ public class SettingsStore
         Settings.EfoodBridgeUrl = url.Trim().TrimEnd('/');
         Settings.EfoodTillKey = tillKey.Trim();
         Settings.EfoodAutoAcceptMinutes = Math.Clamp(autoAcceptMinutes, 0, 180);
+        Save();
+    }
+
+    /// <summary>Σύνδεση με το site διαχείρισης. Τοπικά μόνο, όπως η γέφυρα e-food: ένα δεύτερο ταμείο με τα ίδια
+    /// στοιχεία θα έστελνε τις ίδιες παραγγελίες δύο φορές.</summary>
+    public void SetSiteLink(string url, string key)
+    {
+        Settings.SiteUrl = url.Trim().TrimEnd('/');
+        Settings.SiteKey = key.Trim();
         Save();
     }
 

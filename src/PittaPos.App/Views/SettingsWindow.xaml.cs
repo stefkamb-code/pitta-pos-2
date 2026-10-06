@@ -95,6 +95,13 @@ public partial class SettingsWindow : Window
             new EfoodSettingsWindow { Owner = this }.ShowDialog();
     }
 
+    /// <summary>Μόνο ο ιδιοκτήτης: το κλειδί του site στέλνει τις παραγγελίες και φέρνει το κλειδί του παρόχου ΑΑΔΕ.</summary>
+    private void OpenSite_Click(object sender, RoutedEventArgs e)
+    {
+        if (PinDialog.RequireAdmin(this))
+            new SiteSettingsWindow { Owner = this }.ShowDialog();
+    }
+
     private void Back_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Light_Click(object sender, RoutedEventArgs e) { _store.SetTheme("light"); RefreshUi(); }

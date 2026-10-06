@@ -14,6 +14,8 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+    <!-- DPAPI: το αντίγραφο των ρυθμίσεων ΑΑΔΕ (με το κλειδί του παρόχου) κρυπτογραφείται στον δίσκο. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
