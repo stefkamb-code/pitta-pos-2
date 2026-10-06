@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
 using PittaPos.Core.Fiscal;
+using PittaPos.Core.Models;
 
 namespace PittaPos.App.Services;
 
@@ -17,7 +18,12 @@ namespace PittaPos.App.Services;
 /// <item><b>Από το site:</b> οι ρυθμίσεις ΑΑΔΕ του μαγαζιού — πάροχος, κλειδί, τερματικά, πού τυπώνεται η απόδειξη. Στο
 ///   ταμείο δεν ρυθμίζεται τίποτα από αυτά· τα αλλάζει το μαγαζί στην οθόνη «Ρυθμίσεις» του site.</item>
 /// <item><b>Προς το site:</b> οι παραγγελίες και οι ακυρώσεις της ημέρας, ώστε το διαχειριστικό να δείχνει τα αληθινά
-///   νούμερα. Ό,τι αλλάζει (π.χ. μετρητά→κάρτα από το Ιστορικό) ξαναστέλνεται και ο server ΑΝΤΙΚΑΘΙΣΤΑ την παλιά.</item>
+///   νούμερα. Ό,τι αλλάζει (π.χ. μετρητά→κάρτα από το Ιστορικό) ξαναστέλνεται και ο server ΑΝΤΙΚΑΘΙΣΤΑ την παλιά.
+///   Κάθε παραγγελία πηγαίνει με τον ΔΙΚΟ ΤΟΥ ταμείου διαχωρισμό λεφτών (μετρητά, κάρτα, όρθιος, εφαρμογές,
+///   ανεξόφλητα — βλ. DayReportService.SplitMoney), ώστε το site να λέει ό,τι και το χαρτί της ημέρας.</item>
+/// <item><b>Και οι παλιές μέρες</b> του αρχείου, μία ανά γύρο (οι νεότερες πρώτες), μία φορά — ξανά μόνο αν
+///   ξαναγραφτεί η μέρα.</item>
+/// <item><b>Ζωντανός πίνακας:</b> διανομές που περιμένουν και ανοιχτά τραπέζια, σε κάθε «είμαι εδώ».</item>
 /// </list>
 ///
 /// <para>Ποτέ δεν σταματά την πώληση: αν το site δεν απαντά, το ταμείο δουλεύει με τις τελευταίες ρυθμίσεις που ήξερε
@@ -36,6 +42,8 @@ public sealed class SiteLinkService
     private readonly FiscalSettingsClient _settingsClient;
     private readonly Dictionary<string, string> _sent = [];   // κλειδί παραγγελίας → αποτύπωμα που στάλθηκε
     private readonly HashSet<string> _sentCancels = [];
+    private readonly string _historyPath;
+    private Dictionary<string, long> _historySent = [];       // μέρα αρχείου → stamp που στάλθηκε
     private DispatcherTimer? _timer;
     private bool _busy;
     private DateTime _settingsAt = DateTime.MinValue;
@@ -57,6 +65,13 @@ public sealed class SiteLinkService
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _settingsClient = new FiscalSettingsClient(Http, Path.Combine(dir, "fiscal-settings.dat"), Protect, Unprotect);
+        _historyPath = Path.Combine(dir, "site-history.json");
+        try
+        {
+            if (File.Exists(_historyPath))
+                _historySent = JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(_historyPath)) ?? [];
+        }
+        catch (Exception) { _historySent = []; }
     }
 
     // Το αντίγραφο έχει το κλειδί του παρόχου — κρυπτογραφείται με τον λογαριασμό Windows αυτού του υπολογιστή.
@@ -100,6 +115,7 @@ public sealed class SiteLinkService
                 await RefreshSettingsAsync(force: false);
             await UploadAsync(url, key);
             await HeartbeatAsync(url, key);
+            await UploadHistoryDayAsync(url, key);
         }
         finally { _busy = false; }
     }
@@ -128,17 +144,62 @@ public sealed class SiteLinkService
     // ---------------------------------------------------------------- παραγγελίες προς το site
 
     private sealed record TillLineDto(string ProductId, string Name, int Quantity, decimal Revenue, string Details, string Category);
+    /// <summary>Πού πήγαν τα λεφτά της παραγγελίας — οι ίδιες κατηγορίες με το χαρτί της ημέρας, συν «χωρίς στοιχεία» για
+    /// τραπέζια παλιών ημερών που έκλεισαν πριν αρχίσουν να αρχειοθετούνται οι εισπράξεις τους.</summary>
+    private sealed record MoneyDto(decimal Cash, decimal Card, decimal Online, decimal Counter, decimal Unsettled, decimal Unknown);
     private sealed record TillOrderDto(int OrderNumber, int Type, string? Channel, string? AppOrderRef, int? PaymentMethod,
-        string Who, int? TablePerson, decimal Total, List<TillLineDto> Lines, DateTime PlacedAt, bool IsEveningShift);
+        string Who, int? TablePerson, decimal Total, List<TillLineDto> Lines, DateTime PlacedAt, bool IsEveningShift,
+        MoneyDto Money);
     private sealed record TillCancelDto(int OrderNumber, string Name, int Quantity, decimal Revenue, DateTime CancelledAt,
         string CancelledBy, string Channel);
 
     private static string KeyOf(CompletedOrder o) => $"{o.OrderNumber}/{o.TablePerson}/{o.PlacedAt:yyyyMMdd}";
 
-    /// <summary>Αποτύπωμα του περιεχομένου — αλλάζει όταν αλλάξει οτιδήποτε που φαίνεται στο site.</summary>
-    private static string Fingerprint(CompletedOrder o) =>
-        $"{o.Type}|{o.Channel}|{o.AppOrderRef}|{o.PaymentMethod}|{o.Total}|{o.Who}|{o.IsEveningShift}|"
+    /// <summary>Αποτύπωμα του περιεχομένου — αλλάζει όταν αλλάξει οτιδήποτε που φαίνεται στο site (και όταν
+    /// πληρώσει ένα άτομο του τραπεζιού, αφού αλλάζει ο διαχωρισμός).</summary>
+    private static string Fingerprint(CompletedOrder o, MoneyDto m) =>
+        $"{o.Type}|{o.Channel}|{o.AppOrderRef}|{o.PaymentMethod}|{o.Total}|{o.Who}|{o.IsEveningShift}|{m}|"
         + string.Join(";", o.Lines.Select(l => $"{l.ProductId}:{l.Quantity}:{l.Revenue}"));
+
+    /// <summary>
+    /// Ο διαχωρισμός μιας παραγγελίας με ΤΟΥΣ ΙΔΙΟΥΣ κανόνες που βγάζει το χαρτί της ημέρας (DayReportService.SplitMoney):
+    /// τραπέζι από τις εισπράξεις του ατόμου (ό,τι λείπει = ανεξόφλητο), e-food/Wolt = εφαρμογές, ΔΙΑΝΟΜΗ/BOX από τον
+    /// τρόπο πάνω στην παραγγελία, ΟΡΘΙΟΣ χωρίς τρόπο = όρθιος, και ό,τι μένει = ανεξόφλητο.
+    /// </summary>
+    /// <param name="payments">Οι εισπράξεις τραπεζιών της μέρας· null = παλιά μέρα χωρίς αρχειοθετημένες εισπράξεις.</param>
+    private static MoneyDto MoneyOf(CompletedOrder o, IReadOnlyList<TablePayment>? payments)
+    {
+        var total = o.Total;
+        if (o.Type == OrderType.Table)
+        {
+            if (payments is null) return new MoneyDto(0, 0, 0, 0, 0, total);
+            var mine = payments.Where(p => p.OrderNumber == o.OrderNumber).ToList();
+            var cash = mine.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+            var card = mine.Where(p => p.Method == PaymentMethod.Card).Sum(p => p.Amount);
+            return new MoneyDto(cash, card, 0, 0, Math.Max(0, total - cash - card), 0);
+        }
+        if (o.Type == OrderType.Apps && o.Channel != "BOX") return new MoneyDto(0, 0, total, 0, 0, 0);
+        if (o.PaymentMethod == PaymentMethod.Cash) return new MoneyDto(total, 0, 0, 0, 0, 0);
+        if (o.PaymentMethod == PaymentMethod.Card) return new MoneyDto(0, total, 0, 0, 0, 0);
+        if (o.Type == OrderType.Pickup) return new MoneyDto(0, 0, 0, total, 0, 0);
+        return new MoneyDto(0, 0, 0, 0, total, 0);
+    }
+
+    private TillOrderDto Dto(CompletedOrder o, MoneyDto money) => new(o.OrderNumber, (int)o.Type, o.Channel, o.AppOrderRef,
+        o.PaymentMethod is { } p ? (int)p : null, o.Who, o.TablePerson, o.Total,
+        o.Lines.Select(l => new TillLineDto(l.ProductId, l.Name, l.Quantity, l.Revenue, l.Details, CategoryOf(l.ProductId))).ToList(),
+        o.PlacedAt, o.IsEveningShift, money);
+
+    private static TillCancelDto CancelDto(CancelledLine c) =>
+        new(c.OrderNumber, c.Name, c.Quantity, c.Revenue, c.CancelledAt, c.CancelledBy, c.Channel);
+
+    private static async Task<HttpStatusCode> PostOrdersAsync(string url, string key, object body)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, url + "/api/till/orders") { Content = JsonContent.Create(body, options: Json) };
+        req.Headers.Add("X-Store-Key", key);
+        using var res = await Http.SendAsync(req);
+        return res.StatusCode;
+    }
 
     private static string CategoryOf(string productId)
     {
@@ -149,8 +210,10 @@ public sealed class SiteLinkService
     private async Task UploadAsync(string url, string key)
     {
         // Μόνο ό,τι μετράει ήδη στον τζίρο του ταμείου (όχι όσα περιμένουν κανάλι) — ίδια νούμερα σε ταμείο και site.
+        var payments = TablePaymentsService.Instance.Payments;
         var orders = SalesStatsService.Instance.CountedOrders
-            .Where(o => !_sent.TryGetValue(KeyOf(o), out var fp) || fp != Fingerprint(o))
+            .Select(o => (Order: o, Money: MoneyOf(o, payments)))
+            .Where(x => !_sent.TryGetValue(KeyOf(x.Order), out var fp) || fp != Fingerprint(x.Order, x.Money))
             .Take(200)
             .ToList();
         var cancels = CancellationLogService.Instance.Entries
@@ -162,33 +225,112 @@ public sealed class SiteLinkService
 
         var body = new
         {
-            orders = orders.Select(o => new TillOrderDto(o.OrderNumber, (int)o.Type, o.Channel, o.AppOrderRef,
-                o.PaymentMethod is { } p ? (int)p : null, o.Who, o.TablePerson, o.Total,
-                o.Lines.Select(l => new TillLineDto(l.ProductId, l.Name, l.Quantity, l.Revenue, l.Details, CategoryOf(l.ProductId))).ToList(),
-                o.PlacedAt, o.IsEveningShift)).ToList(),
-            cancellations = cancels.Select(c => new TillCancelDto(c.OrderNumber, c.Name, c.Quantity, c.Revenue, c.CancelledAt,
-                c.CancelledBy, c.Channel)).ToList(),
+            orders = orders.Select(x => Dto(x.Order, x.Money)).ToList(),
+            cancellations = cancels.Select(CancelDto).ToList(),
         };
-        using var req = new HttpRequestMessage(HttpMethod.Post, url + "/api/till/orders") { Content = JsonContent.Create(body, options: Json) };
-        req.Headers.Add("X-Store-Key", key);
-        using var res = await Http.SendAsync(req);
-        if (res.StatusCode == HttpStatusCode.Unauthorized) { SetError("Το site δεν δέχεται το κλειδί αυτού του ταμείου"); return; }
-        if (!res.IsSuccessStatusCode) { SetError("Το site απάντησε " + (int)res.StatusCode); return; }
+        var status = await PostOrdersAsync(url, key, body);
+        if (status == HttpStatusCode.Unauthorized) { SetError("Το site δεν δέχεται το κλειδί αυτού του ταμείου"); return; }
+        if ((int)status >= 300) { SetError("Το site απάντησε " + (int)status); return; }
 
-        foreach (var o in orders) _sent[KeyOf(o)] = Fingerprint(o);
+        foreach (var x in orders) _sent[KeyOf(x.Order)] = Fingerprint(x.Order, x.Money);
         foreach (var c in cancels) _sentCancels.Add($"{c.OrderNumber}/{c.CancelledAt:O}/{c.Name}");
         SentSinceStart += orders.Count;
         LastContact = DateTime.Now;
         SetError("");
     }
 
+    /// <summary>Μία παλιά μέρα του αρχείου ανά γύρο — η νεότερη που δεν έχει σταλεί (ή ξαναγράφτηκε από τότε).</summary>
+    private async Task UploadHistoryDayAsync(string url, string key)
+    {
+        var day = HistoryArchiveService.ArchivedDays()
+            .OrderByDescending(d => d.Day, StringComparer.Ordinal)
+            .FirstOrDefault(d => !_historySent.TryGetValue(d.Day, out var stamp) || stamp != d.Stamp);
+        if (day is null || !DateTime.TryParseExact(day.Day, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var date))
+            return;
+
+        var content = HistoryArchiveService.ContentFor(date);
+        // Εισπράξεις τραπεζιών: της ίδιας μέρας και της επόμενης (ένα τραπέζι που πλήρωσε μετά τις 5 το πρωί).
+        var payments = HistoryArchiveService.PaymentsFor(date) is { } pay
+            ? pay.Concat(HistoryArchiveService.PaymentsFor(date.AddDays(1)) ?? []).ToList()
+            : null;
+        foreach (var chunk in content.Orders.Chunk(250))
+        {
+            var status = await PostOrdersAsync(url, key, new
+            {
+                orders = chunk.Select(o => Dto(o, MoneyOf(o, payments))).ToList(),
+                cancellations = Array.Empty<TillCancelDto>(),
+            });
+            if ((int)status >= 300) return; // ξαναδοκιμάζει στον επόμενο γύρο
+        }
+        foreach (var chunk in content.Cancellations.Chunk(250))
+        {
+            var status = await PostOrdersAsync(url, key, new { orders = Array.Empty<TillOrderDto>(), cancellations = chunk.Select(CancelDto).ToList() });
+            if ((int)status >= 300) return;
+        }
+        _historySent[day.Day] = day.Stamp;
+        try { AtomicFile.WriteAllText(_historyPath, JsonSerializer.Serialize(_historySent)); }
+        catch (Exception) { /* στη χειρότερη ξαναστέλνεται — ο server αντικαθιστά, δεν διπλομετρά */ }
+    }
+
+    // ---------------------------------------------------------------- ζωντανός πίνακας
+
+    /// <summary>Το κανάλι όπως το ονομάζει το site (Delivery/Pickup/Table/Efood/Wolt/Box).</summary>
+    private static string SiteChannel(OrderType type, string? channel)
+    {
+        var ch = (channel ?? "").ToUpperInvariant();
+        return type switch
+        {
+            OrderType.Table => "Table",
+            OrderType.Pickup => "Pickup",
+            OrderType.Delivery when ch == "BOX" => "Box",
+            OrderType.Delivery => "Delivery",
+            _ when ch.Contains("WOLT") => "Wolt",
+            _ when ch.Contains("BOX") => "Box",
+            _ => "Efood",
+        };
+    }
+
+    private static (object Board, object Tables) LiveBoard()
+    {
+        var board = OrderBoardService.Instance.Orders.Select(b => new
+        {
+            orderNumber = b.OrderNumber,
+            display = b.DisplayNumber,
+            channel = SiteChannel(b.Type, b.Channel),
+            placedAt = b.PlacedAt,
+            dispatchedAt = b.IsPending ? (DateTime?)null : b.SentAt,
+            total = b.Total,
+        }).ToList();
+
+        var orders = SalesStatsService.Instance.Orders;
+        var tables = TableStatusService.Instance.OpenSince.Select(t =>
+        {
+            var mine = orders.Where(o => o.Type == OrderType.Table && o.TableNumberLabel == t.Key.ToString() && o.PlacedAt >= t.Value).ToList();
+            return new
+            {
+                table = t.Key,
+                persons = Math.Max(1, mine.Select(o => o.TablePerson).Distinct().Count()),
+                openedAt = t.Value,
+                running = mine.Sum(o => o.Total),
+                slipMarks = Array.Empty<string>(),
+            };
+        }).ToList();
+        return (board, tables);
+    }
+
     private async Task HeartbeatAsync(string url, string key)
     {
         var version = "";
         try { version = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "version.txt")).Trim(); } catch (IOException) { }
+        var (board, tables) = LiveBoard();
         using var req = new HttpRequestMessage(HttpMethod.Post, url + "/api/till/heartbeat")
         {
-            Content = JsonContent.Create(new { version, evening = SettingsStore.Instance.Settings.IsEveningShift }, options: Json),
+            Content = JsonContent.Create(new
+            {
+                version, evening = SettingsStore.Instance.Settings.IsEveningShift,
+                board, tables,
+            }, options: Json),
         };
         req.Headers.Add("X-Store-Key", key);
         using var res = await Http.SendAsync(req);

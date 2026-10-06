@@ -510,6 +510,10 @@ public static class DayReportService
                 .ToList();
             HistoryArchiveService.ArchiveDay(group.Key, group.ToList(), cancellations);
         }
+        // Και οι εισπράξεις των τραπεζιών (μετρητά/κάρτα), που καθαρίζουν παρακάτω — ώστε και μια παλιά μέρα να
+        // ξέρει πώς πληρώθηκε κάθε τραπέζι (βλ. HistoryArchiveService.ArchivePayments, site διαχείρισης).
+        foreach (var group in TablePaymentsService.Instance.Payments.GroupBy(p => SalesStatsService.BusinessDay(p.At)))
+            HistoryArchiveService.ArchivePayments(group.Key, group.ToList());
 
         // ΚΑΝΕΝΑ EMAIL ΕΔΩ — ζητήθηκε ρητά. Η αναφορά φεύγει ΜΟΝΟ με το κουμπί «ΑΠΟΣΤΟΛΗ ΑΝΑΦΟΡΑΣ
         // ΣΤΟ EMAIL» (Ρυθμίσεις → ΤΑΜΕΙΟ), όταν το πατήσει ο χρήστης και βλέπει το αποτέλεσμα. Το

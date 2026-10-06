@@ -42,6 +42,32 @@ public static class HistoryArchiveService
 
     private static string OrdersPath(DateTime businessDay) => Path.Combine(ArchiveDir, "orders-" + businessDay.ToString("yyyy-MM-dd") + ".json");
     private static string CancellationsPath(DateTime businessDay) => Path.Combine(ArchiveDir, "cancellations-" + businessDay.ToString("yyyy-MM-dd") + ".json");
+    private static string PaymentsPath(DateTime businessDay) => Path.Combine(ArchiveDir, "payments-" + businessDay.ToString("yyyy-MM-dd") + ".json");
+
+    /// <summary>
+    /// Οι εισπράξεις των τραπεζιών της ημέρας (μετρητά/κάρτα ανά άτομο). Το TablePaymentsService τις σβήνει στο
+    /// κλείσιμο ημέρας, οπότε χωρίς αυτό μια παλιά μέρα ήξερε τι πουλήθηκε στα τραπέζια αλλά όχι ΠΩΣ πληρώθηκε —
+    /// και το site διαχείρισης δεν μπορούσε να δείξει σωστό διαχωρισμό μετρητά/κάρτα για τις προηγούμενες μέρες.
+    /// Συγχωνεύει όπως και οι ακυρώσεις (ισότητα κατά τιμή). Αποτυχία δεν μπλοκάρει ποτέ το κλείσιμο.
+    /// </summary>
+    public static void ArchivePayments(DateTime businessDay, IReadOnlyList<TablePayment> payments)
+    {
+        if (payments.Count == 0)
+            return;
+        try
+        {
+            var merged = ReadFile<TablePayment>(PaymentsPath(businessDay)).Concat(payments).Distinct().OrderBy(p => p.At).ToList();
+            AtomicFile.WriteAllText(PaymentsPath(businessDay), JsonSerializer.Serialize(merged, JsonOpts));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("archive", $"Αποτυχία αρχειοθέτησης εισπράξεων {businessDay:yyyy-MM-dd}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Οι εισπράξεις τραπεζιών μιας παλιάς μέρας — null αν η μέρα έκλεισε πριν αρχίσουν να κρατιούνται.</summary>
+    public static List<TablePayment>? PaymentsFor(DateTime businessDay) =>
+        File.Exists(PaymentsPath(businessDay)) ? ReadFile<TablePayment>(PaymentsPath(businessDay)) : null;
 
     /// <summary>
     /// Γράφει στο αρχείο μια ολοκληρωμένη ημέρα-επιχείρησης — καλείται πριν καθαρίσουν τα τρέχοντα
