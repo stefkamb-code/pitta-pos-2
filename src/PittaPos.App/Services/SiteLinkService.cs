@@ -21,6 +21,8 @@ namespace PittaPos.App.Services;
 ///   νούμερα. Ό,τι αλλάζει (π.χ. μετρητά→κάρτα από το Ιστορικό) ξαναστέλνεται και ο server ΑΝΤΙΚΑΘΙΣΤΑ την παλιά.
 ///   Κάθε παραγγελία πηγαίνει με τον ΔΙΚΟ ΤΟΥ ταμείου διαχωρισμό λεφτών (μετρητά, κάρτα, όρθιος, εφαρμογές,
 ///   ανεξόφλητα — βλ. DayReportService.SplitMoney), ώστε το site να λέει ό,τι και το χαρτί της ημέρας.</item>
+/// <item><b>Και ποιες παραγγελίες έχει</b> κάθε ανοιχτή μέρα (OpenDays): μια παραγγελία που σβήστηκε ολόκληρη στο ταμείο
+///   σβήνεται και από το site, αλλιώς ο τζίρος του site έμενε μεγαλύτερος από του ταμείου.</item>
 /// <item><b>Και οι παλιές μέρες</b> του αρχείου, μία ανά γύρο (οι νεότερες πρώτες), μία φορά — ξανά μόνο αν
 ///   ξαναγραφτεί η μέρα.</item>
 /// <item><b>Ζωντανός πίνακας:</b> διανομές που περιμένουν και ανοιχτά τραπέζια, σε κάθε «είμαι εδώ».</item>
@@ -45,6 +47,7 @@ public sealed class SiteLinkService
     private readonly FiscalSettingsClient _settingsClient;
     private readonly Dictionary<string, string> _sent = [];   // κλειδί παραγγελίας → αποτύπωμα που στάλθηκε
     private readonly HashSet<string> _sentCancels = [];
+    private string _sentDays = "";                            // η λίστα ανοιχτών ημερών που στάλθηκε τελευταία
     private readonly string _historyPath;
     private Dictionary<string, long> _historySent = [];       // μέρα αρχείου → stamp που στάλθηκε
     private DispatcherTimer? _timer;
@@ -167,6 +170,29 @@ public sealed class SiteLinkService
         MoneyDto Money);
     private sealed record TillCancelDto(int OrderNumber, string Name, int Quantity, decimal Revenue, DateTime CancelledAt,
         string CancelledBy, string Channel);
+    private sealed record TillOrderKeyDto(int OrderNumber, int? TablePerson);
+    private sealed record TillDayDto(string Date, List<TillOrderKeyDto> Orders);
+
+    /// <summary>
+    /// Για κάθε εργάσιμη ημέρα που είναι ακόμα ανοιχτή στο ταμείο (πάντα και η σημερινή, ακόμα κι άδεια): ΟΛΕΣ οι
+    /// παραγγελίες που μετράνε τώρα στον τζίρο. Ό,τι έχει το site για εκείνη τη μέρα και λείπει από εδώ σβήστηκε στο
+    /// ταμείο (ολόκληρη παραγγελία, ή το τελευταίο της προϊόν) — και σβήνεται και από το site, ώστε ο τζίρος να μένει
+    /// ίδιος. Χωρίς αυτό, μια σβησμένη παραγγελία έμενε για πάντα στο site.
+    /// </summary>
+    private static List<TillDayDto> OpenDays(List<CompletedOrder> counted)
+    {
+        var today = SalesStatsService.BusinessDay(DateTime.Now);
+        return counted.GroupBy(o => SalesStatsService.BusinessDay(o.PlacedAt))
+            .Select(g => g.Key)
+            .Append(today)
+            .Distinct()
+            .OrderBy(d => d)
+            .Select(d => new TillDayDto(d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                counted.Where(o => SalesStatsService.BusinessDay(o.PlacedAt) == d)
+                    .OrderBy(o => o.OrderNumber).ThenBy(o => o.TablePerson)
+                    .Select(o => new TillOrderKeyDto(o.OrderNumber, o.TablePerson)).ToList()))
+            .ToList();
+    }
 
     private static string KeyOf(CompletedOrder o) => $"{o.OrderNumber}/{o.TablePerson}/{o.PlacedAt:yyyyMMdd}";
 
@@ -226,7 +252,11 @@ public sealed class SiteLinkService
     {
         // Μόνο ό,τι μετράει ήδη στον τζίρο του ταμείου (όχι όσα περιμένουν κανάλι) — ίδια νούμερα σε ταμείο και site.
         var payments = TablePaymentsService.Instance.Payments;
-        var orders = SalesStatsService.Instance.CountedOrders
+        var counted = SalesStatsService.Instance.CountedOrders;
+        var days = OpenDays(counted);
+        var daysKey = string.Join(";", days.Select(d => d.Date + ":" + string.Join(",", d.Orders.Select(k => $"{k.OrderNumber}/{k.TablePerson}"))));
+        var daysChanged = daysKey != _sentDays;
+        var orders = counted
             .Select(o => (Order: o, Money: MoneyOf(o, payments)))
             .Where(x => !_sent.TryGetValue(KeyOf(x.Order), out var fp) || fp != Fingerprint(x.Order, x.Money))
             .Take(200)
@@ -235,13 +265,14 @@ public sealed class SiteLinkService
             .Where(c => !_sentCancels.Contains($"{c.OrderNumber}/{c.CancelledAt:O}/{c.Name}"))
             .Take(200)
             .ToList();
-        if (orders.Count == 0 && cancels.Count == 0)
+        if (orders.Count == 0 && cancels.Count == 0 && !daysChanged)
             return;
 
         var body = new
         {
             orders = orders.Select(x => Dto(x.Order, x.Money)).ToList(),
             cancellations = cancels.Select(CancelDto).ToList(),
+            days = daysChanged ? days : null,
         };
         var status = await PostOrdersAsync(url, key, body);
         if (status == HttpStatusCode.Unauthorized) { SetError("Το site δεν δέχεται το κλειδί αυτού του ταμείου"); return; }
@@ -249,6 +280,7 @@ public sealed class SiteLinkService
 
         foreach (var x in orders) _sent[KeyOf(x.Order)] = Fingerprint(x.Order, x.Money);
         foreach (var c in cancels) _sentCancels.Add($"{c.OrderNumber}/{c.CancelledAt:O}/{c.Name}");
+        _sentDays = daysKey;
         SentSinceStart += orders.Count;
         LastContact = DateTime.Now;
         SetError("");
