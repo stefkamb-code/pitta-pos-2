@@ -34,10 +34,13 @@ namespace PittaPos.App.Services;
 /// </summary>
 public sealed class SiteLinkService
 {
-    public static SiteLinkService Instance { get; } = new();
-
+    // ΠΡΟΣΟΧΗ ΣΤΗ ΣΕΙΡΑ: τα στατικά πεδία παίρνουν τιμή με τη σειρά που είναι γραμμένα. Το Instance φτιάχνεται ΜΕΤΑ
+    // το Http — αλλιώς ο constructor έβλεπε Http = null, και το «ΑΠΟΘΗΚΕΥΣΗ ΚΑΙ ΔΟΚΙΜΗ» έβγαζε «απρόσμενο σφάλμα»
+    // (1.0.106, στο μαγαζί), ενώ οι παραγγελίες δεν έφευγαν ποτέ.
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public static SiteLinkService Instance { get; } = new();
 
     private readonly FiscalSettingsClient _settingsClient;
     private readonly Dictionary<string, string> _sent = [];   // κλειδί παραγγελίας → αποτύπωμα που στάλθηκε
@@ -124,7 +127,19 @@ public sealed class SiteLinkService
     public async Task RefreshSettingsAsync(bool force)
     {
         Configured(out var url, out var key);
-        var (settings, fresh, error) = await _settingsClient.LoadAsync(url, key);
+        FiscalSettings settings;
+        bool fresh;
+        string error;
+        try
+        {
+            (settings, fresh, error) = await _settingsClient.LoadAsync(url, key);
+        }
+        catch (Exception ex)
+        {
+            // Ό,τι κι αν συμβεί εδώ δεν φτάνει ποτέ στην οθόνη του ταμία — μένουν οι ρυθμίσεις που ήδη ισχύουν.
+            SetError("site: " + ex.GetType().Name + ": " + ex.Message);
+            return;
+        }
         _settingsAt = DateTime.Now;
         if (force || settings != Fiscal)
         {

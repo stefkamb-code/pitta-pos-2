@@ -65,8 +65,18 @@ public partial class SiteSettingsWindow : Window
 
         StatusText.SetResourceReference(ForegroundProperty, "Neutral500");
         StatusText.Text = "Δοκιμάζω…";
-        var (ok, message) = await SiteLinkService.TestAsync(url, key);
-        if (ok) await SiteLinkService.Instance.RefreshSettingsAsync(force: true);
+        bool ok;
+        string message;
+        try
+        {
+            (ok, message) = await SiteLinkService.TestAsync(url, key);
+            if (ok) await SiteLinkService.Instance.RefreshSettingsAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            // Κανένα «απρόσμενο σφάλμα» από αυτό το κουμπί — το πρόβλημα γράφεται εδώ, κάτω από το κουμπί.
+            (ok, message) = (false, ex.Message);
+        }
         StatusText.SetResourceReference(ForegroundProperty, ok ? "Neutral500" : "Accent");
         StatusText.Text = (ok ? "✓ " : "✕ ") + message;
     }
