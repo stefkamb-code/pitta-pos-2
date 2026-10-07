@@ -452,6 +452,35 @@ public partial class ProductsViewModel : ObservableObject
         open.Commit();
     }
 
+    /// <summary>
+    /// ΟΘΟΝΗ ΑΦΗΣ (βλ. ProductsTouchView): ένα πάτημα σε απλό προϊόν (ποτό, σαλάτα, μίνι) το ΒΑΖΕΙ στο δελτίο — στην
+    /// οθόνη αφής δεν υπάρχει διπλό κλικ. Σε φαγητό με υλικά ανοίγουν τα υλικά του στη μέση, όπως στο πρώτο PittaPOS.
+    /// </summary>
+    [RelayCommand]
+    private void TouchTapProduct(ProductTileViewModel tile)
+    {
+        _suppressNextTap = false;
+        foreach (var t in Tiles)
+            t.IsSelected = ReferenceEquals(t, tile);
+        if (tile.Customizable)
+        {
+            OpenCustomizer(tile);
+            return;
+        }
+        Customizer = null;
+        AddSimpleProduct(tile);
+    }
+
+    /// <summary>ΟΘΟΝΗ ΑΦΗΣ: το «+» πάνω στην κάρτα — το φαγητό μπαίνει με τα προεπιλεγμένα του, χωρίς να ανοίξουν τα
+    /// υλικά (το «διπλό κλικ» της λίστας). Το πλέγμα μένει μπροστά, για το επόμενο.</summary>
+    [RelayCommand]
+    private void TouchQuickAdd(ProductTileViewModel tile)
+    {
+        QuickAddProduct(tile);
+        _suppressNextTap = false;
+        Customizer = null;
+    }
+
     /// <summary>Κλικ στο badge ποσότητας του tile: αφαίρεση ενός.</summary>
     [RelayCommand]
     private void DecrementProduct(ProductTileViewModel tile) => DecrementLineByKey("p" + tile.Product.Id);
@@ -534,7 +563,9 @@ public partial class ProductsViewModel : ObservableObject
         // επόμενη ίδια πίττα. Τα έξτρα ΔΕΝ μένουν πατημένα: αφορούσαν τη γραμμή που μόλις μπήκε στο
         // δελτίο, και αν έμεναν θα χρεώνονταν σιωπηλά και στην επόμενη.
         // Η διόρθωση υπάρχουσας γραμμής (✎) κλείνει κανονικά — εκεί δεν προσθέτεις, τελειώνεις.
-        Customizer = editingLine is null
+        // Στην οθόνη αφής τα υλικά πιάνουν τη θέση των καρτών, οπότε μετά την ΠΡΟΣΘΗΚΗ γυρίζουμε στις κάρτες
+        // (όπως στο πρώτο PittaPOS) — αλλιώς ο ταμίας θα έπρεπε να πατάει «←» μετά από κάθε πίττα.
+        Customizer = editingLine is null && !SettingsStore.Instance.Settings.TouchLayout
             ? new CustomizerViewModel(this, product, Customizer?.CategoryLabel ?? ActiveCategory?.Category.Name ?? "")
             : null;
         OnCartChanged();

@@ -53,6 +53,11 @@ public class AppSettings
 {
     /// <summary>"light" ή "dark".</summary>
     public string Theme { get; set; } = "light";
+
+    /// <summary>Οθόνη παραγγελίας για ΟΘΟΝΗ ΑΦΗΣ: μεγάλες κάρτες σε πλέγμα και τα υλικά στη μέση, όπως στο πρώτο
+    /// PittaPOS — με ΟΛΑ όσα κάνει το PittaPOS 2 (άτομα τραπεζιού, υλικά, έξτρα, δελτίο). false = η λίστα για ποντίκι.
+    /// Ρύθμιση ΑΥΤΟΥ του υπολογιστή: ένα ταμείο μπορεί να έχει οθόνη αφής και το διπλανό όχι.</summary>
+    public bool TouchLayout { get; set; }
     /// <summary>"el" ή "en".</summary>
     public string Language { get; set; } = "el";
     /// <summary>Κωδικός για κλειδωμένα πεδία (Στατιστικά/Ιστορικό/Κατάλογος).</summary>
@@ -404,6 +409,18 @@ public class SettingsStore
         Save();
         ThemeManager.Apply(IsDark);
         PushSharedSettingsIfClient();
+    }
+
+    /// <summary>Σηκώνεται όταν αλλάξει η οθόνη παραγγελίας (ποντίκι ↔ αφή) — η αλλαγή φαίνεται αμέσως.</summary>
+    public event Action? TouchLayoutChanged;
+
+    public void SetTouchLayout(bool on)
+    {
+        if (Settings.TouchLayout == on)
+            return;
+        Settings.TouchLayout = on;
+        Save();
+        TouchLayoutChanged?.Invoke();
     }
 
     public void SetLanguage(string language)

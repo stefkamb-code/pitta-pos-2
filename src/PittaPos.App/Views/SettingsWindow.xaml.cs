@@ -107,6 +107,9 @@ public partial class SettingsWindow : Window
     private void Light_Click(object sender, RoutedEventArgs e) { _store.SetTheme("light"); RefreshUi(); }
     private void Dark_Click(object sender, RoutedEventArgs e) { _store.SetTheme("dark"); RefreshUi(); }
 
+    private void MouseLayout_Click(object sender, RoutedEventArgs e) { _store.SetTouchLayout(false); RefreshUi(); }
+    private void TouchLayout_Click(object sender, RoutedEventArgs e) { _store.SetTouchLayout(true); RefreshUi(); }
+
     private void DecTableCount_Click(object sender, RoutedEventArgs e)
     {
         _store.SetTableCount(_store.Settings.TableCount - 1);
@@ -200,6 +203,8 @@ public partial class SettingsWindow : Window
     {
         Highlight(LightBtn, _store.Settings.Theme == "light");
         Highlight(DarkBtn, _store.Settings.Theme == "dark");
+        Highlight(MouseBtn, !_store.Settings.TouchLayout);
+        Highlight(TouchBtn, _store.Settings.TouchLayout);
         TableCountText.Text = _store.Settings.TableCount.ToString();
     }
 

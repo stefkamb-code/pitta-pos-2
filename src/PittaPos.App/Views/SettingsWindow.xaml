@@ -153,6 +153,23 @@
                             Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="Dark_Click"/>
                 </Grid>
 
+                <!-- οθόνη παραγγελίας: λίστα για ποντίκι ή μεγάλες κάρτες για οθόνη αφής -->
+                <TextBlock Text="ΟΘΟΝΗ ΠΑΡΑΓΓΕΛΙΑΣ" FontSize="11" FontWeight="ExtraBold"
+                           Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" x:Name="MouseBtn" Content="🖱 ΠΟΝΤΙΚΙ" Height="52" FontSize="14" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="MouseLayout_Click"/>
+                    <Button Grid.Column="2" x:Name="TouchBtn" Content="👆 ΟΘΟΝΗ ΑΦΗΣ" Height="52" FontSize="14" FontWeight="ExtraBold"
+                            Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="TouchLayout_Click"/>
+                </Grid>
+                <TextBlock Text="Οθόνη αφής: μεγάλες κάρτες και τα υλικά στη μέση, όπως στο πρώτο PittaPOS. Ένα πάτημα βάζει ποτό/σαλάτα στο δελτίο, το «+» μια πίττα με τα προεπιλεγμένα της. Ισχύει μόνο σε αυτόν τον υπολογιστή."
+                           FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,20"/>
+
             </StackPanel>
         </ScrollViewer>
 

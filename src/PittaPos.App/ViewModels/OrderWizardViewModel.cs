@@ -142,6 +142,7 @@ public partial class OrderWizardViewModel : ObservableObject
 {
     public OrderWizardViewModel()
     {
+        SettingsStore.Instance.TouchLayoutChanged += () => OnPropertyChanged(nameof(IsTouchLayout));
         Products = new ProductsViewModel
         {
             ContinueRequested = ContinueStep3,
@@ -442,6 +443,9 @@ public partial class OrderWizardViewModel : ObservableObject
     public bool IsStep1 => Step == 1;
     public bool IsStep2 => Step == 2;
     public bool IsStep3 => Step == 3;
+
+    /// <summary>Η οθόνη παραγγελίας για οθόνη αφής (βλ. AppSettings.TouchLayout) αντί για τη λίστα του ποντικιού.</summary>
+    public bool IsTouchLayout => SettingsStore.Instance.Settings.TouchLayout;
     public bool IsStep4 => Step == 4;
     public bool IsStep5 => Step == 5;
 
