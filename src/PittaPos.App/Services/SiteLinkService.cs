@@ -121,7 +121,9 @@ public sealed class SiteLinkService
                 await RefreshSettingsAsync(force: false);
             await UploadAsync(url, key);
             await HeartbeatAsync(url, key);
-            await UploadHistoryDayAsync(url, key);
+            // Demo: το demo του site έχει ήδη τις ίδιες μέρες (βγαίνουν από την ίδια γεννήτρια) — δεν ξαναστέλνονται.
+            if (!DemoMode.IsOn)
+                await UploadHistoryDayAsync(url, key);
         }
         finally { _busy = false; }
     }

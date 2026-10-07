@@ -79,6 +79,12 @@ public partial class MainWindow : Window
         {
             var path = System.IO.Path.Combine(AppContext.BaseDirectory, "version.txt");
             VersionText.Text = System.IO.File.Exists(path) ? "v" + System.IO.File.ReadAllText(path).Trim() : "";
+            // Παρουσίαση: φαίνεται πάντα ότι αυτό είναι το demo, όχι το ταμείο ενός μαγαζιού.
+            if (DemoMode.IsOn)
+            {
+                VersionText.Text += " · DEMO";
+                Title += " — DEMO";
+            }
         }
         catch (Exception)
         {

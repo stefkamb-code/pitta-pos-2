@@ -74,8 +74,8 @@ public static class AppMode
     /// <summary>Δικό του mutex μοναδικού instance: τρέχει ΜΑΖΙ με το ταμείο (άλλο όνομα), αλλά μία φορά.</summary>
     public static string Mutex => Role switch
     {
-        AppRole.LiveOrders => "PittaPos2.Board.SingleInstance",
-        AppRole.Stats => "PittaPos2.Stats.SingleInstance",
+        AppRole.LiveOrders => "PittaPos2.Board.SingleInstance" + (DemoMode.IsOn ? ".Demo" : ""),
+        AppRole.Stats => "PittaPos2.Stats.SingleInstance" + (DemoMode.IsOn ? ".Demo" : ""),
         _ => AppIdentity.SingleInstanceMutex,
     };
 
@@ -86,7 +86,7 @@ public static class AppMode
         AppRole.LiveOrders => "PittaPos2.Board.Activate",
         AppRole.Stats => "PittaPos2.Stats.Activate",
         _ => "PittaPos2.Till.Activate",
-    };
+    } + (DemoMode.IsOn ? ".Demo" : "");
 
     /// <summary>Ποιο δικαίωμα ζητάει η εφαρμογή στο άνοιγμα (βλ. <see cref="StaffRight"/>).</summary>
     public static string RequiredRight => Role == AppRole.Stats ? StaffRight.Stats : StaffRight.LiveOrders;
@@ -123,9 +123,7 @@ public static class AppMode
     {
         try
         {
-            var tillPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                AppIdentity.StoreDataFolder, "settings.json");
+            var tillPath = Path.Combine(AppIdentity.TillFolder, "settings.json");
             var settings = File.Exists(tillPath)
                 ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(tillPath)) ?? new AppSettings()
                 : new AppSettings();

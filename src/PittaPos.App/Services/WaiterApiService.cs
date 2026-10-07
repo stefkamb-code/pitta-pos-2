@@ -19,7 +19,7 @@ namespace PittaPos.App.Services;
 /// </summary>
 public static class WaiterApiService
 {
-    public const int Port = AppIdentity.ApiPort;
+    public static int Port => AppIdentity.ApiPort;
 
     /// <summary>Διεύθυνση για τις ρυθμίσεις του Android app (IP:θύρα στο τοπικό δίκτυο του μαγαζιού).</summary>
     public static string GetLanAddress()
@@ -47,7 +47,8 @@ public static class WaiterApiService
         try
         {
             var builder = WebApplication.CreateBuilder();
-            builder.WebHost.UseUrls($"http://0.0.0.0:{Port}");
+            // Demo: μόνο ο ίδιος υπολογιστής — αλλιώς τα Windows ρωτούν για το τείχος προστασίας στη μέση της παρουσίασης.
+            builder.WebHost.UseUrls(DemoMode.IsOn ? $"http://127.0.0.1:{Port}" : $"http://0.0.0.0:{Port}");
             builder.Logging.ClearProviders();
             var app = builder.Build();
 
