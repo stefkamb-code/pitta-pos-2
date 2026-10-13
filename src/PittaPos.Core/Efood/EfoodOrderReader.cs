@@ -378,6 +378,38 @@ public static class EfoodOrderReader
     /// μετράνε τα coupons + joker, ποτέ και τα discounts.</summary>
     public static decimal VendorDiscount(JsonObject order) => VendorDiscounts(order).Sum(d => d.Amount);
 
+    private static readonly Dictionary<string, string> CancelReasons = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ADDRESS_INCOMPLETE_MISSTATED"] = "λάθος διεύθυνση",
+        ["BAD_WEATHER"] = "κακοκαιρία",
+        ["CLOSED"] = "κλειστό κατάστημα",
+        ["DUPLICATE_ORDER"] = "διπλή παραγγελία",
+        ["ITEM_UNAVAILABLE"] = "δεν υπάρχει προϊόν",
+        ["NO_COURIER"] = "δεν υπάρχει διανομέας",
+        ["OUTSIDE_DELIVERY_AREA"] = "εκτός περιοχής",
+        ["TEST_ORDER"] = "δοκιμαστική",
+        ["TOO_BUSY"] = "πολύς φόρτος",
+    };
+
+    /// <summary>Ο λόγος ακύρωσης του e-food («{ποιος}:{λόγος}», π.χ. «vendor: ITEM_UNAVAILABLE») στα ελληνικά, για το χαρτί:
+    /// «ακύρωσε το κατάστημα · δεν υπάρχει προϊόν». Ό,τι δεν αναγνωρίζεται μένει όπως ήρθε — δεν χάνεται.</summary>
+    public static string CancelReasonText(string raw)
+    {
+        raw = (raw ?? "").Trim();
+        var colon = raw.IndexOf(':');
+        var owner = colon >= 0 ? raw[..colon].Trim() : "";
+        var reason = colon >= 0 ? raw[(colon + 1)..].Trim() : raw;
+        var who = owner.ToLowerInvariant() switch
+        {
+            "" => "",
+            "vendor" => "ακύρωσε το κατάστημα",
+            "customer" => "ακύρωσε ο πελάτης",
+            _ => "ακύρωσε το e-food",
+        };
+        var why = CancelReasons.TryGetValue(reason, out var text) ? text : reason;
+        return string.Join(" · ", new[] { who, why }.Where(s => s.Length > 0));
+    }
+
     private static IEnumerable<(bool Joker, decimal Amount)> VendorDiscounts(JsonObject order) =>
         new[] { order["coupons"], order["joker"] }.SelectMany(n => (n as JsonArray ?? []).OfType<JsonObject>())
             .Where(d => d["paid_by_vendor"] is not JsonValue paid || !paid.TryGetValue(out bool byVendor) || byVendor)

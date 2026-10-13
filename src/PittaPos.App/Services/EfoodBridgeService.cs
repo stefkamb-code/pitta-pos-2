@@ -23,6 +23,10 @@ namespace PittaPos.App.Services;
 /// γράφεται ΠΡΩΤΑ ότι καταχωρήθηκε (efood-imported.json) και ΜΕΤΑ στέλνεται το ack: αν κοπεί το δίκτυο
 /// ανάμεσα, η γέφυρα θα την ξαναδώσει και εδώ θα αναγνωριστεί — θα ξαναπάει μόνο το ack, όχι το δελτίο.</para>
 ///
+/// <para><b>Ακύρωση από το e-food</b> (πελάτης, tablet, 3' χωρίς αποδοχή): η γέφυρα τη δίνει στην ίδια λίστα ως
+/// <c>kind: "cancel"</c>. Αν η παραγγελία έχει μπει εδώ, ακυρώνεται όπως από το Ιστορικό (με «e-food» για όνομα)
+/// και βγαίνει χαρτί ΑΚΥΡΩΣΗ — η κουζίνα έχει ήδη το δελτίο. Αν δεν μπήκε ποτέ, δεν γίνεται τίποτα.</para>
+///
 /// <para>ΜΟΝΟ στο κύριο ταμείο (αυτό έχει τον εκτυπωτή). Ίδιος κώδικας για κάθε κατάστημα: ό,τι το
 /// ξεχωρίζει είναι η διεύθυνση και το κλειδί στις ρυθμίσεις (Ρυθμίσεις → E-FOOD).</para>
 /// </summary>
@@ -30,11 +34,18 @@ public sealed class EfoodBridgeService
 {
     public static EfoodBridgeService Instance { get; } = new();
 
+    /// <summary>Ποιος φαίνεται να ακύρωσε, στις ΑΚΥΡΩΜΕΝΕΣ και στο ημερήσιο email.</summary>
+    public const string CancelledBy = "e-food";
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
+    /// <summary>Πότε μπήκε μια παραγγελία e-food και με ποιον αριθμό ταμείου — ο αριθμός για να βρεθεί αν ακυρωθεί.
+    /// 0 = μπήκε πριν κρατιέται ο αριθμός (παλιό efood-imported.json).</summary>
+    private sealed record Imported(DateTime At, int OrderNumber, string Ref = "");
+
     private readonly string _importedPath;
-    private readonly Dictionary<long, DateTime> _imported = [];
+    private readonly Dictionary<long, Imported> _imported = [];
     private DispatcherTimer? _timer;
     private bool _busy;
     private string? _lastLoggedError;
@@ -112,8 +123,27 @@ public sealed class EfoodBridgeService
             foreach (var item in items)
             {
                 if (item is not JsonObject entry
-                    || entry["efoodId"] is not JsonValue idValue || !idValue.TryGetValue(out long efoodId)
-                    || entry["order"] is not JsonObject order)
+                    || entry["efoodId"] is not JsonValue idValue || !idValue.TryGetValue(out long efoodId))
+                    continue;
+
+                if (entry["kind"] is JsonValue kind && kind.TryGetValue(out string? kindText) && kindText == "cancel")
+                {
+                    var reason = entry["reason"] is JsonValue r && r.TryGetValue(out string? reasonText) ? reasonText ?? "" : "";
+                    try
+                    {
+                        Cancel(efoodId, reason);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Δεν ακυρώθηκε: ΔΕΝ στέλνουμε ack, ξαναδοκιμάζουμε στον επόμενο γύρο.
+                        SetError($"Η ακύρωση της e-food {efoodId} δεν πέρασε: {ex.GetType().Name}: {ex.Message}");
+                        continue;
+                    }
+                    await PostAsync(url, key, $"/till/cancellations/{efoodId}/ack", null);
+                    continue;
+                }
+
+                if (entry["order"] is not JsonObject order)
                     continue;
 
                 if (!_imported.ContainsKey(efoodId))
@@ -131,7 +161,7 @@ public sealed class EfoodBridgeService
                     }
                     // Σημειώνεται ΑΜΕΣΩΣ μετά την καταχώρηση και ΠΡΙΝ από το χαρτί: αν σκάσει ο εκτυπωτής,
                     // η παραγγελία δεν πρέπει να ξαναμπεί στον επόμενο γύρο (διπλός τζίρος, δύο δελτία).
-                    _imported[efoodId] = DateTime.Now;
+                    _imported[efoodId] = new Imported(DateTime.Now, recorded.OrderNumber, recorded.AppOrderRef ?? "");
                     SaveImported();
                     ImportedSinceStart++;
                     try
@@ -215,6 +245,45 @@ public sealed class EfoodBridgeService
             AppLog.Write("efood", $"#{map.Ref}: δεν βρέθηκαν στον κατάλογο του ταμείου: {string.Join(", ", map.Unmatched)}");
 
         return order;
+    }
+
+    /// <summary>Το e-food ακύρωσε μια παραγγελία. Αν μπήκε εδώ και υπάρχει ακόμα στην ημέρα, ακυρώνεται με τον ίδιο
+    /// δρόμο που ακυρώνει ο ταμίας από το Ιστορικό (φεύγει από τζίρο, Ζωντανές Παραγγελίες, πάει στις ΑΚΥΡΩΜΕΝΕΣ) και
+    /// τυπώνεται ΑΚΥΡΩΣΗ. Αλλιώς τίποτα: δεν μπήκε ποτέ (το e-food την ακύρωσε πριν τη φέρει η γέφυρα), ή την έχει ήδη
+    /// σβήσει ο ταμίας. Δεύτερη φορά η ίδια δεν βρίσκει τίποτα — δεν βγαίνει δεύτερο χαρτί.</summary>
+    private void Cancel(long efoodId, string reason)
+    {
+        if (!_imported.TryGetValue(efoodId, out var imported) || imported.OrderNumber == 0)
+            return;
+        // Ο αριθμός ΚΑΙ ο κωδικός της πλατφόρμας: ο αριθμός μόνος του μπορεί να ανήκει σε άλλη παραγγελία άλλης μέρας.
+        var order = SalesStatsService.Instance.Orders.FirstOrDefault(o =>
+            o.OrderNumber == imported.OrderNumber && (o.AppOrderRef ?? "") == imported.Ref);
+        if (order is null)
+            return;
+
+        OrderCancellationService.CancelOrder(order.OrderNumber, CancelledBy);
+        var why = EfoodOrderReader.CancelReasonText(reason);
+        AppLog.Write("efood", $"Η e-food #{order.DisplayNumber} ακυρώθηκε από το e-food" + (why.Length > 0 ? $" ({why})" : ""));
+        try
+        {
+            ReceiptPrinter.PrintText(CancelSlip(order, why), ReceiptPrinter.EfoodCancelTitle);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("efood", $"Η ακύρωση της e-food #{order.DisplayNumber} δεν τυπώθηκε: {ex.Message}");
+        }
+    }
+
+    private static string CancelSlip(CompletedOrder order, string why)
+    {
+        var lines = new List<string> { "*** ΑΚΥΡΩΣΗ ***", "", "e-food #" + order.DisplayNumber };
+        if (order.Who.Length > 0)
+            lines.Add(order.Who);
+        lines.Add("");
+        lines.AddRange(why.Split(" · ", StringSplitOptions.RemoveEmptyEntries));
+        lines.Add($"ώρα παραγγελίας {order.TimeLabel}");
+        lines.Add($"ακυρώθηκε {DateTime.Now:HH:mm}");
+        return string.Join("\n", lines);
     }
 
     /// <summary>Ο κατάλογος του e-food και η ΑΝΤΙΣΤΟΙΧΙΣΗ για την ανάγνωση. Ό,τι κι αν πάει στραβά εδώ, η παραγγελία
@@ -301,9 +370,18 @@ public sealed class EfoodBridgeService
         {
             if (!File.Exists(_importedPath))
                 return;
-            var saved = JsonSerializer.Deserialize<Dictionary<long, DateTime>>(File.ReadAllText(_importedPath));
-            foreach (var (id, at) in saved ?? [])
-                _imported[id] = at;
+            var text = File.ReadAllText(_importedPath);
+            try
+            {
+                foreach (var (id, entry) in JsonSerializer.Deserialize<Dictionary<long, Imported>>(text) ?? [])
+                    _imported[id] = entry;
+            }
+            catch (JsonException)
+            {
+                // Πριν κρατιέται ο αριθμός, το αρχείο είχε μόνο την ώρα — μετράει για τη διπλοεγγραφή, όχι για ακύρωση.
+                foreach (var (id, at) in JsonSerializer.Deserialize<Dictionary<long, DateTime>>(text) ?? [])
+                    _imported[id] = new Imported(at, 0);
+            }
         }
         catch (Exception)
         {
@@ -316,7 +394,7 @@ public sealed class EfoodBridgeService
     /// <summary>Κρατιούνται 7 μέρες — αρκετές για οποιαδήποτε επανάληψη, χωρίς να μεγαλώνει για πάντα.</summary>
     private void SaveImported()
     {
-        foreach (var old in _imported.Where(kv => kv.Value < DateTime.Now.AddDays(-7)).Select(kv => kv.Key).ToList())
+        foreach (var old in _imported.Where(kv => kv.Value.At < DateTime.Now.AddDays(-7)).Select(kv => kv.Key).ToList())
             _imported.Remove(old);
         try
         {

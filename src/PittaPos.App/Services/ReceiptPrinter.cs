@@ -246,13 +246,17 @@ public static class ReceiptPrinter
     /// δεύτερο ταμείο θα τυπωνόταν στο μέγεθος της αναφοράς ημέρας.</summary>
     public const string DriverReportTitle = "Αναφορά Διανομέα";
 
+    /// <summary>Το χαρτί ΑΚΥΡΩΣΗΣ μιας e-food (βλ. EfoodBridgeService) — λίγες κοντές γραμμές, σε μεγάλα γράμματα
+    /// σαν την αναφορά διανομέα: πρέπει να το δει η κουζίνα με μια ματιά.</summary>
+    public const string EfoodCancelTitle = "Ακύρωση e-food";
+
     /// <summary>Η αναφορά διανομέα γράφεται στενή επίτηδες (40 χαρακτήρες, βλ.
     /// OrderBoardService.DriverReportWidth) ώστε να τυπωθεί με μεγαλύτερα γράμματα· η αναφορά ημέρας έχει
     /// στοιχισμένες στήλες ~48 χαρακτήρων και μένει στο μέγεθος σχεδίασης.
     ///
     /// <para>Το 22 είναι μόνο μέγεθος ΕΚΚΙΝΗΣΗΣ: το FitTextToWidth μόνο μικραίνει, οπότε στο ρολό το
     /// τελικό μέγεθος το ορίζει το πλάτος σε χαρακτήρες — εκεί ρύθμισε, όχι εδώ.</para></summary>
-    private static double FontSizeFor(string title) => title == DriverReportTitle ? 22 : 14;
+    private static double FontSizeFor(string title) => title is DriverReportTitle or EfoodCancelTitle ? 22 : 14;
 
     /// <summary>Τελευταίο ορατό preview-παράθυρο (όταν δεν έχει οριστεί εκτυπωτής) — κλείνει το προηγούμενο
     /// πριν ανοίξει το επόμενο, αλλιώς επαναλαμβανόμενα κλικ σε «ΕΚΤΥΠΩΣΗ ΤΩΡΑ»/«ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ»

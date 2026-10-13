@@ -148,6 +148,15 @@ Console.WriteLine("--- χωρίς κατάλογο: με τα ονόματα, κ
     Check(Map(pickup).Notes.StartsWith("ΠΑΡΑΛΑΒΗ — πληρωμένη"), "παραλαβή πληρωμένη με κάρτα");
 }
 
+Console.WriteLine("--- λόγος ακύρωσης του e-food («{ποιος}:{λόγος}», 13/10/2026) στο χαρτί ΑΚΥΡΩΣΗ");
+Check(EfoodOrderReader.CancelReasonText("vendor: ITEM_UNAVAILABLE") == "ακύρωσε το κατάστημα · δεν υπάρχει προϊόν",
+    "vendor: ITEM_UNAVAILABLE → " + EfoodOrderReader.CancelReasonText("vendor: ITEM_UNAVAILABLE"));
+Check(EfoodOrderReader.CancelReasonText("customer:TOO_BUSY") == "ακύρωσε ο πελάτης · πολύς φόρτος", "χωρίς κενό μετά την «:» → ίδιο");
+Check(EfoodOrderReader.CancelReasonText("platform: SOMETHING_NEW") == "ακύρωσε το e-food · SOMETHING_NEW",
+    "άγνωστος λόγος → μένει όπως ήρθε, δεν χάνεται");
+Check(EfoodOrderReader.CancelReasonText("") == "" && EfoodOrderReader.CancelReasonText("TEST_ORDER") == "δοκιμαστική",
+    "κενό → κενό · χωρίς «ποιος» → μόνο ο λόγος");
+
 // Ο ολόκληρος κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
 if (args.Length > 0 && File.Exists(args[0]))
 {
