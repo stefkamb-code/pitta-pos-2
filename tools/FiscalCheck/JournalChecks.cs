@@ -96,6 +96,27 @@ static class JournalChecks
             Check(Net(j, 101) == 24.60m && Net(j, 102) == 7.00m, "Αποδείξεις = ό,τι γράφτηκε, ούτε λεπτό πάνω ή κάτω");
         }
 
+        Console.WriteLine("  — πληρωμή που φτάνει τεμάχιο-τεμάχιο (δεύτερο ταμείο, κινητό)");
+        {
+            var (j, inner, _, store) = New();
+            var gather = TimeSpan.FromSeconds(1);
+            j.TableRound(111, Day, "8@1300", "Τραπέζι 8", [Food(111, 0, "Καλαμάκι", 3, 7.50m)]);
+            await j.ProcessAsync(inner);
+            j.TablePayment(Day, "8@1300", "Τραπέζι 8", [Unit(111, 0, 0, "Καλαμάκι", 2.50m)], FiscalPay.Cash, gather);
+            j.TablePayment(Day, "8@1300", "Τραπέζι 8", [Unit(111, 0, 1, "Καλαμάκι", 2.50m)], FiscalPay.Cash, gather);
+            await j.ProcessAsync(inner);
+            Check(inner.Issued.Count == 1, "Όσο έρχονται τεμάχια του ίδιου πατήματος, η απόδειξη περιμένει");
+            Check(new FiscalJournal(store, "t1", () => _clock).Entries.Any(e => e.Kind == FiscalEntryKind.Receipt && e.Items.Count == 2),
+                "…αλλά είναι ήδη γραμμένη στο αρχείο (κλείσιμο του ταμείου τώρα δεν τη χάνει)");
+            Later(TimeSpan.FromSeconds(2));
+            await j.ProcessAsync(inner);
+            Check(inner.Issued.Count == 2 && inner.Issued.Last().Doc.Gross == 5.00m, "Ένα πάτημα, δύο τεμάχια → ΜΙΑ απόδειξη 5,00");
+            j.TablePayment(Day, "8@1300", "Τραπέζι 8", [Unit(111, 0, 2, "Καλαμάκι", 2.50m)], FiscalPay.Cash, gather);
+            Later(TimeSpan.FromSeconds(2));
+            await j.ProcessAsync(inner);
+            Check(inner.Issued.Count == 3 && inner.Issued.Last().Doc.Gross == 2.50m, "Επόμενο πάτημα (αργότερα) → δική του απόδειξη");
+        }
+
         Console.WriteLine("  — χωρίς internet");
         {
             var (j, inner, chaos, _) = New();

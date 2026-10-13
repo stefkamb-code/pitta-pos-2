@@ -76,6 +76,8 @@ public sealed class FiscalEntry
     public List<string> Correlates { get; set; } = [];
     public DateTime CreatedAt { get; set; }
     public DateTime? NextTryAt { get; set; }
+    /// <summary>Πληρωμή τραπεζιού που μαζεύει ακόμα τεμάχια του ίδιου πατήματος (βλ. <see cref="FiscalJournal.TablePayment"/>).</summary>
+    public DateTime? GatherUntil { get; set; }
     public int Attempts { get; set; }
     public string LastError { get; set; } = "";
     /// <summary>Ακυρώθηκε/άλλαξε όσο έφευγε: μόλις κοπεί, γίνεται η αναίρεση (κλειδιά γραμμών· κενό = όλα).</summary>
@@ -237,7 +239,10 @@ public sealed class FiscalJournal
     /// Πληρώθηκαν αυτά τα προϊόντα του τραπεζιού, με αυτόν τον τρόπο → ΜΙΑ απόδειξη, που κλείνει τα δελτία στα οποία
     /// γράφτηκαν. Όπως κι αν διαλέγει η οθόνη τι πληρώνεται (άτομο, προϊόντα, όλο το τραπέζι), εδώ φτάνει μόνο αυτό.
     /// </summary>
-    public FiscalEntry? TablePayment(DateTime businessDay, string tableSession, string tableName, IEnumerable<FiscalItem> items, FiscalPay pay)
+    /// <param name="gather">Αν τα τεμάχια ενός πατήματος έρχονται ένα-ένα (δεύτερο ταμείο, κινητό), η απόδειξη μένει ανοιχτή
+    /// τόσο για να τα μαζέψει — γραμμένη ήδη στο ημερολόγιο, ώστε ούτε κλείσιμο του ταμείου εκείνη τη στιγμή να μην τη χάνει.</param>
+    public FiscalEntry? TablePayment(DateTime businessDay, string tableSession, string tableName, IEnumerable<FiscalItem> items, FiscalPay pay,
+        TimeSpan? gather = null)
     {
         var list = Billable(items);
         if (list.Count == 0) return null;
@@ -247,8 +252,21 @@ public sealed class FiscalJournal
             var slips = _entries.Where(e => e.Kind == FiscalEntryKind.Slip && e.IsLive && e.TableSession == tableSession
                                             && !IsCancelledSlip(e) && e.Items.Any(i => lines.Contains(i.LineKey)))
                 .Select(e => e.Id).ToList();
+            var now = _now();
+            if (gather is { } window
+                && _entries.LastOrDefault(e => e.Kind == FiscalEntryKind.Receipt && e.State == FiscalEntryState.Waiting && e.Attempts == 0
+                                               && e.TableSession == tableSession && e.Pay == pay && e.GatherUntil > now) is { } open)
+            {
+                open.Items.AddRange(list.Where(i => open.Items.All(o => o.Key != i.Key)));
+                open.Correlates.AddRange(slips.Where(s => !open.Correlates.Contains(s)));
+                open.GatherUntil = open.NextTryAt = now + window;
+                Commit();
+                return open;
+            }
             return Add(new FiscalEntry
             {
+                GatherUntil = gather is { } w ? now + w : null,
+                NextTryAt = gather is { } w2 ? now + w2 : null,
                 Id = NewId(businessDay, list[0].Order, "p"),
                 Kind = FiscalEntryKind.Receipt,
                 Items = list,
