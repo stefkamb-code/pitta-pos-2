@@ -21,13 +21,21 @@ public static class FiscalProviders
     /// <summary>Το όνομα του εικονικού παρόχου — για δοκιμές χωρίς κανέναν πραγματικό πάροχο.</summary>
     public const string Simulated = "Δοκιμή χωρίς πάροχο";
 
-    /// <summary>Όσοι έχουν οδηγό. Οι υπόλοιποι της λίστας του site προστίθενται όταν τους διαλέξει κάποιο μαγαζί.</summary>
+    /// <summary>Όσοι έχουν οδηγό ΔΟΚΙΜΑΣΜΕΝΟ σε sandbox — μόνο αυτοί ενεργοποιούνται σε μαγαζί (βλ. FiscalJournal.IsActive).
+    /// Wrapp: δοκιμάστηκε στο staging 13/10/2026.</summary>
     public static readonly IReadOnlyList<string> Supported = ["Wrapp", Simulated];
+
+    /// <summary>Οδηγοί γραμμένοι από τη δημόσια τεκμηρίωση, που ΔΕΝ έχουν περάσει ακόμα το συμβόλαιο σε sandbox. Το ταμείο
+    /// μπορεί να τους φτιάξει (για δοκιμές), αλλά ένα μαγαζί που τους διαλέγει ΔΕΝ ενεργοποιεί τίποτα μέχρι να μπουν στους
+    /// <see cref="Supported"/>.</summary>
+    public static readonly IReadOnlyList<string> Experimental = [EpsilonDigitalProvider.EpsilonName, EpsilonDigitalProvider.ParochosName];
 
     public static IFiscalProvider Create(FiscalSettings s, HttpClient http) => s.Provider switch
     {
         "Wrapp" => new WrappProvider(s, http),
         Simulated => new SimulatedProvider(),
+        EpsilonDigitalProvider.EpsilonName => new EpsilonDigitalProvider(s, http, EpsilonDigitalProvider.Platform.Epsilon),
+        EpsilonDigitalProvider.ParochosName => new EpsilonDigitalProvider(s, http, EpsilonDigitalProvider.Platform.Parochos),
         "" => new UnsupportedProvider("", "Δεν έχει οριστεί πάροχος στις Ρυθμίσεις του μαγαζιού."),
         var other => new UnsupportedProvider(other, $"Ο πάροχος «{other}» δεν έχει συνδεθεί ακόμα με το ταμείο."),
     };

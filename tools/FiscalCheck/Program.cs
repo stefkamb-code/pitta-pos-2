@@ -179,10 +179,65 @@ failures += await JournalChecks.ContractAsync(provider, terminal);
 
 // ---------------------------------------------------------------- 3. ό,τι δεν έχει οδηγό το λέει καθαρά
 
-Console.WriteLine("\nΠάροχοι χωρίς οδηγό ακόμα");
-var none = FiscalProviders.Create(FiscalSettings.None with { Provider = "Epsilon Digital" }, new HttpClient());
+Console.WriteLine("\nΠάροχοι χωρίς οδηγό ακόμα / χωρίς δοκιμή");
+var none = FiscalProviders.Create(FiscalSettings.None with { Provider = "ILYDA" }, new HttpClient());
 var refused = await none.IssueAsync(FiscalDocumentBuilder.Receipt([Food("ΠΙΤΤΑ", 1, 7m)], 7m, FiscalPay.Cash, "x"));
-Check(!refused.Ok && refused.Error.Contains("Epsilon Digital"), "«" + refused.Error + "»");
+Check(!refused.Ok && refused.Error.Contains("ILYDA"), "«" + refused.Error + "»");
+Check(!FiscalJournal.IsActive(FiscalSettings.None with { Provider = EpsilonDigitalProvider.EpsilonName })
+      && !FiscalJournal.IsActive(FiscalSettings.None with { Provider = EpsilonDigitalProvider.ParochosName }),
+    "Epsilon / Parochos: οδηγός χωρίς δοκιμή σε sandbox → σε μαγαζί ΔΕΝ ενεργοποιείται τίποτα");
+
+Console.WriteLine("\nEpsilon Digital / Parochos: το JSON που στέλνεται, απέναντι στην τεκμηρίωσή τους (χωρίς λογαριασμό)");
+{
+    var eps = FiscalSettings.None with { Provider = EpsilonDigitalProvider.EpsilonName, Afm = "999999999" };
+    var receipt = FiscalDocumentBuilder.Receipt([Food("ΠΙΤΤΑ ΧΟΙΡΙΝΟ", 2, 14.00m), Beer("Amstel 500ml", 1, 3.50m)], 17.50m, FiscalPay.Cash, "ext-1");
+    receipt.Series = "ΑΛΠ"; receipt.Number = 12; receipt.IssueDate = new DateTime(2026, 10, 13);
+    var src = EpsilonDigitalProvider.Source(receipt, eps)["invoice"]!;
+    var h = src["invoiceHeader"]!;
+    Check(h["series"]!.GetValue<string>() == "ΑΛΠ" && h["aa"]!.GetValue<long>() == 12 && h["issueDate"]!.GetValue<string>() == "2026-10-13"
+          && h["invoiceType"]!.GetValue<string>() == "11.1" && h["currency"]!.GetValue<string>() == "EUR",
+        "Κεφαλίδα: σειρά/αριθμός του ταμείου, ημερομηνία yyyy-MM-dd, 11.1, EUR");
+    var l0 = src["invoiceDetails"]![0]!;
+    var l1 = src["invoiceDetails"]![1]!;
+    Check(l0["vatCategory"]!.GetValue<int>() == 2 && l1["vatCategory"]!.GetValue<int>() == 1
+          && l0["netValue"]!.GetValue<decimal>() + l0["vatAmount"]!.GetValue<decimal>() == 14.00m,
+        "Γραμμές: 13% → κατηγορία 2, 24% → 1, καθαρό + ΦΠΑ = μικτό");
+    Check(src["paymentMethods"]![0]!["type"]!.GetValue<int>() == 3 && src["invoiceSummary"]!["totalValue"]!.GetValue<decimal>() == 17.50m
+          && src["issuer"]!["vatNumber"]!.GetValue<string>() == "999999999" && src["counterpart"] is null,
+        "Μετρητά = 3, σύνολο 17,50, εκδότης με ΑΦΜ, χωρίς αντισυμβαλλόμενο στη λιανική");
+
+    var slip = FiscalDocumentBuilder.OrderSlip([Food("Γύρος", 1, 8m)], "Τραπέζι 5", "ext-2");
+    var slipSrc = EpsilonDigitalProvider.Source(slip, eps)["invoice"]!;
+    Check(slipSrc["invoiceHeader"]!["pointOfService"]!.GetValue<string>() == "Τραπέζι 5"
+          && slipSrc["invoiceHeader"]!["openPointOfService"]!.GetValue<int>() == 1
+          && slipSrc["invoiceDetails"]![0]!["classificationCategory"] is null,
+        "Πρώτο δελτίο: ανοίγει το «σημείο εξυπηρέτησης» Τραπέζι 5, χωρίς χαρακτηρισμό εσόδου");
+    var close = FiscalDocumentBuilder.Receipt([Food("Γύρος", 1, 8m)], 8m, FiscalPay.Cash, "ext-3", tableName: "Τραπέζι 5", slips: ["400001972836372"]);
+    close.ClosesTable = true;
+    var closeSrc = EpsilonDigitalProvider.Source(close, eps)["invoice"]!;
+    Check(closeSrc["invoiceHeader"]!["closePointOfService"]!.GetValue<int>() == 1
+          && closeSrc["correlatedInvoices"]![0]!["mark"]!.GetValue<long>() == 400001972836372,
+        "Απόδειξη τελευταίου ατόμου: κλείνει το τραπέζι και συσχετίζει το ΜΑΡΚ του δελτίου");
+
+    var card = await FiscalProviders.Create(eps, new HttpClient()).IssueAsync(
+        FiscalDocumentBuilder.Receipt([Food("ΠΙΤΤΑ", 1, 7m)], 7m, FiscalPay.Card, "ext-4", "T1"));
+    Check(!card.Ok && card.Error.Contains("WebECR"), "Κάρτα: απορρίπτεται καθαρά (θέλει σύνδεση με το POS της τράπεζας) — «" + card.Error + "»");
+    var noLogin = await FiscalProviders.Create(eps, new HttpClient()).IssueAsync(receipt);
+    Check(!noLogin.Ok && noLogin.Error.Contains("Λείπουν"), "Χωρίς στοιχεία σύνδεσης: λέει καθαρά τι λείπει, δεν δοκιμάζει καν");
+}
+
+if (mode == "epsilon")
+{
+    // EPSILON_KEY / EPSILON_EMAIL / EPSILON_PASSWORD (+ EPSILON_TEMPLATE, EPSILON_PLATFORM=parochos) — δοκιμαστικός λογαριασμός.
+    var platformName = Environment.GetEnvironmentVariable("EPSILON_PLATFORM") == "parochos" ? EpsilonDigitalProvider.ParochosName : EpsilonDigitalProvider.EpsilonName;
+    var s = new FiscalSettings(platformName, "sandbox", Environment.GetEnvironmentVariable("EPSILON_EMAIL") ?? "",
+        Environment.GetEnvironmentVariable("EPSILON_KEY") ?? "", [], "same", "", Environment.GetEnvironmentVariable("EPSILON_AFM") ?? "")
+    {
+        Password = Environment.GetEnvironmentVariable("EPSILON_PASSWORD") ?? "",
+        Template = Environment.GetEnvironmentVariable("EPSILON_TEMPLATE") ?? "",
+    };
+    failures += await JournalChecks.ContractAsync(FiscalProviders.Create(s, new HttpClient { Timeout = TimeSpan.FromSeconds(40) }), "");
+}
 
 Console.WriteLine(failures == 0 ? "\nΌλα εντάξει." : $"\n{failures} έλεγχοι απέτυχαν.");
 return failures == 0 ? 0 : 1;
