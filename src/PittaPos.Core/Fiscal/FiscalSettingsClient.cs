@@ -17,7 +17,7 @@ public sealed class FiscalSettingsClient(HttpClient http, string cachePath,
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private sealed record Dto(string? Provider, string? Env, string? User, string? Key, List<FiscalTerminal>? Terminals,
-        string? Receipt, string? ReceiptPrinter, string? Afm);
+        string? Receipt, string? ReceiptPrinter, string? Afm, string? Password = null, string? Template = null);
 
     /// <summary>Οι ρυθμίσεις από το site· αν δεν απαντά, οι τελευταίες γνωστές· αν δεν υπάρχουν ούτε αυτές, καμία.</summary>
     public async Task<(FiscalSettings Settings, bool Fresh, string Error)> LoadAsync(string siteUrl, string storeKey, CancellationToken ct = default)
@@ -50,7 +50,11 @@ public sealed class FiscalSettingsClient(HttpClient http, string cachePath,
 
     private static FiscalSettings From(Dto? d) => d is null ? FiscalSettings.None : new FiscalSettings(
         d.Provider ?? "", d.Env ?? "sandbox", d.User ?? "", d.Key ?? "", d.Terminals ?? [],
-        d.Receipt ?? "same", d.ReceiptPrinter ?? "", d.Afm ?? "");
+        d.Receipt ?? "same", d.ReceiptPrinter ?? "", d.Afm ?? "")
+    {
+        Password = d.Password ?? "",
+        Template = d.Template ?? "",
+    };
 
     private FiscalSettings Cached()
     {

@@ -149,7 +149,8 @@ public sealed class SiteLinkService
         if (force || settings != Fiscal)
         {
             var changed = settings.Provider != Fiscal.Provider || settings.Env != Fiscal.Env
-                          || settings.User != Fiscal.User || settings.Key != Fiscal.Key;
+                          || settings.User != Fiscal.User || settings.Key != Fiscal.Key
+                          || settings.Password != Fiscal.Password || settings.Template != Fiscal.Template;
             Fiscal = settings;
             if (changed || force)
             {

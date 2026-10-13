@@ -78,6 +78,9 @@ public sealed class FiscalEntry
     /// ένα πιστωτικό, το δελτίο που ακυρώνεται.</summary>
     public List<string> Correlates { get; set; } = [];
     public DateTime CreatedAt { get; set; }
+    /// <summary>Σειρά και αύξων αριθμός από το ταμείο (βλ. <see cref="FiscalJournal.SeriesFor"/>).</summary>
+    public string Series { get; set; } = "";
+    public long Number { get; set; }
     public DateTime? NextTryAt { get; set; }
     /// <summary>Πληρωμή τραπεζιού που μαζεύει ακόμα τεμάχια του ίδιου πατήματος (βλ. <see cref="FiscalJournal.TablePayment"/>).</summary>
     public DateTime? GatherUntil { get; set; }
@@ -100,34 +103,44 @@ public sealed class FiscalEntry
     public bool IsLive => State is not FiscalEntryState.Dropped;
 }
 
+/// <summary>Ό,τι κρατά το ημερολόγιο: τα παραστατικά, και τους μετρητές αρίθμησης ανά σειρά (που ΔΕΝ ξαναρχίζουν ποτέ —
+/// ούτε όταν σβήνονται τα παλιά παραστατικά).</summary>
+public sealed class FiscalJournalData
+{
+    public List<FiscalEntry> Entries { get; set; } = [];
+    public Dictionary<string, long> Counters { get; set; } = [];
+}
+
 /// <summary>Πού ζει το ημερολόγιο — αρχείο στο ταμείο, μνήμη στις δοκιμές.</summary>
 public interface IFiscalJournalStore
 {
-    List<FiscalEntry> Load();
-    void Save(IReadOnlyList<FiscalEntry> entries);
+    FiscalJournalData Load();
+    void Save(FiscalJournalData data);
 }
 
 public sealed class MemoryFiscalJournalStore : IFiscalJournalStore
 {
-    private string _json = "[]";
-    public List<FiscalEntry> Load() => JsonSerializer.Deserialize<List<FiscalEntry>>(_json, FiscalJournal.JsonOptions) ?? [];
-    public void Save(IReadOnlyList<FiscalEntry> entries) => _json = JsonSerializer.Serialize(entries, FiscalJournal.JsonOptions);
+    private string _json = "{}";
+    public FiscalJournalData Load() => FiscalJournalData(_json);
+    public void Save(FiscalJournalData data) => _json = JsonSerializer.Serialize(data, FiscalJournal.JsonOptions);
+
+    /// <summary>Νέα μορφή (αντικείμενο) ή η πρώτη (σκέτη λίστα παραστατικών, χωρίς μετρητές).</summary>
+    internal static FiscalJournalData FiscalJournalData(string json) => json.TrimStart().StartsWith('[')
+        ? new FiscalJournalData { Entries = JsonSerializer.Deserialize<List<FiscalEntry>>(json, FiscalJournal.JsonOptions) ?? [] }
+        : JsonSerializer.Deserialize<FiscalJournalData>(json, FiscalJournal.JsonOptions) ?? new FiscalJournalData();
 }
 
 /// <summary>Αρχείο JSON, γραμμένο σε προσωρινό και μετονομασμένο: μια διακοπή ρεύματος δεν αφήνει μισό ημερολόγιο.</summary>
 public sealed class FileFiscalJournalStore(string path) : IFiscalJournalStore
 {
-    public List<FiscalEntry> Load()
-    {
-        if (!File.Exists(path)) return [];
-        return JsonSerializer.Deserialize<List<FiscalEntry>>(File.ReadAllText(path), FiscalJournal.JsonOptions) ?? [];
-    }
+    public FiscalJournalData Load() =>
+        File.Exists(path) ? MemoryFiscalJournalStore.FiscalJournalData(File.ReadAllText(path)) : new FiscalJournalData();
 
-    public void Save(IReadOnlyList<FiscalEntry> entries)
+    public void Save(FiscalJournalData data)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(entries, FiscalJournal.JsonOptions));
+        File.WriteAllText(tmp, JsonSerializer.Serialize(data, FiscalJournal.JsonOptions));
         File.Move(tmp, path, overwrite: true);
     }
 }
@@ -160,8 +173,21 @@ public sealed class FiscalJournal
     private readonly string _prefix;
     private readonly Func<DateTime> _now;
     private readonly List<FiscalEntry> _entries;
+    private readonly Dictionary<string, long> _counters;
     private readonly object _gate = new();
     private readonly SemaphoreSlim _processing = new(1, 1);
+
+    /// <summary>
+    /// Η σειρά κάθε είδους παραστατικού, για τους παρόχους που θέλουν σειρά και αύξοντα αριθμό από το ταμείο (Epsilon Digital,
+    /// SBZ). Ο Wrapp αριθμεί μόνος του και τα αγνοεί. Ο αριθμός δίνεται τη στιγμή που γράφεται το παραστατικό και δεν αλλάζει
+    /// ποτέ — μια επανάληψη στέλνει τον ίδιο.
+    /// </summary>
+    public static string SeriesFor(FiscalEntryKind kind) => kind switch
+    {
+        FiscalEntryKind.Receipt => "ΑΛΠ",
+        FiscalEntryKind.Credit => "ΠΛΠ",
+        _ => "ΔΠΕ",
+    };
 
     /// <summary>Το τερματικό κάρτας του μαγαζιού (Terminal ID από τις Ρυθμίσεις).</summary>
     public string TerminalId { get; set; } = "";
@@ -181,7 +207,12 @@ public sealed class FiscalJournal
         _store = store;
         _prefix = new string(prefix.Where(char.IsAsciiLetterOrDigit).ToArray()) is { Length: > 0 } p ? p : "pos";
         _now = clock ?? (() => DateTime.Now);
-        _entries = store.Load();
+        var data = store.Load();
+        _entries = data.Entries;
+        _counters = data.Counters;
+        // Πρώτη μορφή του αρχείου (χωρίς μετρητές): ο μετρητής ξεκινά από τον μεγαλύτερο αριθμό που υπάρχει ήδη.
+        foreach (var g in _entries.Where(e => e.Series.Length > 0).GroupBy(e => e.Series))
+            _counters[g.Key] = Math.Max(_counters.GetValueOrDefault(g.Key), g.Max(e => e.Number));
         // Κόπηκε το ρεύμα την ώρα που έφευγε: ξαναπάει με το ίδιο αναγνωριστικό — αν είχε κοπεί, γυρίζει το ίδιο.
         foreach (var e in _entries.Where(e => e.State == FiscalEntryState.Sending))
             e.State = FiscalEntryState.Waiting;
@@ -557,6 +588,29 @@ public sealed class FiscalJournal
         return (null, null);
     }
 
+    /// <summary>Σειρά και αριθμός τη στιγμή της ΠΡΩΤΗΣ αποστολής — όχι νωρίτερα, ώστε ό,τι ακυρώνεται πριν φύγει να μην
+    /// αφήνει κενό στην αρίθμηση. Από εκεί και πέρα ίδιος σε κάθε επανάληψη.</summary>
+    private FiscalDocument Numbered(FiscalEntry e, FiscalDocument doc)
+    {
+        if (e.Number == 0)
+        {
+            e.Series = SeriesFor(e.Kind);
+            e.Number = _counters[e.Series] = _counters.GetValueOrDefault(e.Series) + 1;
+        }
+        doc.Series = e.Series;
+        doc.Number = e.Number;
+        doc.IssueDate = e.CreatedAt;
+        return doc;
+    }
+
+    /// <summary>Η απόδειξη αυτή αφήνει το τραπέζι χωρίς ανοιχτό δελτίο — για τους παρόχους που «κλείνουν» ρητά το
+    /// τραπέζι (Epsilon Digital: closePointOfService).</summary>
+    private bool ClosesTable(FiscalEntry receipt) =>
+        receipt.TableSession.Length > 0
+        && _entries.Where(s => s.Kind == FiscalEntryKind.Slip && s.IsLive && s.TableSession == receipt.TableSession && !IsCancelledSlip(s))
+            .All(s => receipt.Correlates.Contains(s.Id)
+                      || _entries.Any(r => r != receipt && r.IsLive && r.Kind == FiscalEntryKind.Receipt && r.Correlates.Contains(s.Id)));
+
     /// <summary>Το έγγραφο προς τον πάροχο — ή null αν περιμένει ακόμα κάτι άλλο να κοπεί πρώτα.</summary>
     private Func<Task<FiscalResult>>? Prepare(FiscalEntry e, IFiscalProvider provider, CancellationToken ct)
     {
@@ -571,7 +625,7 @@ public sealed class FiscalJournal
                 if (_entries.Any(o => o.Kind == FiscalEntryKind.Slip && o.TableSession == e.TableSession && o.CreatedAt < e.CreatedAt
                                       && o.State is FiscalEntryState.Waiting or FiscalEntryState.Sending))
                     return null;
-                var doc = FiscalDocumentBuilder.OrderSlip(lines, e.TableName, e.Id, TableRef(e.TableSession));
+                var doc = Numbered(e, FiscalDocumentBuilder.OrderSlip(lines, e.TableName, e.Id, TableRef(e.TableSession)));
                 return () => provider.IssueAsync(doc, ct);
             }
             case FiscalEntryKind.Receipt:
@@ -582,13 +636,15 @@ public sealed class FiscalJournal
                 var doc = FiscalDocumentBuilder.Receipt(lines, e.Total, e.Pay, e.Id, preload ? e.PreloadTerminal : terminal, e.TableName,
                     e.TableSession.Length > 0 ? TableRef(e.TableSession) : "", [.. slips.Select(s => s!.Mark).Where(m => m.Length > 0)],
                     preload);
+                doc.ClosesTable = ClosesTable(e);
+                Numbered(e, doc);
                 return () => provider.IssueAsync(doc, ct);
             }
             case FiscalEntryKind.Credit:
             {
                 var original = e.Correlates.Count > 0 ? Find(e.Correlates[0]) : null;
                 if (original is null || original.State != FiscalEntryState.Issued) return null;
-                var doc = FiscalDocumentBuilder.Credit(lines, e.Pay, original.Mark, e.Id, terminal);
+                var doc = Numbered(e, FiscalDocumentBuilder.Credit(lines, e.Pay, original.Mark, e.Id, terminal));
                 return () => provider.IssueAsync(doc, ct);
             }
             case FiscalEntryKind.SlipCancel:
@@ -780,7 +836,7 @@ public sealed class FiscalJournal
         var needed = _entries.Where(o => o.State is not (FiscalEntryState.Issued or FiscalEntryState.Dropped))
             .SelectMany(o => o.Correlates).ToHashSet();
         _entries.RemoveAll(e => e.State is FiscalEntryState.Issued or FiscalEntryState.Dropped && e.CreatedAt < cutoff && !needed.Contains(e.Id));
-        _store.Save(_entries);
+        _store.Save(new FiscalJournalData { Entries = _entries, Counters = _counters });
         Changed?.Invoke();
     }
 }

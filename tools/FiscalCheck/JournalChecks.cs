@@ -346,6 +346,54 @@ static class JournalChecks
             Check(j.ToPrint.Count == 0, "Τυπώθηκε μία φορά — δεν ξανατυπώνεται");
         }
 
+        Console.WriteLine("  — σειρά και αύξων αριθμός από το ταμείο (για Epsilon, SBZ)");
+        {
+            var (j, inner, chaos, store) = New();
+            j.Sale(901, Day, [Food(901, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            j.Sale(902, Day, [Food(902, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            await j.ProcessAsync(inner);
+            var nums = inner.Issued.Select(d => (d.Doc.Series, d.Doc.Number)).ToList();
+            Check(nums.SequenceEqual([("ΑΛΠ", 1L), ("ΑΛΠ", 2L)]), "Αποδείξεις: σειρά ΑΛΠ, 1, 2");
+
+            chaos.Down = true;
+            j.Sale(903, Day, [Food(903, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            j.Cancel(903);
+            chaos.Down = false;
+            j.Sale(904, Day, [Food(904, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            Later(TimeSpan.FromMinutes(6));
+            await j.ProcessAsync(chaos);
+            Check(inner.Issued.Last().Doc.Number == 3, "Ακύρωση πριν φύγει → κανένα κενό: η επόμενη είναι η 3");
+
+            chaos.LoseNext = 1;
+            j.Sale(905, Day, [Food(905, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            await j.ProcessAsync(chaos);
+            Later(TimeSpan.FromMinutes(1));
+            await j.ProcessAsync(chaos);
+            Check(inner.Issued.Last().Doc.Number == 4 && j.Entries.Single(e => e.Items.Any(i => i.Order == 905)).Number == 4,
+                "Επανάληψη μετά από χαμένη απάντηση → ίδιος αριθμός (4), όχι 5");
+
+            j.TableRound(906, Day, "1@1900", "Τραπέζι 1", [Food(906, 0, "Γύρος", 1, 8m)]);
+            j.TableRound(907, Day, "1@1900", "Τραπέζι 1", [Food(907, 0, "Μπιφτέκι", 1, 9m)]);
+            await j.ProcessAsync(inner);
+            Check(inner.Issued.Where(d => d.Doc.Type == FiscalDocType.OrderSlip).Select(d => d.Doc.Number).SequenceEqual([1L, 2L])
+                  && inner.Issued.Last().Doc.Series == "ΔΠΕ", "Δελτία: δική τους σειρά (ΔΠΕ), από το 1");
+
+            j.TablePayment(Day, "1@1900", "Τραπέζι 1", [Food(906, 0, "Γύρος", 1, 8m)], FiscalPay.Cash);
+            await j.ProcessAsync(inner);
+            var first = inner.Issued.Last().Doc;
+            j.TablePayment(Day, "1@1900", "Τραπέζι 1", [Food(907, 0, "Μπιφτέκι", 1, 9m)], FiscalPay.Cash);
+            await j.ProcessAsync(inner);
+            var last = inner.Issued.Last().Doc;
+            Check(!first.ClosesTable && last.ClosesTable, "Μόνο η απόδειξη του τελευταίου ατόμου «κλείνει» το τραπέζι");
+
+            Later(TimeSpan.FromDays(11));
+            var reopened = new FiscalJournal(store, "t1", () => _clock);
+            reopened.Sale(908, Day.AddDays(11), [Food(908, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
+            await reopened.ProcessAsync(inner);
+            Check(reopened.Entries.Count == 1 && inner.Issued.Last().Doc.Number == 7,
+                "Ξανάνοιγμα, και τα παλιά σβήστηκαν (10 μέρες) — η αρίθμηση ΣΥΝΕΧΙΖΕΙ (7), δεν ξαναρχίζει");
+        }
+
         Console.WriteLine("  — 24ωρο δελτίων, ημερολόγιο στο αρχείο");
         {
             var (j, inner, _, _) = New();

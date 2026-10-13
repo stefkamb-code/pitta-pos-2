@@ -70,6 +70,13 @@ public sealed class FiscalDocument
     public string CustomerCity { get; init; } = "";
     /// <summary>Μοναδικό από το ταμείο (μαγαζί + ημέρα + παραγγελία + άτομο) — ξαναστάλσιμο δεν κόβει δεύτερο.</summary>
     public string ExternalId { get; init; } = "";
+    /// <summary>Σειρά και αύξων αριθμός από το ταμείο, για παρόχους που τα θέλουν (βλ. FiscalJournal.SeriesFor). Κενά =
+    /// τα δίνει ο πάροχος.</summary>
+    public string Series { get; set; } = "";
+    public long Number { get; set; }
+    public DateTime IssueDate { get; set; } = DateTime.Now;
+    /// <summary>Η απόδειξη κλείνει το τελευταίο ανοιχτό δελτίο του τραπεζιού (για παρόχους που κλείνουν ρητά το τραπέζι).</summary>
+    public bool ClosesTable { get; set; }
 
     public decimal Gross => Lines.Sum(l => l.Gross);
     public decimal Net => Lines.Sum(l => l.Net);
@@ -106,5 +113,13 @@ public sealed record FiscalSettings(
     string Receipt, string ReceiptPrinter, string Afm)
 {
     public bool Production => Env == "production";
+
+    /// <summary>Τρίτο στοιχείο σύνδεσης, για παρόχους που το θέλουν (Epsilon Digital / Parochos Online: ο κωδικός του
+    /// myAccount, μαζί με το subscription key στο <see cref="Key"/> και το email στο <see cref="User"/>).</summary>
+    public string Password { get; init; } = "";
+
+    /// <summary>Epsilon Digital / Parochos Online: το «template» (identifier) που ορίζεται στο UI του παρόχου.</summary>
+    public string Template { get; init; } = "";
+
     public static FiscalSettings None { get; } = new("", "sandbox", "", "", [], "same", "", "");
 }
