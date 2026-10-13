@@ -191,11 +191,6 @@ public sealed class FiscalService
             decision.Deferred, decision.MaxWait, decision.Reason, decision.WaitsFor);
     });
 
-    /// <summary>Η διανομή πέρασε σε διανομέα (Ζωντανές, OrderBoardService.Dispatch/Reassign): η απόδειξη που περίμενε την
-    /// αποστολή φεύγει τώρα — σε κάρτα προφορτώνεται στο POS του διανομέα πριν φτάσει στην πόρτα.</summary>
-    public void OnDispatched(int orderNumber, string channel) =>
-        Safe("αποστολή #" + orderNumber, j => j.Release([orderNumber], "πέρασε σε " + channel));
-
     /// <summary>Κλείσιμο ημέρας (DayReportService.CloseDay): ό,τι περιμένει ακόμα από τη μέρα που κλείνει, κόβεται τώρα.</summary>
     public void OnDayClosing(DateTime businessDay) =>
         Safe("κλείσιμο ημέρας", j => j.ReleaseBefore(businessDay.Date.AddHours(SalesStatsService.DayCutoffHour), "κλείσιμο ημέρας"));

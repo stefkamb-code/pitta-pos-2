@@ -361,8 +361,6 @@ public partial class OrderBoardService : ObservableObject
         // ΤΩΡΑ μπαίνει στον τζίρο, στη βάρδια αυτής της στιγμής — όσο ήταν στην αναμονή δεν μετρούσε
         // πουθενά (βλ. SalesStatsService.CountedOrders για το γιατί).
         SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
-        // Με πάροχο και αυτόματη έκδοση κλειστή: η απόδειξη που περίμενε την αποστολή κόβεται τώρα. Αλλιώς τίποτα.
-        FiscalService.Instance.OnDispatched(order.OrderNumber, channel);
         Notify();
     }
 
@@ -379,7 +377,6 @@ public partial class OrderBoardService : ObservableObject
         // Ίδιος κανόνας με το Dispatch: η βάρδια του τζίρου ακολουθεί τη βάρδια του καναλιού, ώστε
         // στατιστικά και ταμπελάκια καναλιών να μη λένε ποτέ διαφορετικά πράγματα.
         SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
-        FiscalService.Instance.OnDispatched(order.OrderNumber, channel);
         Notify();
     }
 

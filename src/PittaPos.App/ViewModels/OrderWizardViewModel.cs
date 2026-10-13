@@ -727,8 +727,8 @@ public partial class OrderWizardViewModel : ObservableObject
 
     /// <summary>
     /// Πάροχος ΑΑΔΕ, μέσα στο παραθυράκι ΜΕΤΡΗΤΑ/ΚΑΡΤΑ (ΟΡΘΙΟΣ, ΔΙΑΝΟΜΗ): «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ». Ανοιχτό = κόβεται με την
-    /// καταχώρηση. Κλειστό = κόβεται ΑΡΓΟΤΕΡΑ, ποτέ «καθόλου»: ο όρθιος με μετρητά με την πληρωμή (Ιστορικό → ΚΟΨΕ), η
-    /// διανομή όταν φύγει με τον διανομέα· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας (βλ. Core.Fiscal.ReceiptPolicy). Η κάρτα στον όρθιο κόβεται πάντα τώρα.
+    /// καταχώρηση. Κλειστό = κόβεται ΑΡΓΟΤΕΡΑ, ποτέ «καθόλου»: όταν πατηθεί ΕΚΤΥΠΩΣΗ ΠΑΡΑΣΤΑΤΙΚΟΥ στο Ιστορικό
+    /// (ΟΡΘΙΟΣ και ΔΙΑΝΟΜΗ)· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας (βλ. Core.Fiscal.ReceiptPolicy). Η κάρτα κόβεται πάντα τώρα.
     /// Ένα πάτημα, χωρίς κωδικό, και ΘΥΜΑΤΑΙ τη θέση του (ζει στο κύριο ταμείο, βλ. FiscalService.AutoReceipt).
     /// </summary>
     [ObservableProperty]
@@ -755,9 +755,7 @@ public partial class OrderWizardViewModel : ObservableObject
 
     public string ReceiptSwitchHint => ReceiptNow
         ? "Η απόδειξη κόβεται τώρα."
-        : OrderType == Core.Models.OrderType.Pickup
-            ? "Μόνο μετρητά: κόβεται όταν έρθει ο πελάτης (Ιστορικό → ΚΟΨΕ)· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας."
-            : "Μόνο μετρητά: κόβεται όταν φύγει με τον διανομέα· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας.";
+        : "Μόνο μετρητά: κόβεται όταν πατήσεις ΕΚΤΥΠΩΣΗ ΠΑΡΑΣΤΑΤΙΚΟΥ στο Ιστορικό· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας.";
 
     [RelayCommand] private void SelectCashPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Cash);
     [RelayCommand(CanExecute = nameof(CanPayCard))] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);

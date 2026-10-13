@@ -445,12 +445,12 @@ static class JournalChecks
             static ReceiptTiming T(PittaPos.Core.Models.OrderType type, string? ch, FiscalPay pay, bool auto) => ReceiptPolicy.Decide(type, ch, pay, auto).Timing;
             const PittaPos.Core.Models.OrderType Pickup = PittaPos.Core.Models.OrderType.Pickup, Delivery = PittaPos.Core.Models.OrderType.Delivery,
                 Apps = PittaPos.Core.Models.OrderType.Apps;
-            Check(T(Pickup, null, FiscalPay.Card, false) == ReceiptTiming.Now, "ΟΡΘΙΟΣ με κάρτα: πάντα αυτόματα, και με κλειστό διακόπτη");
+            Check(T(Pickup, null, FiscalPay.Card, false) == ReceiptTiming.Now && T(Delivery, null, FiscalPay.Card, false) == ReceiptTiming.Now,
+                "ΚΑΡΤΑ (όρθιος ή διανομή): πάντα αυτόματα, και με κλειστό διακόπτη");
             Check(T(Apps, "BOX", FiscalPay.Cash, false) == ReceiptTiming.Now && T(Apps, "Wolt", FiscalPay.Online, false) == ReceiptTiming.Now
                   && T(Apps, "e-food", FiscalPay.Online, false) == ReceiptTiming.Now, "BOX / Wolt / e-food: πάντα αυτόματα");
-            Check(T(Pickup, null, FiscalPay.Cash, false) == ReceiptTiming.AtPayment, "ΟΡΘΙΟΣ με μετρητά, κλειστό: με την πληρωμή");
-            Check(T(Delivery, null, FiscalPay.Cash, false) == ReceiptTiming.AtDispatch && T(Delivery, null, FiscalPay.Card, false) == ReceiptTiming.AtDispatch,
-                "Τηλέφωνο (ΔΙΑΝΟΜΗ), κλειστό: όταν φύγει με τον διανομέα — και σε κάρτα (προφόρτωση πριν την πόρτα)");
+            Check(T(Pickup, null, FiscalPay.Cash, false) == ReceiptTiming.AtPayment && T(Delivery, null, FiscalPay.Cash, false) == ReceiptTiming.AtPayment,
+                "ΟΡΘΙΟΣ / ΔΙΑΝΟΜΗ με μετρητά, κλειστό: με την ΕΚΤΥΠΩΣΗ ΠΑΡΑΣΤΑΤΙΚΟΥ");
             Check(new[] { Pickup, Delivery, Apps }.All(t => T(t, null, FiscalPay.Cash, true) == ReceiptTiming.Now && T(t, null, FiscalPay.Card, true) == ReceiptTiming.Now),
                 "Ανοιχτός διακόπτης: όλα με την καταχώρηση, όπως πριν");
             Check(ReceiptPolicy.Decide(Pickup, null, FiscalPay.Cash, false).MaxWait is null
@@ -484,23 +484,19 @@ static class JournalChecks
             Check(!j.Entries.Any(e => e.Kind == FiscalEntryKind.Credit), "Κανένα πιστωτικό");
         }
 
-        Console.WriteLine("  — τηλέφωνο: κόβεται όταν φύγει με τον διανομέα");
+        Console.WriteLine("  — τηλέφωνο: μετρητά που έγιναν κάρτα");
         {
             var (j, inner, _, _) = New();
             j.Sale(1101, Day, [Food(1101, 0, "ΠΙΤΤΑ", 3, 21m)], FiscalPay.Cash, hold: true);
             Later(TimeSpan.FromMinutes(10));
-            // Ο πελάτης λέει «κάρτα» — η διανομή δεν έφυγε ακόμα: αλλάζει, και συνεχίζει να περιμένει.
-            j.ChangePayment(1101, FiscalPay.Card, preloadTerminal: "T-DRIVER", releaseHeld: false);
-            await j.ProcessAsync(inner);
-            Check(inner.Issued.Count == 0 && j.Held.Single().Pay == FiscalPay.Card, "Μετρητά → κάρτα πριν φύγει: τίποτα στον πάροχο ακόμα");
-            Later(TimeSpan.FromMinutes(5));
-            var dispatchedAt = _clock;
-            j.Release([1101], "πέρασε σε Κάρτα Διανομέα");
+            // Ο πελάτης λέει «κάρτα»: η κάρτα θέλει την απόδειξη στο POS του διανομέα πριν την πόρτα → φεύγει τώρα.
+            var changedAt = _clock;
+            j.ChangePayment(1101, FiscalPay.Card, preloadTerminal: "T-DRIVER", releaseHeld: true);
             await j.ProcessAsync(inner);
             var d = inner.Issued.Single().Doc;
-            Check(d.Pay == FiscalPay.Card && d.Preload && d.TerminalId == "T-DRIVER",
-                "Πέρασε σε διανομέα → ΜΙΑ απόδειξη κάρτας, προφορτωμένη στο POS του διανομέα πριν την πόρτα");
-            Check(d.IssueDate == dispatchedAt, "Ημερομηνία έκδοσης = η ώρα που έφυγε, όχι της τηλεφωνικής καταχώρησης");
+            Check(d.Pay == FiscalPay.Card && d.Preload && d.TerminalId == "T-DRIVER" && !j.Entries.Any(e => e.Kind == FiscalEntryKind.Credit),
+                "Μετρητά → κάρτα: ΜΙΑ απόδειξη κάρτας, προφορτωμένη στο POS του διανομέα — κανένα πιστωτικό");
+            Check(d.IssueDate == changedAt, "Ημερομηνία έκδοσης = η ώρα που κόπηκε, όχι της τηλεφωνικής καταχώρησης");
         }
 
         Console.WriteLine("  — καμία πώληση αδήλωτη: όριο, κλείσιμο ημέρας, ρεύμα");

@@ -620,7 +620,7 @@
                                 HorizontalAlignment="Left" Margin="0,18,0,0" Click="Reprint_Click"/>
                         <!-- ΜΟΝΟ με πάροχο ΑΑΔΕ (βλ. HistoryWindow.xaml.cs): η απόδειξη του παρόχου (ΜΑΡΚ + QR) δεν τυπώνεται
                              μόνη της — όποτε τη ζητήσει το μαγαζί. Χωρίς πάροχο, το Ιστορικό μένει όπως ήταν. -->
-                        <Button x:Name="FiscalReceiptButton" Content="🧾 ΑΠΟΔΕΙΞΗ (ΜΑΡΚ)" Style="{StaticResource FlatButton}"
+                        <Button x:Name="FiscalReceiptButton" Content="ΕΚΤΥΠΩΣΗ ΠΑΡΑΣΤΑΤΙΚΟΥ" Style="{StaticResource FlatButton}"
                                 Width="420" Height="40" FontSize="13" FontWeight="Bold" HorizontalContentAlignment="Center"
                                 HorizontalAlignment="Left" Margin="0,8,0,0" Click="FiscalReceipt_Click" Visibility="Collapsed"/>
                         <!-- Τι έγινε με την απόδειξη της παραγγελίας: σε αναμονή (και ως πότε), κόπηκε με ΜΑΡΚ, ξαναδοκιμάζει. -->

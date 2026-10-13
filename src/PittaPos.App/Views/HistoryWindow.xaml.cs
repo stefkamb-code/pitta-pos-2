@@ -60,7 +60,6 @@ public partial class HistoryWindow : Window
         var status = await FiscalService.Instance.StatusOfAsync(number);
         if (number != _statusFor)
             return; // άλλαξε η επιλογή όσο ρωτούσε το κύριο ταμείο
-        FiscalReceiptButton.Content = status.Held ? "🧾 ΚΟΨΕ ΚΑΙ ΤΥΠΩΣΕ ΑΠΟΔΕΙΞΗ" : "🧾 ΑΠΟΔΕΙΞΗ (ΜΑΡΚ)";
         FiscalStatusText.Text = status.Text;
         FiscalStatusText.Visibility = status.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
