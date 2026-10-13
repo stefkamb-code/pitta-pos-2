@@ -344,7 +344,7 @@ static class JournalChecks
             Check(rows.All(r => r.Length <= FiscalReceiptText.Width || !r.Contains("€")), "Τα ποσά χωράνε σε ρολό 80mm (μακρύ όνομα → σπάει γραμμή)");
 
             // Ζητήθηκε σε χαρτί ενώ περίμενε: τυπώνεται μόλις κοπεί, μία φορά.
-            j.Sale(802, Day, [Food(802, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: TimeSpan.FromHours(1));
+            j.Sale(802, Day, [Food(802, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: true);
             j.Release([802], "ζητήθηκε", print: true);
             Check(j.ToPrint.Count == 0, "Ζητήθηκε χαρτί πριν κοπεί → τίποτα ακόμα (δεν υπάρχει ΜΑΡΚ)");
             await j.ProcessAsync(inner);
@@ -453,8 +453,9 @@ static class JournalChecks
                 "Τηλέφωνο (ΔΙΑΝΟΜΗ), κλειστό: όταν φύγει με τον διανομέα — και σε κάρτα (προφόρτωση πριν την πόρτα)");
             Check(new[] { Pickup, Delivery, Apps }.All(t => T(t, null, FiscalPay.Cash, true) == ReceiptTiming.Now && T(t, null, FiscalPay.Card, true) == ReceiptTiming.Now),
                 "Ανοιχτός διακόπτης: όλα με την καταχώρηση, όπως πριν");
-            Check(ReceiptPolicy.Decide(Pickup, null, FiscalPay.Cash, false).MaxWait > TimeSpan.Zero
-                  && ReceiptPolicy.Decide(Delivery, null, FiscalPay.Cash, false).MaxWait > TimeSpan.Zero, "Κάθε αναμονή έχει όριο");
+            Check(ReceiptPolicy.Decide(Pickup, null, FiscalPay.Cash, false).MaxWait is null
+                  && ReceiptPolicy.Decide(Delivery, null, FiscalPay.Cash, false).MaxWait is null,
+                "Μέσα στη μέρα τίποτα μόνο του — περιμένει τον πελάτη (ή τον διανομέα)");
         }
 
         Console.WriteLine("  — αυτόματη έκδοση κλειστή: καταχώρηση, διόρθωση, ακύρωση χωρίς πάροχο");
@@ -462,8 +463,7 @@ static class JournalChecks
             var (j, inner, _, _) = New();
             var audit = new MemoryFiscalAudit();
             j.Audit = audit;
-            var counter = ReceiptPolicy.CounterMaxWait;
-            j.Sale(1001, Day, [Food(1001, 0, "ΠΙΤΤΑ", 2, 14m)], FiscalPay.Cash, hold: counter, reason: "όρθιος μετρητά");
+            j.Sale(1001, Day, [Food(1001, 0, "ΠΙΤΤΑ", 2, 14m)], FiscalPay.Cash, hold: true, reason: "όρθιος μετρητά");
             await j.ProcessAsync(inner);
             Check(inner.Issued.Count == 0 && j.Held.Count == 1, "Καταχωρήθηκε (κουζίνα, τζίρος) — καμία κλήση στον πάροχο ακόμα");
 
@@ -474,7 +474,7 @@ static class JournalChecks
                 "Ακυρώθηκε πριν κοπεί → δεν κόβεται ποτέ, ούτε πιστωτικό (δεν έγινε πώληση)");
             Check(audit.Records.Any(r => r.Event == "ακυρώθηκε πριν κοπεί"), "…και φαίνεται στο ημερολόγιο ελέγχου");
 
-            j.Sale(1002, Day, [Food(1002, 0, "ΠΙΤΤΑ", 1, 7m), Drink(1002, 1, "Amstel", 1, 3.5m)], FiscalPay.Cash, hold: counter);
+            j.Sale(1002, Day, [Food(1002, 0, "ΠΙΤΤΑ", 1, 7m), Drink(1002, 1, "Amstel", 1, 3.5m)], FiscalPay.Cash, hold: true);
             j.Cancel(1002, [FiscalItem.KeyFor(1002, 1)]);
             j.ChangePayment(1002, FiscalPay.Card, releaseHeld: true);
             await j.ProcessAsync(inner);
@@ -487,8 +487,7 @@ static class JournalChecks
         Console.WriteLine("  — τηλέφωνο: κόβεται όταν φύγει με τον διανομέα");
         {
             var (j, inner, _, _) = New();
-            var phone = ReceiptPolicy.PhoneMaxWait;
-            j.Sale(1101, Day, [Food(1101, 0, "ΠΙΤΤΑ", 3, 21m)], FiscalPay.Cash, hold: phone);
+            j.Sale(1101, Day, [Food(1101, 0, "ΠΙΤΤΑ", 3, 21m)], FiscalPay.Cash, hold: true);
             Later(TimeSpan.FromMinutes(10));
             // Ο πελάτης λέει «κάρτα» — η διανομή δεν έφυγε ακόμα: αλλάζει, και συνεχίζει να περιμένει.
             j.ChangePayment(1101, FiscalPay.Card, preloadTerminal: "T-DRIVER", releaseHeld: false);
@@ -509,21 +508,23 @@ static class JournalChecks
             var (j, inner, _, store) = New();
             var audit = new MemoryFiscalAudit();
             j.Audit = audit;
-            j.Sale(1201, Day, [Food(1201, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: ReceiptPolicy.CounterMaxWait);
-            j.Sale(1202, Day, [Food(1202, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: ReceiptPolicy.PhoneMaxWait);
+            j.Sale(1201, Day, [Food(1201, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: true);
+            j.Sale(1202, Day, [Food(1202, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: true, holdLimit: TimeSpan.FromHours(1));
 
             // Το ταμείο κλείνει και ξανανοίγει: η αναμονή δεν χάνεται.
             var reopened = new FiscalJournal(store, "t1", () => _clock) { TerminalId = "T88011", Audit = audit };
             Check(reopened.Held.Count == 2, "Κλείσιμο/άνοιγμα ταμείου: οι αποδείξεις σε αναμονή είναι ακόμα εκεί");
 
-            Later(ReceiptPolicy.CounterMaxWait + TimeSpan.FromMinutes(1));
+            Later(TimeSpan.FromHours(9));
             await reopened.ProcessAsync(inner);
-            Check(inner.Issued.Count == 1 && reopened.Held.Count == 1, "Πέρασε το όριο του όρθιου → κόπηκε μόνη της, με μετρητά");
+            Check(reopened.Held.Any(e => e.Items[0].Order == 1201) && inner.Issued.All(x => x.Doc.ExternalId != reopened.Entries.First().Id),
+                "Ο πελάτης αργεί 9 ώρες → η απόδειξη ΔΕΝ βγαίνει μόνη της πριν έρθει");
+            Check(inner.Issued.Count == 1 && reopened.Held.Count == 1, "(Όπου έχει δοθεί όριο, φεύγει στο όριο — ο μηχανισμός δουλεύει)");
             Check(audit.Records.Any(r => r.Event == "φεύγει" && r.Detail.Contains("όριο")), "…και γράφτηκε γιατί έφυγε");
 
             reopened.ReleaseBefore(Day.AddDays(1).AddHours(5), "κλείσιμο ημέρας");
             await reopened.ProcessAsync(inner);
-            Check(inner.Issued.Count == 2 && reopened.Held.Count == 0, "Κλείσιμο ημέρας → ό,τι περίμενε κόβεται τώρα");
+            Check(inner.Issued.Count == 2 && reopened.Held.Count == 0, "Κλείσιμο ημέρας → ό,τι ξεχάστηκε κόβεται τώρα — καμία πώληση αδήλωτη");
 
             var events = audit.Records.Where(r => r.EntryId == reopened.Entries.First().Id).Select(r => r.Event).ToList();
             Check(events.Take(2).SequenceEqual(["νέο", "σε αναμονή"]) && events.Contains("φεύγει") && events.Contains("στέλνεται") && events.Contains("κόπηκε"),
@@ -534,7 +535,7 @@ static class JournalChecks
         Console.WriteLine("  — όχι διπλή: χαμένη απάντηση μετά την αναμονή");
         {
             var (j, inner, chaos, _) = New();
-            j.Sale(1301, Day, [Food(1301, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: ReceiptPolicy.CounterMaxWait);
+            j.Sale(1301, Day, [Food(1301, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: true);
             var id = j.Entries.Single().Id;
             j.Release([1301], "ζητήθηκε");
             chaos.LoseNext = 1;
@@ -544,7 +545,7 @@ static class JournalChecks
             Check(j.Entries.Single().Id == id && j.Entries.Single().State == FiscalEntryState.Issued
                   && inner.Issued.Select(x => x.Doc.ExternalId).Distinct().Count() == 1,
                 "Ίδιο αναγνωριστικό πριν και μετά την αναμονή → η επανάληψη φέρνει την ίδια απόδειξη, όχι δεύτερη");
-            j.Sale(1302, Day, [Food(1302, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: ReceiptPolicy.CounterMaxWait);
+            j.Sale(1302, Day, [Food(1302, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash, hold: true);
             j.Cancel(1302);
             j.Sale(1303, Day, [Food(1303, 0, "ΠΙΤΤΑ", 1, 7m)], FiscalPay.Cash);
             await j.ProcessAsync(chaos);

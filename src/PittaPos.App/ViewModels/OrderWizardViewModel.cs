@@ -5,7 +5,6 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
-using PittaPos.Core.Fiscal;
 using PittaPos.Core.Data;
 using PittaPos.Core.Models;
 
@@ -729,7 +728,7 @@ public partial class OrderWizardViewModel : ObservableObject
     /// <summary>
     /// Πάροχος ΑΑΔΕ, μέσα στο παραθυράκι ΜΕΤΡΗΤΑ/ΚΑΡΤΑ (ΟΡΘΙΟΣ, ΔΙΑΝΟΜΗ): «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ». Ανοιχτό = κόβεται με την
     /// καταχώρηση. Κλειστό = κόβεται ΑΡΓΟΤΕΡΑ, ποτέ «καθόλου»: ο όρθιος με μετρητά με την πληρωμή (Ιστορικό → ΚΟΨΕ), η
-    /// διανομή όταν φύγει με τον διανομέα — με όριο (βλ. Core.Fiscal.ReceiptPolicy). Η κάρτα στον όρθιο κόβεται πάντα τώρα.
+    /// διανομή όταν φύγει με τον διανομέα· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας (βλ. Core.Fiscal.ReceiptPolicy). Η κάρτα στον όρθιο κόβεται πάντα τώρα.
     /// Ένα πάτημα, χωρίς κωδικό, και ΘΥΜΑΤΑΙ τη θέση του (ζει στο κύριο ταμείο, βλ. FiscalService.AutoReceipt).
     /// </summary>
     [ObservableProperty]
@@ -757,10 +756,8 @@ public partial class OrderWizardViewModel : ObservableObject
     public string ReceiptSwitchHint => ReceiptNow
         ? "Η απόδειξη κόβεται τώρα."
         : OrderType == Core.Models.OrderType.Pickup
-            ? $"Μόνο μετρητά: κόβεται όταν πατήσεις ΚΟΨΕ στο Ιστορικό — το αργότερο σε {Hours(ReceiptPolicy.CounterMaxWait)}."
-            : $"Μόνο μετρητά: κόβεται όταν φύγει με τον διανομέα — το αργότερο σε {Hours(ReceiptPolicy.PhoneMaxWait)}.";
-
-    private static string Hours(TimeSpan t) => t.TotalHours == 1 ? "1 ώρα" : $"{t.TotalHours:0} ώρες";
+            ? "Μόνο μετρητά: κόβεται όταν έρθει ο πελάτης (Ιστορικό → ΚΟΨΕ)· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας."
+            : "Μόνο μετρητά: κόβεται όταν φύγει με τον διανομέα· ό,τι ξεχαστεί, στο κλείσιμο της ημέρας.";
 
     [RelayCommand] private void SelectCashPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Cash);
     [RelayCommand(CanExecute = nameof(CanPayCard))] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);

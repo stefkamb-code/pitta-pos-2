@@ -102,7 +102,8 @@ public sealed class FiscalEntry
     public bool Printed { get; set; }
     /// <summary>Ζητήθηκε χαρτί πριν κοπεί (π.χ. «🧾 ΑΠΟΔΕΙΞΗ» σε απόδειξη που περίμενε): τυπώνεται μόλις κοπεί, μία φορά.</summary>
     public bool PrintWhenIssued { get; set; }
-    /// <summary>Σε αναμονή (<see cref="FiscalEntryState.Held"/>): το αργότερο ως πότε — μετά φεύγει μόνη της.</summary>
+    /// <summary>Σε αναμονή (<see cref="FiscalEntryState.Held"/>) με όριο μέσα στη μέρα: ως πότε — μετά φεύγει μόνη της.
+    /// null = χωρίς όριο (φεύγει με την πληρωμή/αποστολή, ή στο κλείσιμο της ημέρας).</summary>
     public DateTime? HeldUntil { get; set; }
     /// <summary>Γιατί περίμενε (από το <see cref="ReceiptPolicy"/>) — για το ημερολόγιο ελέγχου και την οθόνη.</summary>
     public string HoldReason { get; set; } = "";
@@ -311,12 +312,13 @@ public sealed class FiscalJournal
     /// <summary>Παραγγελία εκτός τραπεζιού (όρθιος, διανομή, παραλαβή, εφαρμογή) → απόδειξη.</summary>
     /// <param name="preloadTerminal">Διανομή με κάρτα: το φορητό POS του διανομέα — το ποσό προφορτώνεται εκεί και πληρώνεται
     /// στην πόρτα. Κενό = η κάρτα πάει ΤΩΡΑ στο τερματικό του μαγαζιού (όρθιος).</param>
-    /// <param name="hold">Αυτόματη έκδοση κλειστή (βλ. <see cref="ReceiptPolicy"/>): γράφεται τώρα αλλά περιμένει το πολύ
-    /// τόσο (βλ. <see cref="FiscalEntryState.Held"/>). Null = φεύγει τώρα.</param>
+    /// <param name="hold">Αυτόματη έκδοση κλειστή (βλ. <see cref="ReceiptPolicy"/>): γράφεται τώρα αλλά περιμένει (βλ.
+    /// <see cref="FiscalEntryState.Held"/>) — την πληρωμή/αποστολή, ή το κλείσιμο της ημέρας.</param>
+    /// <param name="holdLimit">Προαιρετικό όριο μέσα στη μέρα· null = κανένα.</param>
     /// <param name="reason">Γιατί αποφασίστηκε έτσι — στο ημερολόγιο ελέγχου.</param>
     /// <param name="waitsFor">Για την οθόνη: τι περιμένει (π.χ. «κόβεται όταν φύγει με τον διανομέα»).</param>
     public FiscalEntry? Sale(int orderNumber, DateTime businessDay, IEnumerable<FiscalItem> items, FiscalPay pay, string preloadTerminal = "",
-        TimeSpan? hold = null, string reason = "", string waitsFor = "")
+        bool hold = false, TimeSpan? holdLimit = null, string reason = "", string waitsFor = "")
     {
         var list = Billable(items);
         if (list.Count == 0) return null;
@@ -333,13 +335,14 @@ public sealed class FiscalJournal
                 PreloadTerminal = preload ? preloadTerminal : "",
             };
             Add(e, commit: false, reason);
-            if (hold is { } wait)
+            if (hold)
             {
                 // Στην ίδια κλειδαριά με την προσθήκη: η αποστολή δεν προλαβαίνει να τη δει σαν «έτοιμη».
                 e.State = FiscalEntryState.Held;
-                e.HeldUntil = e.CreatedAt + wait;
+                e.HeldUntil = holdLimit is { } wait ? e.CreatedAt + wait : null;
                 e.HoldReason = waitsFor.Length > 0 ? waitsFor : reason;
-                Log("σε αναμονή", e, $"ως {e.HeldUntil:HH:mm} το αργότερο — {reason}");
+                Log("σε αναμονή", e, (e.HeldUntil is { } until ? $"ως {until:HH:mm} το αργότερο" : "ως την πληρωμή ή το κλείσιμο της ημέρας")
+                    + $" — {reason}");
             }
             Commit();
             return e;

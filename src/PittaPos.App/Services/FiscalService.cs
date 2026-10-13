@@ -188,7 +188,7 @@ public sealed class FiscalService
         // ΠΟΤΕ φεύγει: το αποφασίζει ΜΟΝΟ το ReceiptPolicy (διακόπτης «Αυτόματη έκδοση» + υποχρεωτικά αυτόματα).
         var decision = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order));
         j.Sale(order.OrderNumber, day, items, pay, PreloadFor(order, pay),
-            decision.Deferred ? decision.MaxWait : null, decision.Reason, decision.WaitsFor);
+            decision.Deferred, decision.MaxWait, decision.Reason, decision.WaitsFor);
     });
 
     /// <summary>Η διανομή πέρασε σε διανομέα (Ζωντανές, OrderBoardService.Dispatch/Reassign): η απόδειξη που περίμενε την
@@ -235,7 +235,8 @@ public sealed class FiscalService
             };
             lines.Add(e.State switch
             {
-                FiscalEntryState.Held => $"⏳ {what} σε αναμονή — {e.HoldReason}, το αργότερο {e.HeldUntil:HH:mm}",
+                FiscalEntryState.Held => $"⏳ {what} σε αναμονή — {e.HoldReason}"
+                                         + (e.HeldUntil is { } until ? $", το αργότερο {until:HH:mm}" : " (αλλιώς στο κλείσιμο της ημέρας)"),
                 FiscalEntryState.Issued => $"✓ {what} {e.Result?.Series} {e.Result?.Number} · ΜΑΡΚ {e.Mark}".Replace("  ", " "),
                 FiscalEntryState.NeedsDecision => $"⚠ {what}: η κάρτα δεν πέρασε — περιμένει απόφαση",
                 _ when e.LastError.Length > 0 => $"↻ {what}: ξαναδοκιμάζει ({e.LastError})",

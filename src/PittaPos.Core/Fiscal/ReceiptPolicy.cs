@@ -15,7 +15,9 @@ public enum ReceiptTiming
 }
 
 /// <summary>Η απόφαση για μία απόδειξη: πότε, το αργότερο πότε, και γιατί (γράφεται στο ημερολόγιο ελέγχου).</summary>
-public sealed record ReceiptDecision(ReceiptTiming Timing, TimeSpan MaxWait, string Reason)
+/// <param name="MaxWait">Όριο αναμονής μέσα στη μέρα· null = κανένα — περιμένει τον ταμία, και ό,τι ξεχαστεί κόβεται στο
+/// κλείσιμο της ημέρας.</param>
+public sealed record ReceiptDecision(ReceiptTiming Timing, TimeSpan? MaxWait, string Reason)
 {
     public bool Deferred => Timing != ReceiptTiming.Now;
 
@@ -33,8 +35,10 @@ public sealed record ReceiptDecision(ReceiptTiming Timing, TimeSpan MaxWait, str
 ///
 /// <para>Ο διακόπτης «Αυτόματη έκδοση απόδειξης» αλλάζει ΜΟΝΟ το πότε, ποτέ το αν: με κλειστό διακόπτη η παραγγελία
 /// καταχωρείται, τυπώνεται στην κουζίνα, διορθώνεται και ακυρώνεται χωρίς να φύγει τίποτα στον πάροχο, και η απόδειξη
-/// κόβεται τη στιγμή της αποστολής/πληρωμής — και σε κάθε περίπτωση το αργότερο σε <see cref="ReceiptDecision.MaxWait"/>
-/// ή στο κλείσιμο της ημέρας. Ό,τι ακυρωθεί πριν, δεν κόβεται ποτέ (δεν έγινε πώληση).</para>
+/// κόβεται τη στιγμή που έρχεται και πληρώνει ο πελάτης (ο ταμίας πατά ΚΟΨΕ) ή που φεύγει η διανομή. Μέσα στη μέρα δεν
+/// κόβεται τίποτα μόνο του — ώστε η απόδειξη να μη βγει ποτέ πριν φτάσει ο πελάτης (απόφαση χρήστη 13/10/2026, «αυτό μου
+/// είπαν»). Ό,τι ξεχαστεί (ούτε κόπηκε ούτε ακυρώθηκε) κόβεται στο κλείσιμο της ημέρας: μένει στον τζίρο, άρα θέλει
+/// απόδειξη. Ό,τι ακυρωθεί πριν, δεν κόβεται ποτέ (δεν έγινε πώληση).</para>
 ///
 /// <para>Πάντα αυτόματα, ό,τι κι αν λέει ο διακόπτης:</para>
 /// <list type="bullet">
@@ -47,12 +51,6 @@ public sealed record ReceiptDecision(ReceiptTiming Timing, TimeSpan MaxWait, str
 /// </summary>
 public static class ReceiptPolicy
 {
-    /// <summary>ΟΡΘΙΟΣ με μετρητά: ο πελάτης είναι στο μαγαζί — όσο να πάρει την παραγγελία του ή να αλλάξει γνώμη για τον τρόπο.</summary>
-    public static readonly TimeSpan CounterMaxWait = TimeSpan.FromHours(1);
-
-    /// <summary>ΔΙΑΝΟΜΗ: κόβεται όταν φύγει με τον διανομέα· αυτό είναι το δίχτυ αν δεν περαστεί ποτέ στις Ζωντανές.</summary>
-    public static readonly TimeSpan PhoneMaxWait = TimeSpan.FromHours(2);
-
     /// <param name="autoIssue">Ο διακόπτης «Αυτόματη έκδοση απόδειξης» του μαγαζιού.</param>
     public static ReceiptDecision Decide(OrderType type, string? channel, FiscalPay pay, bool autoIssue) => type switch
     {
@@ -60,11 +58,11 @@ public static class ReceiptPolicy
         OrderType.Apps => Now($"{(string.IsNullOrWhiteSpace(channel) ? "εφαρμογή" : channel)}: πάντα αυτόματα"),
         OrderType.Pickup when pay == FiscalPay.Card => Now("όρθιος με κάρτα: πάντα αυτόματα, μαζί με τη χρέωση στο τερματικό"),
         OrderType.Pickup when autoIssue => Now("όρθιος μετρητά: αυτόματη έκδοση"),
-        OrderType.Pickup => new(ReceiptTiming.AtPayment, CounterMaxWait, "όρθιος μετρητά: με την πληρωμή (αυτόματη έκδοση κλειστή)"),
+        OrderType.Pickup => new(ReceiptTiming.AtPayment, null, "όρθιος μετρητά: με την πληρωμή (αυτόματη έκδοση κλειστή)"),
         OrderType.Delivery when autoIssue => Now("διανομή: αυτόματη έκδοση"),
-        OrderType.Delivery => new(ReceiptTiming.AtDispatch, PhoneMaxWait, "διανομή: όταν φύγει με τον διανομέα (αυτόματη έκδοση κλειστή)"),
+        OrderType.Delivery => new(ReceiptTiming.AtDispatch, null, "διανομή: όταν φύγει με τον διανομέα (αυτόματη έκδοση κλειστή)"),
         _ => Now("άγνωστο είδος παραγγελίας: αυτόματα"),
     };
 
-    private static ReceiptDecision Now(string reason) => new(ReceiptTiming.Now, TimeSpan.Zero, reason);
+    private static ReceiptDecision Now(string reason) => new(ReceiptTiming.Now, null, reason);
 }
