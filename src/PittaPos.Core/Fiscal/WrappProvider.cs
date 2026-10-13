@@ -16,11 +16,13 @@ namespace PittaPos.Core.Fiscal;
 /// <item>Παραστατικό: <c>POST /invoices</c>. Κάρτα = <c>pos_device_id</c>: ο Wrapp στέλνει το ποσό στο τερματικό.</item>
 /// <item>Τραπέζι: το 8.6 ανοίγει τραπέζι με <c>catering_table_name</c>· η 11.1 το κλείνει με <c>correlated_invoices</c>
 ///   (τα ΜΑΡΚ των δελτίων).</item>
+/// <item>Σειρές του δοκιμαστικού (email Wrapp 11/10/2026): ΕΑΛΠ = 11.1, ΕΔΠΕ = 8.6, ΕΑΠΛ = 11.4. Κάθε παραστατικό έχει
+///   <c>counterpart</c>, όπως στα παραδείγματά τους. Επανάληψη με ίδιο <c>external_id</c> δεν κόβει δεύτερο.</item>
 /// </list>
 ///
-/// <para><b>ΠΡΟΣ ΕΠΙΒΕΒΑΙΩΣΗ στο sandbox</b> (η τεκμηρίωση δεν τα λέει ρητά): το όνομα του πεδίου τερματικού στο
-/// <c>GET /pos_devices</c>, αν η κάρτα γυρίζει αμέσως ή θέλει αναμονή (εδώ: αναμονή μέχρι να βγει ΜΑΡΚ), πώς γυρίζει το
-/// ανοιχτό τραπέζι στο 8.6, και ο τρόπος πληρωμής για παραγγελίες πληρωμένες μέσα στην πλατφόρμα (ερώτηση στον λογιστή).</para>
+/// <para><b>ΠΡΟΣ ΕΠΙΒΕΒΑΙΩΣΗ στο sandbox</b>: αν η κάρτα γυρίζει αμέσως ή θέλει αναμονή (εδώ: αναμονή μέχρι να βγει ΜΑΡΚ),
+/// ο χαρακτηρισμός εσόδου (εδώ category1_3 / E3_561_003· ο Wrapp δείχνει category1_1 — απόφαση λογιστή), και ο τρόπος
+/// πληρωμής για παραγγελίες πληρωμένες μέσα στην πλατφόρμα (ερώτηση στον λογιστή).</para>
 /// </summary>
 public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IFiscalProvider
 {
@@ -177,16 +179,32 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         };
         if (doc.ExternalId.Length > 0) body["external_id"] = doc.ExternalId;
         if (deviceId is not null) body["pos_device_id"] = deviceId;
-        if (doc.Type == FiscalDocType.OrderSlip || doc.CorrelatedMarks.Count > 0 && doc.TableName.Length > 0)
+        if (doc.Type == FiscalDocType.OrderSlip)
         {
+            // Το πρώτο δελτίο ανοίγει το τραπέζι με το όνομα· τα επόμενα πάνε στο catering_table_id που γύρισε.
             if (doc.ProviderTableRef.Length > 0) body["catering_table_id"] = doc.ProviderTableRef;
             else if (doc.TableName.Length > 0) body["catering_table_name"] = doc.TableName;
         }
+        else if (doc.CorrelatedMarks.Count > 0 && doc.ProviderTableRef.Length > 0)
+            // Η απόδειξη που κλείνει το τραπέζι: ΜΟΝΟ το id. Ένα όνομα εδώ θα άνοιγε καινούριο τραπέζι.
+            body["catering_table_id"] = doc.ProviderTableRef;
         if (doc.CorrelatedMarks.Count > 0) body["correlated_invoices"] = doc.CorrelatedMarks;
-        if (doc.Type == FiscalDocType.SalesInvoice)
-            body["counterpart"] = new Dictionary<string, object> { ["vat"] = doc.CustomerVat, ["name"] = doc.CustomerName };
+        body["counterpart"] = Counterpart(doc);
         return body;
     }
+
+    /// <summary>Ο «αντισυμβαλλόμενος», όπως στα παραδείγματα που έστειλε ο Wrapp (11/10/2026): λιανική = ιδιώτης πελάτης,
+    /// δελτίο = το τραπέζι, τιμολόγιο = η επιχείρηση.</summary>
+    private static Dictionary<string, object> Counterpart(FiscalDocument doc) => doc.Type switch
+    {
+        FiscalDocType.SalesInvoice => new() { ["vat"] = doc.CustomerVat, ["name"] = doc.CustomerName },
+        FiscalDocType.OrderSlip => new()
+        {
+            ["name"] = doc.TableName.Length > 0 ? doc.TableName : "Τραπέζι",
+            ["vat"] = "", ["city"] = "", ["street"] = "", ["number"] = "", ["postal_code"] = "",
+        },
+        _ => new() { ["name"] = "Ιδιώτης πελάτης", ["country_code"] = "GR" },
+    };
 
     public async Task<FiscalResult> IssueAsync(FiscalDocument doc, CancellationToken ct = default)
     {
@@ -206,21 +224,18 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
             }
 
             var (node, error) = await SendAsync(HttpMethod.Post, "/invoices", Payload(doc, book!, device), ct);
-            if (error is not null) return FiscalResult.Fail(error);
-            var result = Read(node);
-
-            // Κάρτα: το ΜΑΡΚ βγαίνει όταν εγκριθεί η πληρωμή στο τερματικό — περιμένουμε μέχρι 2 λεπτά.
-            if (device is not null && result.Mark.Length == 0 && result.ProviderId.Length > 0)
+            if (error is not null)
             {
-                for (var i = 0; i < 60 && result.Mark.Length == 0; i++)
+                // Το external_id υπάρχει ήδη = το ίδιο παραστατικό κόπηκε σε προηγούμενη απόπειρα (π.χ. έληξε ο χρόνος πριν
+                // έρθει η απάντηση). Δεν κόβεται δεύτερο· παίρνουμε αυτό που υπάρχει.
+                if (doc.ExternalId.Length > 0 && error.Contains("external_id", StringComparison.OrdinalIgnoreCase))
                 {
-                    await Task.Delay(2000, ct);
-                    var (again, againError) = await SendAsync(HttpMethod.Get, "/invoices/" + result.ProviderId, null, ct);
-                    if (againError is null) result = Read(again) with { ProviderId = result.ProviderId };
+                    var (existing, existingError) = await SendAsync(HttpMethod.Get, "/invoices/" + Uri.EscapeDataString(doc.ExternalId), null, ct);
+                    if (existingError is null) return await WaitForMarkAsync(Read(existing), device is not null, ct);
                 }
-                if (result.Mark.Length == 0) return FiscalResult.Fail("Η πληρωμή στο τερματικό δεν ολοκληρώθηκε.");
+                return FiscalResult.Fail(error);
             }
-            return result;
+            return await WaitForMarkAsync(Read(node), device is not null, ct);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -233,6 +248,29 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// Χωρίς ΜΑΡΚ ακόμα: είτε κάρτα που περιμένει το τερματικό, είτε απάντηση <c>{"status":"pending","invoice_id":…}</c>.
+    /// Ρωτάμε το <c>GET /invoices/:id</c> μέχρι να βγει — κάρτα ως 2 λεπτά (ο πελάτης βάζει την κάρτα), αλλιώς ως 30''.
+    /// Παραστατικό που ο Wrapp κράτησε επειδή δεν έφτασε την ΑΑΔΕ (transmission_failure) ΔΕΝ περιμένει: έχει ήδη έγκυρο QR και
+    /// το στέλνει μόνος του.
+    /// </summary>
+    private async Task<FiscalResult> WaitForMarkAsync(FiscalResult result, bool card, CancellationToken ct)
+    {
+        if (result.Mark.Length > 0 || result.PendingTransmission || result.ProviderId.Length == 0)
+            return result.Mark.Length > 0 || result.PendingTransmission
+                ? result
+                : FiscalResult.Fail("Ο Wrapp δεν έδωσε ΜΑΡΚ ούτε αριθμό παραστατικού.");
+        var tries = card ? 60 : 15;
+        for (var i = 0; i < tries && result.Mark.Length == 0 && !result.PendingTransmission; i++)
+        {
+            await Task.Delay(2000, ct);
+            var (again, againError) = await SendAsync(HttpMethod.Get, "/invoices/" + result.ProviderId, null, ct);
+            if (againError is null) result = Read(again) with { ProviderId = result.ProviderId };
+        }
+        if (result.Mark.Length > 0 || result.PendingTransmission) return result;
+        return FiscalResult.Fail(card ? "Η πληρωμή στο τερματικό δεν ολοκληρώθηκε." : "Ο Wrapp δεν έβγαλε ακόμα ΜΑΡΚ — θα ξαναδοκιμάσει.");
+    }
+
     private static FiscalResult Read(JsonNode? node)
     {
         var n = node?["data"] is JsonObject d ? (d["attributes"] as JsonObject ?? d) : node;
@@ -241,7 +279,8 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         return new FiscalResult
         {
             Ok = true,
-            ProviderId = S("id").Length > 0 ? S("id") : node?["data"]?["id"]?.ToString() ?? "",
+            // «invoice_id»: η απάντηση {"status":"pending","invoice_id":…} (τεκμηρίωση Wrapp).
+            ProviderId = S("id").Length > 0 ? S("id") : node?["data"]?["id"]?.ToString() ?? S("invoice_id"),
             Mark = mark,
             Uid = S("my_data_uid"),
             QrUrl = S("my_data_qr_url"),
@@ -259,8 +298,12 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         try
         {
             if (await LoginAsync(ct) is { } loginError) return FiscalResult.Fail(loginError);
-            var (node, error) = await SendAsync(HttpMethod.Post, "/invoices/cancel_catering_order_note", new { mark }, ct);
-            return error is null ? Read(node) : FiscalResult.Fail(error);
+            // Κόβει νέο 8.6 που ακυρώνει τα δελτία στο correlated_invoices — από το βιβλίο των δελτίων (τεκμηρίωση Wrapp).
+            var (book, bookError) = await BookAsync(FiscalDocType.OrderSlip, ct);
+            if (bookError is not null) return FiscalResult.Fail(bookError);
+            var body = new Dictionary<string, object> { ["billing_book_id"] = book!, ["correlated_invoices"] = new[] { mark } };
+            var (node, error) = await SendAsync(HttpMethod.Post, "/invoices/cancel_catering_order_note", body, ct);
+            return error is null ? await WaitForMarkAsync(Read(node), false, ct) : FiscalResult.Fail(error);
         }
         catch (HttpRequestException ex)
         {
