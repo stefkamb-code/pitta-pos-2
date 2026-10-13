@@ -33,12 +33,14 @@ public static class FiscalDocumentBuilder
 
     /// <summary>Απόδειξη για όρθιο, διανομή ή εφαρμογή — ή για ένα άτομο τραπεζιού (τότε με τα ΜΑΡΚ των δελτίων).</summary>
     public static FiscalDocument Receipt(IEnumerable<TillLine> lines, decimal total, FiscalPay pay, string externalId,
-        string terminalId = "", string tableName = "", string providerTableRef = "", IReadOnlyList<string>? slips = null) => new()
+        string terminalId = "", string tableName = "", string providerTableRef = "", IReadOnlyList<string>? slips = null,
+        bool preload = false) => new()
     {
         Type = FiscalDocType.RetailReceipt,
         Lines = Lines(lines, total),
         Pay = pay,
         TerminalId = pay == FiscalPay.Card ? terminalId : "",
+        Preload = pay == FiscalPay.Card && preload,
         TableName = tableName,
         ProviderTableRef = providerTableRef,
         CorrelatedMarks = slips ?? [],

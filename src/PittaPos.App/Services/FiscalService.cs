@@ -79,7 +79,7 @@ public sealed class FiscalService
                 _journal = new FiscalJournal(new FileFiscalJournalStore(Path.Combine(dir, "fiscal-journal.json")), StorePrefix());
                 _journal.Changed += () => Changed?.Invoke();
             }
-            _journal.TerminalId = SiteLinkService.Instance.Fiscal.Terminals.FirstOrDefault()?.TerminalId ?? "";
+            _journal.TerminalId = CounterTerminal();
             return _journal;
         }
     }
@@ -120,7 +120,8 @@ public sealed class FiscalService
         try
         {
             await journal.ProcessAsync(SiteLinkService.Instance.Provider);
-            PrintIssued(journal);
+            // Χαρτί ΔΕΝ βγαίνει μόνο του (απόφαση χρήστη 13/10/2026): η απόδειξη τυπώνεται όποτε τη ζητήσει το μαγαζί
+            // (βλ. PrintReceipts), το δελτίο τραπεζιού ποτέ.
             AskAboutCards(journal);
         }
         finally { _busy = false; }
@@ -140,8 +141,61 @@ public sealed class FiscalService
                 j.TableRound(order.OrderNumber, day, Session(table, order), "Τραπέζι " + table, items);
             return;
         }
-        j.Sale(order.OrderNumber, day, items, _payHint ?? PayOf(order));
+        var pay = _payHint ?? PayOf(order);
+        // Διανομή (και BOX, που το φέρνει δικός μας διανομέας) με κάρτα: το ποσό προφορτώνεται στο φορητό POS του διανομέα
+        // και πληρώνεται στην πόρτα. Όρθιος: η κάρτα πάει ΑΜΕΣΩΣ στο τερματικό του μαγαζιού.
+        var ownDelivery = order.Type == OrderType.Delivery || (order.Type == OrderType.Apps && order.PaymentMethod is not null);
+        j.Sale(order.OrderNumber, day, items, pay, ownDelivery && pay == FiscalPay.Card ? DeliveryTerminal() : "");
     });
+
+    /// <summary>
+    /// Τυπώνει την απόδειξη (ΜΑΡΚ + QR) μιας παραγγελίας — μόνο όταν το ζητήσει το μαγαζί (Ιστορικό, ή κινητό μέσω
+    /// /api/fiscal/print). Από το δεύτερο ταμείο πάει στο κύριο, που έχει τις αποδείξεις και τον εκτυπωτή. Επιστρέφει πόσες
+    /// τυπώθηκαν (0 = δεν έχει κοπεί ακόμα απόδειξη, π.χ. δεν πληρώθηκε ή περιμένει internet).
+    /// </summary>
+    public int PrintReceipts(IEnumerable<int> orderNumbers)
+    {
+        var orders = orderNumbers.ToList();
+        if (RemoteSync.IsClient)
+        {
+            _ = RemoteSync.PostAsync("/api/sync/fiscal/print", new PrintRequest(orders, null));
+            return -1;
+        }
+        if (Journal is not { } journal)
+            return 0;
+        var fiscal = SiteLinkService.Instance.Fiscal;
+        var s = SettingsStore.Instance.Settings;
+        var printed = 0;
+        foreach (var e in journal.ReceiptsFor(orders))
+        {
+            try
+            {
+                var text = FiscalReceiptText.Build(e, s.ReceiptTitle, s.ShopAddress, fiscal.Afm, SiteLinkService.Instance.Provider.Name);
+                ReceiptPrinter.PrintFiscal(text, e.Result?.QrUrl ?? "", fiscal.Receipt == "other" ? fiscal.ReceiptPrinter : "");
+                journal.MarkPrinted(e.Id);
+                printed++;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("fiscal", $"Η απόδειξη {e.Result?.Series} {e.Result?.Number} δεν τυπώθηκε: {ex.Message}");
+            }
+        }
+        return printed;
+    }
+
+    /// <summary>Οι αποδείξεις του τραπεζιού όπως είναι ανοιχτό τώρα (όλα τα άτομα/γύροι) — για το κινητό.</summary>
+    public int PrintTableReceipts(int table)
+    {
+        if (!TableStatusService.Instance.OpenSince.TryGetValue(table, out var since))
+            return 0;
+        var orders = SalesStatsService.Instance.Orders
+            .Where(o => o.Type == OrderType.Table && TableOf(o) == table && (o.TableOpenedAt ?? o.PlacedAt) >= since)
+            .Select(o => o.OrderNumber);
+        return PrintReceipts(orders);
+    }
+
+    /// <summary>Αίτημα τυπώματος από το δεύτερο ταμείο / το κινητό: παραγγελίες, ή ολόκληρο τραπέζι.</summary>
+    public sealed record PrintRequest(List<int>? OrderNumbers, int? Table);
 
     /// <summary>Πληρώθηκε ένα τεμάχιο (ή μια γραμμή) τραπεζιού — TableSettlementService, κύριο ταμείο. Τα τεμάχια του
     /// ίδιου πατήματος γίνονται μία απόδειξη.</summary>
@@ -228,26 +282,23 @@ public sealed class FiscalService
         return key.Length == 0 ? "pos" : "s" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..6].ToLowerInvariant();
     }
 
-    /// <summary>Κάθε απόδειξη/πιστωτικό που κόπηκε → το δικό της χαρτί με ΜΑΡΚ και QR, μία φορά.</summary>
-    private static void PrintIssued(FiscalJournal journal)
+    /// <summary>Το τερματικό του ταμείου (όρθιος, τραπέζι): το πρώτο που ΔΕΝ είναι του διανομέα.</summary>
+    private static string CounterTerminal()
     {
-        var fiscal = SiteLinkService.Instance.Fiscal;
-        foreach (var e in journal.ToPrint)
-        {
-            // Σημειώνεται ΠΡΩΤΑ: αν σκάσει ο εκτυπωτής, η απόδειξη έχει ήδη κοπεί — δεν ξανατυπώνεται σε κάθε γύρο.
-            journal.MarkPrinted(e.Id);
-            try
-            {
-                var s = SettingsStore.Instance.Settings;
-                var text = FiscalReceiptText.Build(e, s.ReceiptTitle, s.ShopAddress, fiscal.Afm, SiteLinkService.Instance.Provider.Name);
-                ReceiptPrinter.PrintFiscal(text, e.Result?.QrUrl ?? "", fiscal.Receipt == "other" ? fiscal.ReceiptPrinter : "");
-            }
-            catch (Exception ex)
-            {
-                AppLog.Write("fiscal", $"Η απόδειξη {e.Result?.Series} {e.Result?.Number} κόπηκε αλλά δεν τυπώθηκε: {ex.Message}");
-            }
-        }
+        var terminals = SiteLinkService.Instance.Fiscal.Terminals;
+        return (terminals.FirstOrDefault(t => !IsDelivery(t)) ?? terminals.FirstOrDefault())?.TerminalId ?? "";
     }
+
+    /// <summary>Το φορητό POS του διανομέα: όποιο λέγεται «ΔΙΑΝΟΜ…» στις Ρυθμίσεις του site, αλλιώς το δεύτερο, αλλιώς το
+    /// ίδιο με του ταμείου.</summary>
+    private static string DeliveryTerminal()
+    {
+        var terminals = SiteLinkService.Instance.Fiscal.Terminals;
+        return (terminals.FirstOrDefault(IsDelivery) ?? terminals.Skip(1).FirstOrDefault() ?? terminals.FirstOrDefault())?.TerminalId ?? "";
+    }
+
+    private static bool IsDelivery(FiscalTerminal t) =>
+        t.Name.ToUpperInvariant().Replace('Ά', 'Α').Replace('Έ', 'Ε').Contains("ΔΙΑΝΟΜ") || t.Name.Contains("delivery", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Κάρτα που δεν πέρασε: ΜΙΑ ερώτηση στη μέση — «ξανά στο τερματικό» ή «μετρητά». Αν κλείσει χωρίς
     /// απάντηση, ξαναρωτάει σε ένα λεπτό· η απόδειξη δεν χάνεται.</summary>

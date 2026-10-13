@@ -110,6 +110,19 @@ public static class WaiterApiService
             // πειράζει το UI thread από τα κουμπιά ☀/🌙 της κεφαλίδας.
             app.MapGet("/api/shift", (HttpContext ctx) =>
                 NoPin(ctx) ?? Results.Json(OnUi(() => new ShiftDto(SettingsStore.Instance.Settings.IsEveningShift))));
+            // Πάροχος ΑΑΔΕ: ο σερβιτόρος τυπώνει την απόδειξη (ΜΑΡΚ + QR) όποτε αποφασίσει — ενός τραπεζιού ή παραγγελιών.
+            // Χωρίς πάροχο απαντά printed = 0 και δεν τυπώνει τίποτα.
+            app.MapGet("/api/fiscal", (HttpContext ctx) =>
+                NoPin(ctx) ?? Results.Json(OnUi(() => new FiscalService.SyncDto(FiscalService.Instance.Active))));
+            app.MapPost("/api/fiscal/print", async (HttpContext ctx) =>
+            {
+                if (NoPin(ctx) is { } denied) return denied;
+                var req = await ctx.Request.ReadFromJsonAsync<FiscalService.PrintRequest>();
+                var printed = req is null ? 0 : OnUi(() => req.Table is int t
+                    ? FiscalService.Instance.PrintTableReceipts(t)
+                    : FiscalService.Instance.PrintReceipts(req.OrderNumbers ?? []));
+                return Results.Json(new { printed });
+            });
             // OnUi όπως όλα τα υπόλοιπα: διαβάζει τον κατάλογο (κατηγορίες/έξτρα) που μπορεί να τον
             // αλλάζει εκείνη τη στιγμή ο ταμίας από τη Διαχείριση — χωρίς αυτό, μια ταυτόχρονη
             // επεξεργασία μενού και ένα άνοιγμα προϊόντος από το κινητό μπορούσαν να συμπέσουν.
@@ -279,6 +292,14 @@ public static class WaiterApiService
         // ---- πάροχος ΑΑΔΕ: αν είναι ενεργός, ο ΟΡΘΙΟΣ ρωτάει ΜΕΤΡΗΤΑ/ΚΑΡΤΑ και στο δεύτερο ταμείο ----
         app.MapGet("/api/sync/fiscal", () =>
             Results.Json(OnUi(() => new FiscalService.SyncDto(FiscalService.Instance.Active))));
+        app.MapPost("/api/sync/fiscal/print", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<FiscalService.PrintRequest>();
+            if (req is not null) OnUi(() => req.Table is int t
+                ? FiscalService.Instance.PrintTableReceipts(t)
+                : FiscalService.Instance.PrintReceipts(req.OrderNumbers ?? []));
+            return Results.Ok();
+        });
 
         // ---- εξοφλήσεις τραπεζιών ----
         app.MapGet("/api/sync/table-settlements", () =>

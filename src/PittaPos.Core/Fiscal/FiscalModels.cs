@@ -50,6 +50,11 @@ public sealed class FiscalDocument
     public FiscalPay Pay { get; init; } = FiscalPay.Cash;
     /// <summary>Για κάρτα: σε ποιο τερματικό πάει το ποσό (το Terminal ID από τις Ρυθμίσεις του μαγαζιού).</summary>
     public string TerminalId { get; init; } = "";
+    /// <summary>
+    /// Διανομή με κάρτα: η απόδειξη κόβεται τώρα και το ποσό «προφορτώνεται» στο φορητό POS του διανομέα (AADE preloaded)
+    /// — πληρώνεται στην πόρτα, όχι τη στιγμή της παραγγελίας. Ο πάροχος συμπληρώνει μόνος του την κάρτα μετά.
+    /// </summary>
+    public bool Preload { get; init; }
     /// <summary>Για τραπέζι: «Τραπέζι 5». Ίδιο σε όλα τα δελτία και στην απόδειξη που τα κλείνει.</summary>
     public string TableName { get; init; } = "";
     /// <summary>Ό,τι μας έδωσε ο πάροχος για το ανοιχτό τραπέζι στο πρώτο δελτίο (π.χ. το catering_table_id του Wrapp).</summary>

@@ -30,9 +30,10 @@ public sealed class SimulatedProvider(bool fast = false) : IFiscalProvider
         if (doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip && doc.TerminalId.Length == 0)
             return FiscalResult.Fail("Δεν έχει οριστεί τερματικό κάρτας στις Ρυθμίσεις.");
 
-        // Κάρτα: «ο πελάτης βάζει την κάρτα» — λίγη αναμονή, όπως στο αληθινό τερματικό.
+        // Κάρτα: «ο πελάτης βάζει την κάρτα» — λίγη αναμονή, όπως στο αληθινό τερματικό. Προφόρτωση (διανομή): καμία
+        // αναμονή, η πληρωμή γίνεται αργότερα στην πόρτα.
         if (!fast)
-            await Task.Delay(doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip ? 1500 : 150, ct);
+            await Task.Delay(doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip && !doc.Preload ? 1500 : 150, ct);
 
         lock (_gate)
         {
@@ -50,7 +51,8 @@ public sealed class SimulatedProvider(bool fast = false) : IFiscalProvider
                 QrUrl = "https://example.invalid/simulated/" + mark,
                 Series = doc.Type switch { FiscalDocType.OrderSlip => "ΔΠ", FiscalDocType.RetailCredit => "ΠΛ", FiscalDocType.SalesInvoice => "ΤΠ", _ => "Α" },
                 Number = _numbers[code],
-                PosTxn = doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip ? "SIM-" + Random.Shared.Next(100000, 999999) : "",
+                // Προφόρτωση: η συναλλαγή γίνεται αργότερα στην πόρτα — εδώ δεν υπάρχει ακόμα.
+                PosTxn = doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip && !doc.Preload ? "SIM-" + Random.Shared.Next(100000, 999999) : "",
                 ProviderId = Guid.NewGuid().ToString(),
                 ProviderTableRef = doc.TableName.Length > 0 ? (doc.ProviderTableRef.Length > 0 ? doc.ProviderTableRef : "table-" + Guid.NewGuid().ToString("N")[..8]) : "",
             };

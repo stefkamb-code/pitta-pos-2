@@ -140,13 +140,18 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         _ => 0,
     };
 
-    /// <summary>Χαρακτηρισμός εσόδου myDATA. Λιανική εστίασης: παροχή υπηρεσιών, ιδιωτική πελατεία. Το δελτίο 8.6 δεν
-    /// είναι έσοδο (category1_95). Το τιμολόγιο: χονδρική σε επιτηδευματία.</summary>
+    /// <summary>
+    /// Χαρακτηρισμός εσόδου myDATA. Απόφαση χρήστη 13/10/2026: «φαγητά πουλάμε, όχι υπηρεσίες» → πώληση αγαθών
+    /// (category1_1), όπως και τα παραδείγματα του Wrapp — αλλάζει ΕΔΩ αν πει άλλο ο λογιστής. Λιανική = ιδιωτική πελατεία
+    /// (E3_561_003), τιμολόγιο = χονδρική σε επιτηδευματία (E3_561_001). Το δελτίο 8.6 δεν είναι έσοδο (category1_95).
+    /// </summary>
+    private const string SalesCategory = "category1_1";
+
     private static (string Category, string Type) Classification(FiscalDocType t) => t switch
     {
         FiscalDocType.OrderSlip => ("category1_95", "_"),
-        FiscalDocType.SalesInvoice => ("category1_3", "E3_561_001"),
-        _ => ("category1_3", "E3_561_003"),
+        FiscalDocType.SalesInvoice => (SalesCategory, "E3_561_001"),
+        _ => (SalesCategory, "E3_561_003"),
     };
 
     public static object Payload(FiscalDocument doc, string bookId, string? deviceId)
@@ -179,6 +184,9 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         };
         if (doc.ExternalId.Length > 0) body["external_id"] = doc.ExternalId;
         if (deviceId is not null) body["pos_device_id"] = deviceId;
+        // Διανομή με κάρτα: προφόρτωση στο φορητό POS του διανομέα — η απόδειξη κόβεται τώρα και ο Wrapp τη συμπληρώνει με
+        // την κάρτα όταν πληρώσει ο πελάτης στην πόρτα (τεκμηρίωση Wrapp, aade_preloaded).
+        if (doc.Preload && deviceId is not null) body["aade_preloaded"] = true;
         if (doc.Type == FiscalDocType.OrderSlip)
         {
             // Το πρώτο δελτίο ανοίγει το τραπέζι με το όνομα· τα επόμενα πάνε στο catering_table_id που γύρισε.
@@ -231,11 +239,12 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
                 if (doc.ExternalId.Length > 0 && error.Contains("external_id", StringComparison.OrdinalIgnoreCase))
                 {
                     var (existing, existingError) = await SendAsync(HttpMethod.Get, "/invoices/" + Uri.EscapeDataString(doc.ExternalId), null, ct);
-                    if (existingError is null) return await WaitForMarkAsync(Read(existing), device is not null, ct);
+                    if (existingError is null) return await WaitForMarkAsync(Read(existing), device is not null && !doc.Preload, ct);
                 }
                 return FiscalResult.Fail(error);
             }
-            return await WaitForMarkAsync(Read(node), device is not null, ct);
+            // Προφόρτωση: δεν περιμένουμε τον πελάτη (είναι ακόμα στο σπίτι του) — μόνο το ΜΑΡΚ της απόδειξης.
+            return await WaitForMarkAsync(Read(node), device is not null && !doc.Preload, ct);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {

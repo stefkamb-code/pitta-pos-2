@@ -20,6 +20,14 @@ public partial class HistoryWindow : Window
             "Βάλε τον προσωπικό σου κωδικό για την αλλαγή");
         Closed += (_, _) => _vm.Detach();
         ApplyReceiptSettings();
+        FiscalReceiptButton.Visibility = FiscalService.Instance.ProviderEnabled ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Η απόδειξη του παρόχου ΑΑΔΕ (ΜΑΡΚ + QR) της επιλεγμένης παραγγελίας — μόνο όταν τη ζητήσει το μαγαζί.</summary>
+    private void FiscalReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedOrder is { } order)
+            FiscalService.Instance.PrintReceipts([order.OrderNumber]);
     }
 
     /// <summary>Εφαρμόζει τις ρυθμίσεις «τι δείχνει η απόδειξη».</summary>

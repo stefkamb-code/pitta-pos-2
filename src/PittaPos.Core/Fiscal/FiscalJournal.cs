@@ -66,8 +66,11 @@ public sealed class FiscalEntry
     public FiscalEntryState State { get; set; }
     public List<FiscalItem> Items { get; set; } = [];
     public FiscalPay Pay { get; set; }
-    /// <summary>Το ποσό πάει στο τερματικό κάρτας (πληρωμή ή επιστροφή). Όχι στις διορθώσεις εκ των υστέρων.</summary>
+    /// <summary>Το ποσό πάει στο τερματικό κάρτας ΤΩΡΑ (πληρωμή ή επιστροφή) — ο πελάτης είναι μπροστά του.</summary>
     public bool UseTerminal { get; set; }
+    /// <summary>Διανομή με κάρτα: το ποσό προφορτώνεται σε ΑΥΤΟ το τερματικό (φορητό του διανομέα) και πληρώνεται στην πόρτα —
+    /// χωρίς αναμονή εδώ, χωρίς ερώτηση στον ταμία· αν αποτύχει η αποστολή, ξαναδοκιμάζεται σαν όλα τα άλλα.</summary>
+    public string PreloadTerminal { get; set; } = "";
     /// <summary>Το «τραπέζι από τη στιγμή που άνοιξε ως τη στιγμή που έκλεισε» — όλα τα δελτία και οι αποδείξεις του.</summary>
     public string TableSession { get; set; } = "";
     public string TableName { get; set; } = "";
@@ -213,6 +216,17 @@ public sealed class FiscalJournal
         }
     }
 
+    /// <summary>Οι αποδείξεις που ισχύουν (κόπηκαν και δεν πιστώθηκαν ολόκληρες) για αυτές τις παραγγελίες — για το «τύπωσε
+    /// απόδειξη» όποτε το ζητήσει το μαγαζί, από τον υπολογιστή ή το κινητό.</summary>
+    public IReadOnlyList<FiscalEntry> ReceiptsFor(IEnumerable<int> orderNumbers)
+    {
+        var orders = orderNumbers.ToHashSet();
+        lock (_gate)
+            return [.. _entries.Where(e => e.Kind == FiscalEntryKind.Receipt && e.State == FiscalEntryState.Issued
+                                           && e.Items.Any(i => !i.IsVoid && orders.Contains(i.Order)))
+                .OrderBy(e => e.CreatedAt)];
+    }
+
     public void MarkPrinted(string id)
     {
         lock (_gate)
@@ -229,17 +243,21 @@ public sealed class FiscalJournal
     // ================================================================ τι έγινε στο ταμείο
 
     /// <summary>Παραγγελία εκτός τραπεζιού (όρθιος, διανομή, παραλαβή, εφαρμογή) → απόδειξη.</summary>
-    public FiscalEntry? Sale(int orderNumber, DateTime businessDay, IEnumerable<FiscalItem> items, FiscalPay pay)
+    /// <param name="preloadTerminal">Διανομή με κάρτα: το φορητό POS του διανομέα — το ποσό προφορτώνεται εκεί και πληρώνεται
+    /// στην πόρτα. Κενό = η κάρτα πάει ΤΩΡΑ στο τερματικό του μαγαζιού (όρθιος).</param>
+    public FiscalEntry? Sale(int orderNumber, DateTime businessDay, IEnumerable<FiscalItem> items, FiscalPay pay, string preloadTerminal = "")
     {
         var list = Billable(items);
         if (list.Count == 0) return null;
+        var preload = pay == FiscalPay.Card && preloadTerminal.Length > 0;
         return Add(new FiscalEntry
         {
             Id = NewId(businessDay, orderNumber, "r"),
             Kind = FiscalEntryKind.Receipt,
             Items = list,
             Pay = pay,
-            UseTerminal = pay == FiscalPay.Card,
+            UseTerminal = pay == FiscalPay.Card && !preload,
+            PreloadTerminal = preload ? preloadTerminal : "",
         });
     }
 
@@ -402,8 +420,10 @@ public sealed class FiscalJournal
                         if (e.Items.All(i => i.Order == orderNumber))
                         {
                             e.Pay = pay;
-                            // Κάρτα με πάροχο = πάντα μέσα από το τερματικό· απόδειξη κάρτας χωρίς συναλλαγή δεν υπάρχει.
-                            e.UseTerminal = pay == FiscalPay.Card;
+                            // Κάρτα με πάροχο = πάντα μέσα από τερματικό (τώρα, ή προφορτωμένη στον διανομέα)· απόδειξη κάρτας
+                            // χωρίς συναλλαγή δεν υπάρχει.
+                            if (pay != FiscalPay.Card) e.PreloadTerminal = "";
+                            e.UseTerminal = pay == FiscalPay.Card && e.PreloadTerminal.Length == 0;
                             e.State = FiscalEntryState.Waiting;
                         }
                         else
@@ -558,8 +578,10 @@ public sealed class FiscalJournal
             {
                 var slips = e.Correlates.Select(Find).Where(s => s is { IsLive: true }).ToList();
                 if (slips.Any(s => s!.State != FiscalEntryState.Issued)) return null;
-                var doc = FiscalDocumentBuilder.Receipt(lines, e.Total, e.Pay, e.Id, terminal, e.TableName,
-                    e.TableSession.Length > 0 ? TableRef(e.TableSession) : "", [.. slips.Select(s => s!.Mark).Where(m => m.Length > 0)]);
+                var preload = e.Pay == FiscalPay.Card && e.PreloadTerminal.Length > 0;
+                var doc = FiscalDocumentBuilder.Receipt(lines, e.Total, e.Pay, e.Id, preload ? e.PreloadTerminal : terminal, e.TableName,
+                    e.TableSession.Length > 0 ? TableRef(e.TableSession) : "", [.. slips.Select(s => s!.Mark).Where(m => m.Length > 0)],
+                    preload);
                 return () => provider.IssueAsync(doc, ct);
             }
             case FiscalEntryKind.Credit:
@@ -597,13 +619,14 @@ public sealed class FiscalJournal
         if (e.Kind == FiscalEntryKind.Receipt)
         {
             // Πληρώθηκε: πιστωτικό για ό,τι ακυρώθηκε, με τον ίδιο τρόπο — σε κάρτα η επιστροφή πάει στο τερματικό.
+            var creditPay = CreditPay(e);
             Add(new FiscalEntry
             {
                 Id = NewId(DayOf(e), undone[0].Order, "c"),
                 Kind = FiscalEntryKind.Credit,
                 Items = [.. undone],
-                Pay = e.Pay,
-                UseTerminal = e.Pay == FiscalPay.Card && e.UseTerminal,
+                Pay = creditPay,
+                UseTerminal = creditPay == FiscalPay.Card && e.UseTerminal,
                 Correlates = [e.Id],
                 TableSession = e.TableSession,
                 TableName = e.TableName,
@@ -653,13 +676,14 @@ public sealed class FiscalJournal
     {
         var moved = e.Items.Where(i => !i.IsVoid && i.Order == orderNumber).ToList();
         if (moved.Count == 0) return;
+        var creditPay = CreditPay(e);
         Add(new FiscalEntry
         {
             Id = NewId(DayOf(e), orderNumber, "c"),
             Kind = FiscalEntryKind.Credit,
             Items = moved,
-            Pay = e.Pay,
-            UseTerminal = e.Pay == FiscalPay.Card && e.UseTerminal,
+            Pay = creditPay,
+            UseTerminal = creditPay == FiscalPay.Card && e.UseTerminal,
             Correlates = [e.Id],
             TableSession = e.TableSession,
             TableName = e.TableName,
@@ -675,11 +699,20 @@ public sealed class FiscalJournal
         Kind = FiscalEntryKind.Receipt,
         Items = items,
         Pay = pay,
-        UseTerminal = pay == FiscalPay.Card,
+        PreloadTerminal = pay == FiscalPay.Card ? e.PreloadTerminal : "",
+        UseTerminal = pay == FiscalPay.Card && e.PreloadTerminal.Length == 0,
         TableSession = e.TableSession,
         TableName = e.TableName,
         Correlates = [.. e.Correlates],
     };
+
+    /// <summary>Με ποιον τρόπο πιστώνεται μια απόδειξη: ίδιο με τον δικό της — εκτός από τη διανομή με κάρτα που δεν
+    /// πληρώθηκε ποτέ στην πόρτα (προφόρτωση χωρίς συναλλαγή): εκείνη ήταν ακόμα «επί πιστώσει», έτσι πιστώνεται και
+    /// καμία επιστροφή δεν πάει σε κάρτα που δεν χρεώθηκε.</summary>
+    private static FiscalPay CreditPay(FiscalEntry receipt) =>
+        receipt.Pay == FiscalPay.Card && receipt.PreloadTerminal.Length > 0 && (receipt.Result?.PosTxn ?? "").Length == 0
+            ? FiscalPay.Online
+            : receipt.Pay;
 
     private bool IsCancelledSlip(FiscalEntry slip) =>
         _entries.Any(o => o.IsLive && o.Kind == FiscalEntryKind.SlipCancel && o.Correlates.Contains(slip.Id));

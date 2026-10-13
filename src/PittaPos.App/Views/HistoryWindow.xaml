@@ -618,6 +618,11 @@
                         <Button Content="ΕΠΑΝΕΚΤΥΠΩΣΗ ΑΠΟΔΕΙΞΗΣ" Style="{StaticResource PrimaryButton}"
                                 Width="420" Height="44" FontSize="13.5" HorizontalContentAlignment="Center"
                                 HorizontalAlignment="Left" Margin="0,18,0,0" Click="Reprint_Click"/>
+                        <!-- ΜΟΝΟ με πάροχο ΑΑΔΕ (βλ. HistoryWindow.xaml.cs): η απόδειξη του παρόχου (ΜΑΡΚ + QR) δεν τυπώνεται
+                             μόνη της — όποτε τη ζητήσει το μαγαζί. Χωρίς πάροχο, το Ιστορικό μένει όπως ήταν. -->
+                        <Button x:Name="FiscalReceiptButton" Content="🧾 ΑΠΟΔΕΙΞΗ (ΜΑΡΚ)" Style="{StaticResource FlatButton}"
+                                Width="420" Height="40" FontSize="13" FontWeight="Bold" HorizontalContentAlignment="Center"
+                                HorizontalAlignment="Left" Margin="0,8,0,0" Click="FiscalReceipt_Click" Visibility="Collapsed"/>
 
                         <Border Width="420" HorizontalAlignment="Left" Margin="0,14,0,0"
                                 BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="0,8,0,0">

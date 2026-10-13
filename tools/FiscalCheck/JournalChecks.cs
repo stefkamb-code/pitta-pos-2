@@ -67,6 +67,33 @@ static class JournalChecks
             Check(docs[2].Doc.Pay == FiscalPay.Online && docs[2].Doc.TerminalId == "", "Πληρωμένη στην εφαρμογή: χωρίς τερματικό");
         }
 
+        Console.WriteLine("  — διανομή με κάρτα: προφόρτωση στο φορητό POS του διανομέα");
+        {
+            var (j, inner, chaos, _) = New();
+            j.Sale(5, Day, [Food(5, 0, "ΠΙΤΤΑ ΓΥΡΟΣ", 3, 21.60m)], FiscalPay.Card, preloadTerminal: "T-DRIVER");
+            await j.ProcessAsync(inner);
+            var d = inner.Issued.Last().Doc;
+            Check(d.Pay == FiscalPay.Card && d.Preload && d.TerminalId == "T-DRIVER",
+                "Η απόδειξη κόβεται τώρα και το ποσό προφορτώνεται στο POS του διανομέα (όχι του ταμείου)");
+            Check(inner.Issued.Last().Result.PosTxn == "", "Καμία συναλλαγή ακόμα — ο πελάτης πληρώνει στην πόρτα");
+            chaos.Down = true;
+            j.Sale(6, Day, [Food(6, 0, "ΠΙΤΤΑ", 1, 7.20m)], FiscalPay.Card, preloadTerminal: "T-DRIVER");
+            await j.ProcessAsync(chaos);
+            Check(j.NeedsDecision.Count == 0 && j.WaitingCount == 1,
+                "Αν δεν φύγει, ξαναδοκιμάζεται μόνη της — ΧΩΡΙΣ ερώτηση στον ταμία (ο πελάτης δεν είναι μπροστά του)");
+            chaos.Down = false;
+            Later(TimeSpan.FromMinutes(1));
+            await j.ProcessAsync(chaos);
+            Check(j.WaitingCount == 0 && inner.Issued.Last().Doc.Preload, "…και φεύγει μόλις επανέλθει");
+            j.ChangePayment(6, FiscalPay.Cash);
+            await j.ProcessAsync(inner);
+            var change = inner.Issued.TakeLast(2).ToList();
+            Check(change[0].Doc.Type == FiscalDocType.RetailCredit && change[0].Doc.Pay == FiscalPay.Online && change[0].Doc.TerminalId == ""
+                  && change[1].Doc.Pay == FiscalPay.Cash && change[1].Doc.TerminalId == "",
+                "Στην πόρτα πλήρωσε τελικά μετρητά → πιστωτικό «επί πιστώσει» (η κάρτα δεν χρεώθηκε ποτέ) και απόδειξη μετρητών");
+            Check(Net(j, 6) == 7.20m, "Ο τζίρος μένει 7,20");
+        }
+
         Console.WriteLine("  — τραπέζι: γύροι, άτομα, κλείσιμο");
         {
             var (j, inner, _, _) = New();
