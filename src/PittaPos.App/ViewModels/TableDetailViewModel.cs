@@ -283,6 +283,8 @@ public partial class TableDetailViewModel : ObservableObject
         // («Collection was modified») στο δεύτερο επιλεγμένο προϊόν.
         foreach (var l in Rounds.SelectMany(r => r.Lines).Where(l => l.IsSelected).ToList())
             _settlement.Settle(_table, l.OrderNumber, l.LineIndex, l.Unit, method, l.Revenue);
+        // Με πάροχο: ένα πάτημα = μία απόδειξη, και η κάρτα πάει ΤΩΡΑ στο τερματικό. Χωρίς πάροχο, τίποτα.
+        FiscalService.Instance.EndGather();
         Refresh();
         AutoCloseIfNothingOwed();
     }
@@ -328,6 +330,7 @@ public partial class TableDetailViewModel : ObservableObject
     {
         foreach (var l in Rounds.SelectMany(r => r.Lines).Where(l => !l.IsSettled).ToList())
             _settlement.Settle(_table, l.OrderNumber, l.LineIndex, l.Unit, method, l.Revenue);
+        FiscalService.Instance.EndGather();
         TableStatusService.Instance.MarkClosed(_table);
     }
 

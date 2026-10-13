@@ -22,6 +22,13 @@ public partial class DayReportWindow : Window
         ReportText.Text = report;
     }
 
+    /// <summary>Το QR της απόδειξης του παρόχου, κάτω από το κείμενο (βλ. ReceiptPrinter.PrintFiscal).</summary>
+    public void SetQr(ImageSource? qr)
+    {
+        QrImage.Source = qr;
+        QrImage.Visibility = qr is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     /// <summary>
     /// Μικραίνει τη γραμματοσειρά όσο χρειάζεται ώστε η ΠΙΟ ΜΑΚΡΙΑ γραμμή της αναφοράς να χωράει
     /// ολόκληρη στο πραγματικό πλάτος του χαρτιού. Η αναφορά είναι μονόχωρη με στοιχισμένες στήλες

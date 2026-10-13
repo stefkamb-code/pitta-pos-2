@@ -470,6 +470,7 @@ public partial class OrderWizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Step2Header))]
     [NotifyPropertyChangedFor(nameof(Step2Sub))]
     [NotifyPropertyChangedFor(nameof(DisplayOrderNumber))]
+    [NotifyPropertyChangedFor(nameof(PaymentPromptSub))]
     private OrderType? _orderType;
 
     /// <summary>Το κουμπί «💬 ΣΧΟΛΙΑ ΠΑΡΑΓΓΕΛΙΑΣ» μέσα στα Προϊόντα υπάρχει σε <b>ΚΑΘΕ</b> είδος
@@ -497,8 +498,17 @@ public partial class OrderWizardViewModel : ObservableObject
     /// εμφανιστούν σαν «ανεξόφλητα».</para>
     ///
     /// <para>ΤΡΑΠΕΖΙ/e-food/Wolt δεν το χρειάζονται ούτως ή άλλως.</para>
+    ///
+    /// <para><b>Με πάροχο ΑΑΔΕ ο ΟΡΘΙΟΣ ξαναρωτάει</b>: η απόδειξη κόβεται από το ταμείο, και η ΚΑΡΤΑ στέλνει αμέσως το ποσό
+    /// στο τερματικό για να πληρώσει ο πελάτης (βλ. FiscalService). Χωρίς πάροχο, όπως πριν — καμία ερώτηση.</para>
     /// </summary>
-    public bool NeedsPaymentMethod => ShowCustomerForm;
+    public bool NeedsPaymentMethod => ShowCustomerForm
+        || (OrderType == Core.Models.OrderType.Pickup && FiscalService.Instance.ProviderEnabled);
+
+    /// <summary>Η ερώτηση κάτω από το «Τρόπος πληρωμής»: στον ΟΡΘΙΟ πληρώνει τώρα, στο ταμείο· αλλιώς τον διανομέα.</summary>
+    public string PaymentPromptSub => OrderType == Core.Models.OrderType.Pickup
+        ? "Πώς πληρώνει ο πελάτης;"
+        : "Πώς θα πληρώσει ο πελάτης τον διανομέα;";
 
     /// <summary>Βήμα 2 για ΕΦΑΡΜΟΓΕΣ — αντί για στοιχεία πελάτη (τα έχει ήδη η ίδια η εφαρμογή), επιλογή
     /// πλατφόρμας πρώτα-πρώτα, πριν τα προϊόντα (βλ. SelectAppMethod). Το πεδίο αριθμού παραγγελίας

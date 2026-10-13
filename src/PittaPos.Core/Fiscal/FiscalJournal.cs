@@ -86,6 +86,8 @@ public sealed class FiscalEntry
     public int? PayChangeOrder { get; set; }
     public FiscalPay? PayChangeWhenIssued { get; set; }
     public FiscalResult? Result { get; set; }
+    /// <summary>Το χαρτί της απόδειξης (ΜΑΡΚ + QR) βγήκε — δεν ξανατυπώνεται μόνο του, ούτε μετά από κλείσιμο.</summary>
+    public bool Printed { get; set; }
 
     [JsonIgnore]
     public decimal Total => Items.Sum(i => i.Revenue);
@@ -200,6 +202,27 @@ public sealed class FiscalJournal
         }
     }
 
+    /// <summary>Αποδείξεις και πιστωτικά που κόπηκαν και δεν έχει βγει ακόμα το χαρτί τους.</summary>
+    public IReadOnlyList<FiscalEntry> ToPrint
+    {
+        get
+        {
+            lock (_gate)
+                return [.. _entries.Where(e => e.State == FiscalEntryState.Issued && !e.Printed
+                                               && e.Kind is FiscalEntryKind.Receipt or FiscalEntryKind.Credit)];
+        }
+    }
+
+    public void MarkPrinted(string id)
+    {
+        lock (_gate)
+        {
+            if (Find(id) is not { } e || e.Printed) return;
+            e.Printed = true;
+            Commit();
+        }
+    }
+
     /// <summary>Ανοιχτά δελτία πάνω από <see cref="SlipWarning"/> — να φανούν πριν περάσει το 24ωρο.</summary>
     public IReadOnlyList<FiscalEntry> OverdueSlips => [.. OpenSlips.Where(e => _now() - e.CreatedAt > SlipWarning)];
 
@@ -276,6 +299,23 @@ public sealed class FiscalJournal
                 TableName = tableName,
                 Correlates = slips,
             });
+        }
+    }
+
+    /// <summary>Το πάτημα τελείωσε (όλα τα τεμάχια του έφτασαν μαζί): οι πληρωμές που μάζευαν, φεύγουν ΤΩΡΑ — σε κάρτα, το
+    /// ποσό πάει αμέσως στο τερματικό.</summary>
+    public void EndGather()
+    {
+        lock (_gate)
+        {
+            var any = false;
+            foreach (var e in _entries.Where(e => e.GatherUntil is not null && e.State == FiscalEntryState.Waiting && e.Attempts == 0))
+            {
+                e.GatherUntil = null;
+                e.NextTryAt = null;
+                any = true;
+            }
+            if (any) Commit();
         }
     }
 

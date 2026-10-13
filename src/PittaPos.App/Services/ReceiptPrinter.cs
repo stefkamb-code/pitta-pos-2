@@ -270,7 +270,42 @@ public static class ReceiptPrinter
     /// <summary>Εκτύπωση κειμένου που ήρθε από το δεύτερο ταμείο (βλ. /api/sync/print/text).</summary>
     public static void PrintText(string text, string title) => PrintPlainText(text, title);
 
-    private static void PrintPlainText(string text, string title)
+    public const string FiscalReceiptTitle = "Απόδειξη";
+
+    /// <summary>
+    /// Η απόδειξη του παρόχου ΑΑΔΕ (ΜΑΡΚ + QR) — ΞΕΧΩΡΙΣΤΟ χαρτί από το δελτίο της παραγγελίας, που δεν αλλάζει. Στον
+    /// εκτυπωτή απόδειξης του site αν έχει οριστεί «άλλος», αλλιώς στον ίδιο με τα δελτία. Καλείται μόνο με ενεργό πάροχο.
+    /// </summary>
+    public static void PrintFiscal(string text, string qrUrl, string printerOverride) =>
+        PrintPlainText(text, FiscalReceiptTitle, QrImage(qrUrl), printerOverride);
+
+    private static System.Windows.Media.ImageSource? QrImage(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            using var generator = new QRCoder.QRCodeGenerator();
+            using var data = generator.CreateQrCode(url, QRCoder.QRCodeGenerator.ECCLevel.M);
+            var png = new QRCoder.PngByteQRCode(data).GetGraphic(8);
+            var image = new System.Windows.Media.Imaging.BitmapImage();
+            using var stream = new MemoryStream(png);
+            image.BeginInit();
+            image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception ex)
+        {
+            // Χωρίς QR τυπώνεται κανονικά με το ΜΑΡΚ — καλύτερα αυτό παρά καθόλου χαρτί.
+            AppLog.Write("printer", "QR απόδειξης: " + ex.Message);
+            return null;
+        }
+    }
+
+    private static void PrintPlainText(string text, string title,
+        System.Windows.Media.ImageSource? qr = null, string printerOverride = "")
     {
         // Δεύτερο ταμείο: ίδιος λόγος με το PrintOrder — ο εκτυπωτής είναι δεμένος στο κύριο ταμείο.
         // Χωρίς αυτό, «🖨 ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ» και «ΕΚΤΥΠΩΣΗ ΤΩΡΑ» άνοιγαν εδώ ένα παράθυρο
@@ -282,7 +317,7 @@ public static class ReceiptPrinter
             return;
         }
 
-        var printerName = SettingsStore.Instance.Settings.PrinterName;
+        var printerName = printerOverride.Length > 0 ? printerOverride : SettingsStore.Instance.Settings.PrinterName;
         if (printerName.Length == 0)
         {
             _previewWindow?.Close();
@@ -292,6 +327,7 @@ public static class ReceiptPrinter
                 ShowInTaskbar = true,
                 Title = title + " (προεπισκόπηση — δεν έχει οριστεί εκτυπωτής)",
             };
+            _previewWindow.SetQr(qr);
             _previewWindow.Show();
             return;
         }
@@ -321,6 +357,7 @@ public static class ReceiptPrinter
                 Top = -5000,
                 ShowInTaskbar = false,
             };
+            textSource.SetQr(qr);
             textSource.Show();
             textSource.UpdateLayout();
 

@@ -378,6 +378,8 @@ public class SalesStatsService
             _orders[number] = number == order.OrderNumber ? order : WithOrderNumber(order, number);
             Save();
             Changed?.Invoke();
+            // Παραστατικό ΑΑΔΕ (απόδειξη ή δελτίο τραπεζιού) — ΜΟΝΟ αν το μαγαζί έχει πάροχο· αλλιώς δεν κάνει τίποτα.
+            FiscalService.Instance.OnRecorded(_orders[number]);
             return number;
         });
     }
@@ -499,6 +501,9 @@ public class SalesStatsService
         CancellationLogService.Instance.Log(new CancelledLine(
             order.OrderNumber, order.WhoLabel, removed.Name, removed.Quantity, removed.Revenue, cancelledAt ?? DateTime.Now, cancelledBy)
             { Channel = order.TypeLabel });
+        // Εδώ, στο κύριο ταμείο, φτάνει κάθε ακύρωση γραμμής (και από το δεύτερο ταμείο/κινητό). Με πάροχο: ό,τι δεν
+        // έφυγε δεν φεύγει, ό,τι κόπηκε πιστώνεται ή ακυρώνεται. Χωρίς πάροχο, τίποτα.
+        FiscalService.Instance.OnLineCancelled(orderNumber, lineIndex);
 
         lines.RemoveAt(lineIndex);
         if (lines.Count == 0)
@@ -718,6 +723,8 @@ public class SalesStatsService
         if (isTable)
             payments.SwitchMethod(orderNumber, method);
         UpdatePaymentMethod(orderNumber, method);
+        // Με πάροχο: πιστωτικό της απόδειξης και νέα με τον σωστό τρόπο (κάρτα = μέσα από το τερματικό). Χωρίς, τίποτα.
+        FiscalService.Instance.OnPaymentChanged(orderNumber, method);
     }
 
     /// <summary>Διόρθωση καναλιού ΑΠΟ ΤΟ ΙΣΤΟΡΙΚΟ, με όνομα — ίδια λογική με το
@@ -738,8 +745,12 @@ public class SalesStatsService
 
         UpdateChannel(orderNumber, type, channel, appOrderRef);
         if (_orders.TryGetValue(orderNumber, out var after) && after.TypeLabel != order.TypeLabel)
+        {
             OrderChangeLogService.Instance.Log(new OrderChange(orderNumber, ChangeLabel(order, withChannel: false),
                 order.TypeLabel, after.TypeLabel, order.Total, DateTime.Now, changedBy));
+            // Π.χ. e-food (πληρωμένη στην πλατφόρμα) → ΔΙΑΝΟΜΗ (μετρητά): άλλος τρόπος στην απόδειξη. Χωρίς πάροχο, τίποτα.
+            FiscalService.Instance.OnChannelChanged(after);
+        }
     }
 
     /// <summary>Δεύτερο ταμείο / Στατιστικά: στέλνει τη διόρθωση και ξαναδιαβάζει ΑΜΕΣΩΣ και τις εισπράξεις
@@ -785,6 +796,9 @@ public class SalesStatsService
             CancellationLogService.Instance.Log(new CancelledLine(
                 order.OrderNumber, order.WhoLabel, l.Name, l.Quantity, l.Revenue, cancelledAt, cancelledBy)
                 { Channel = order.TypeLabel });
+        // Κάθε ακύρωση ολόκληρης παραγγελίας περνάει από εδώ στο κύριο ταμείο (Ιστορικό, τραπέζι, δεύτερο ταμείο,
+        // ακύρωση από το e-food). Με πάροχο: ακύρωση/πιστωτικό. Χωρίς πάροχο, τίποτα.
+        FiscalService.Instance.OnOrderCancelled(orderNumber);
 
         _orders.Remove(orderNumber);
         Save();

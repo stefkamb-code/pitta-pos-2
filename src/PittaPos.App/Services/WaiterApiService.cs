@@ -276,6 +276,10 @@ public static class WaiterApiService
             return Results.Ok();
         });
 
+        // ---- πάροχος ΑΑΔΕ: αν είναι ενεργός, ο ΟΡΘΙΟΣ ρωτάει ΜΕΤΡΗΤΑ/ΚΑΡΤΑ και στο δεύτερο ταμείο ----
+        app.MapGet("/api/sync/fiscal", () =>
+            Results.Json(OnUi(() => new FiscalService.SyncDto(FiscalService.Instance.Active))));
+
         // ---- εξοφλήσεις τραπεζιών ----
         app.MapGet("/api/sync/table-settlements", () =>
             Results.Json(OnUi(() => TableSettlementService.Instance.Snapshot())));

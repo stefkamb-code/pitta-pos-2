@@ -1169,7 +1169,7 @@
                     </Border>
                     <TextBlock Text="Τρόπος πληρωμής" FontSize="22" FontWeight="ExtraBold"
                                Foreground="{DynamicResource Ink}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                    <TextBlock Text="Πώς θα πληρώσει ο πελάτης τον διανομέα;" FontSize="13.5"
+                    <TextBlock Text="{Binding PaymentPromptSub}" FontSize="13.5"
                                Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center"
                                TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,26"/>
                     <UniformGrid Columns="2">

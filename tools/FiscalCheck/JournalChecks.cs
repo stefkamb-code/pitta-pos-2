@@ -115,6 +115,15 @@ static class JournalChecks
             Later(TimeSpan.FromSeconds(2));
             await j.ProcessAsync(inner);
             Check(inner.Issued.Count == 3 && inner.Issued.Last().Doc.Gross == 2.50m, "Επόμενο πάτημα (αργότερα) → δική του απόδειξη");
+
+            // Από το κύριο ταμείο όλα τα τεμάχια φτάνουν μαζί: η κάρτα πάει στο τερματικό ΑΜΕΣΩΣ, όχι μετά από 1,5''.
+            j.TableRound(112, Day, "8@1300", "Τραπέζι 8", [Food(112, 0, "Μπιφτέκι", 1, 9.00m)]);
+            await j.ProcessAsync(inner);
+            j.TablePayment(Day, "8@1300", "Τραπέζι 8", [Food(112, 0, "Μπιφτέκι", 1, 9.00m)], FiscalPay.Card, gather);
+            j.EndGather();
+            await j.ProcessAsync(inner);
+            Check(inner.Issued.Last().Doc.Pay == FiscalPay.Card && inner.Issued.Last().Doc.TerminalId == "T88011" && inner.Issued.Last().Doc.Gross == 9.00m,
+                "Τέλος πατήματος → η κάρτα φεύγει αμέσως στο τερματικό");
         }
 
         Console.WriteLine("  — χωρίς internet");
@@ -292,6 +301,22 @@ static class JournalChecks
             Check(split[0].Doc.Type == FiscalDocType.RetailCredit && split[0].Doc.Gross == 9.00m && split[1].Doc.Gross == 9.00m && split[1].Doc.Pay == FiscalPay.Card,
                 "Μία απόδειξη για δύο άτομα, αλλάζει μόνο το ένα → πιστωτικό και νέα απόδειξη ΜΟΝΟ για το δικό του (9,00)");
             Check(Net(j, 602) == 8.00m && Net(j, 603) == 9.00m, "Και τα δύο άτομα μετράνε σωστά");
+        }
+
+        Console.WriteLine("  — το χαρτί της απόδειξης");
+        {
+            var (j, inner, _, _) = New();
+            j.Sale(801, Day, [Food(801, 0, "ΠΙΤΤΑ ΧΟΙΡΙΝΟ ΜΕ ΟΛΑ ΚΑΙ ΠΑΤΑΤΕΣ ΜΕΣΑ", 2, 14.00m), Drink(801, 1, "Amstel", 1, 3.50m)], FiscalPay.Card);
+            await j.ProcessAsync(inner);
+            Check(j.ToPrint.Count == 1, "Κόπηκε → περιμένει να τυπωθεί");
+            var e = j.ToPrint[0];
+            var text = FiscalReceiptText.Build(e, "Η Πίττα του Παππού", "Λ. Ηρακλείου 409", "999999999", "Δοκιμή χωρίς πάροχο");
+            var rows = text.Split('\n');
+            Check(text.Contains("ΜΑΡΚ " + e.Mark) && text.Contains("17,50") && text.Contains("ΚΑΡΤΑ") && text.Contains("ΦΠΑ 13%") && text.Contains("ΦΠΑ 24%"),
+                "ΜΑΡΚ, σύνολο, τρόπος πληρωμής και ΦΠΑ ανά συντελεστή");
+            Check(rows.All(r => r.Length <= FiscalReceiptText.Width || !r.Contains("€")), "Τα ποσά χωράνε σε ρολό 80mm (μακρύ όνομα → σπάει γραμμή)");
+            j.MarkPrinted(e.Id);
+            Check(j.ToPrint.Count == 0, "Τυπώθηκε μία φορά — δεν ξανατυπώνεται");
         }
 
         Console.WriteLine("  — 24ωρο δελτίων, ημερολόγιο στο αρχείο");

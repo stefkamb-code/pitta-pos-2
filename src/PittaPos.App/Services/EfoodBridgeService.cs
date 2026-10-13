@@ -231,7 +231,13 @@ public sealed class EfoodBridgeService
                 l.Customization, l.PrintName)).ToList(),
             IsEveningShift = evening,
         };
-        var final = SalesStatsService.Instance.Record(order);
+        // Με πάροχο ΑΑΔΕ, η απόδειξη παίρνει τον τρόπο πληρωμής από το ίδιο το e-food: μετρητά ΜΟΝΟ όταν τα εισπράττει δικός
+        // μας διανομέας· online ή μετρητά στον rider του e-food = μέσω πλατφόρμας. Δεν γράφεται πάνω στην παραγγελία
+        // (θα μετρούσε δεύτερη φορά στα μετρητά/κάρτα της ημέρας). Χωρίς πάροχο, δεν κάνει τίποτα.
+        var cashToUs = map.OwnDelivery && string.Equals(json["payment_type"]?.ToString(), "cash", StringComparison.OrdinalIgnoreCase);
+        int final;
+        using (FiscalService.Instance.PayHint(cashToUs ? Core.Fiscal.FiscalPay.Cash : Core.Fiscal.FiscalPay.Online))
+            final = SalesStatsService.Instance.Record(order);
         if (final != order.OrderNumber)
             order = SalesStatsService.WithOrderNumber(order, final);
 

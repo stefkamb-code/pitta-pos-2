@@ -143,18 +143,18 @@ public class TableSettlementService
     /// <summary>Σημειώνει ΟΛΗ τη γραμμή πληρωμένη· true αν άλλαξε κάτι (false αν ήταν ήδη).</summary>
     public bool Settle(int table, int orderNumber, int lineIndex,
         PaymentMethod method = PaymentMethod.Cash, decimal amount = 0) =>
-        SettleKey(table, Key(orderNumber, lineIndex), orderNumber, method, amount,
+        SettleKey(table, Key(orderNumber, lineIndex), orderNumber, lineIndex, -1, method, amount,
             new { Table = table, OrderNumber = orderNumber, LineIndex = lineIndex, Unit = -1,
                   Method = MethodKey(method), Amount = amount });
 
     /// <summary>Σημειώνει ΕΝΑ τεμάχιο της γραμμής πληρωμένο, με τον τρόπο πληρωμής και το ποσό του.</summary>
     public bool Settle(int table, int orderNumber, int lineIndex, int unit,
         PaymentMethod method = PaymentMethod.Cash, decimal amount = 0) =>
-        SettleKey(table, Key(orderNumber, lineIndex, unit), orderNumber, method, amount,
+        SettleKey(table, Key(orderNumber, lineIndex, unit), orderNumber, lineIndex, unit, method, amount,
             new { Table = table, OrderNumber = orderNumber, LineIndex = lineIndex, Unit = unit,
                   Method = MethodKey(method), Amount = amount });
 
-    private bool SettleKey(int table, string key, int orderNumber, PaymentMethod method, decimal amount, object syncBody)
+    private bool SettleKey(int table, string key, int orderNumber, int lineIndex, int unit, PaymentMethod method, decimal amount, object syncBody)
     {
         if (RemoteSync.IsClient)
         {
@@ -177,6 +177,9 @@ public class TableSettlementService
         SalesStatsService.Instance.UpdatePaymentMethod(orderNumber, method);
         Save();
         Changed?.Invoke();
+        // Με πάροχο: τα τεμάχια του ίδιου πατήματος → μία απόδειξη που κλείνει τα δελτία τους (κάρτα = στο τερματικό).
+        // Χωρίς πάροχο, τίποτα.
+        FiscalService.Instance.OnSettled(table, orderNumber, lineIndex, unit, method, amount);
         return true;
     }
 

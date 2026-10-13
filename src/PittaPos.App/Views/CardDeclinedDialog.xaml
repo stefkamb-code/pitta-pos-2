@@ -1,0 +1,23 @@
+<Window x:Class="PittaPos.App.Views.CardDeclinedDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ΚΑΡΤΑ" Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Topmost="True"
+        Icon="pack://application:,,,/Assets/logo.png"
+        FontFamily="{StaticResource PosFont}"
+        Background="{DynamicResource Bg}"
+        KeyDown="Window_KeyDown">
+    <!-- Μία ερώτηση στη μέση, δύο απαντήσεις (βλ. FiscalService.AskAboutCards): η κάρτα δεν πέρασε στο τερματικό. -->
+    <StackPanel Margin="24">
+        <TextBlock Text="Η ΚΑΡΤΑ ΔΕΝ ΠΕΡΑΣΕ" FontSize="17" FontWeight="ExtraBold"
+                   Foreground="{DynamicResource Ink}" HorizontalAlignment="Center"/>
+        <TextBlock x:Name="AmountText" FontSize="26" FontWeight="ExtraBold" Foreground="{DynamicResource Ink}"
+                   HorizontalAlignment="Center" Margin="0,8,0,4"/>
+        <TextBlock x:Name="ReasonText" FontSize="12" Foreground="{DynamicResource Neutral600}"
+                   HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,18"/>
+        <Button Content="💳 ΞΑΝΑ ΣΤΟ ΤΕΡΜΑΤΙΚΟ" Click="Retry_Click" Style="{StaticResource PrimaryButton}"
+                Height="56" FontSize="15" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3"/>
+        <Button Content="💶 ΠΛΗΡΩΣΕ ΜΕΤΡΗΤΑ" Click="Cash_Click" Style="{StaticResource FlatButton}"
+                Height="52" FontSize="14" FontWeight="ExtraBold" HorizontalContentAlignment="Center" Margin="3,8,3,0"/>
+    </StackPanel>
+</Window>
