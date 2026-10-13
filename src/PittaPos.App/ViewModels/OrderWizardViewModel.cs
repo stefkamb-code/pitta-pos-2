@@ -734,7 +734,11 @@ public partial class OrderWizardViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ReceiptSwitchHint))]
+    [NotifyCanExecuteChangedFor(nameof(SelectCardPaymentCommand))]
     private bool _receiptNow = true;
+
+    /// <summary>Με κλειστό διακόπτη μόνο ΜΕΤΡΗΤΑ (ζήτημα χρήστη): η κάρτα πάει πάντα μαζί με την απόδειξη της.</summary>
+    private bool CanPayCard => ReceiptNow || !ShowReceiptSwitchFor;
 
     private bool _syncingReceiptSwitch;
 
@@ -753,13 +757,13 @@ public partial class OrderWizardViewModel : ObservableObject
     public string ReceiptSwitchHint => ReceiptNow
         ? "Η απόδειξη κόβεται τώρα."
         : OrderType == Core.Models.OrderType.Pickup
-            ? $"Μετρητά: κόβεται όταν πατήσεις ΚΟΨΕ στο Ιστορικό — το αργότερο σε {Hours(ReceiptPolicy.CounterMaxWait)}. Κάρτα: πάντα τώρα."
-            : $"Κόβεται όταν φύγει με τον διανομέα — το αργότερο σε {Hours(ReceiptPolicy.PhoneMaxWait)}.";
+            ? $"Μόνο μετρητά: κόβεται όταν πατήσεις ΚΟΨΕ στο Ιστορικό — το αργότερο σε {Hours(ReceiptPolicy.CounterMaxWait)}."
+            : $"Μόνο μετρητά: κόβεται όταν φύγει με τον διανομέα — το αργότερο σε {Hours(ReceiptPolicy.PhoneMaxWait)}.";
 
     private static string Hours(TimeSpan t) => t.TotalHours == 1 ? "1 ώρα" : $"{t.TotalHours:0} ώρες";
 
     [RelayCommand] private void SelectCashPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Cash);
-    [RelayCommand] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);
+    [RelayCommand(CanExecute = nameof(CanPayCard))] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);
 
     /// <summary>Κλείνει το banner τρόπου πληρωμής και επιστρέφει στην παραγγελία, χωρίς να καταχωρηθεί
     /// τίποτα. Αρχικά δεν υπήρχε διέξοδος (η παραγγελία θεωρούνταν έτοιμη), αλλά στην πράξη ο ταμίας
@@ -1667,6 +1671,7 @@ public partial class OrderWizardViewModel : ObservableObject
             ReceiptNow = FiscalService.Instance.AutoReceipt;
             _syncingReceiptSwitch = false;
             OnPropertyChanged(nameof(ReceiptSwitchHint));
+            SelectCardPaymentCommand.NotifyCanExecuteChanged();
             ShowPaymentPrompt = true;
             return;
         }

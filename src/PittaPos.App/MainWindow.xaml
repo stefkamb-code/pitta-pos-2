@@ -111,6 +111,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Accent100}"/>
                             </Trigger>
+                            <!-- ΚΑΡΤΑ με κλειστό τον διακόπτη της απόδειξης: φαίνεται, αλλά σβηστή. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.35"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
