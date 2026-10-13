@@ -39,8 +39,13 @@ public sealed class FiscalService
 
     private FiscalService() { }
 
+    /// <summary>Οι ρυθμίσεις ΑΑΔΕ του μαγαζιού (από το site) — ή της δοκιμής παρόχου (βλ. FiscalTestMode).</summary>
+    private static FiscalSettings Fiscal => FiscalTestMode.IsOn ? FiscalTestMode.Settings : SiteLinkService.Instance.Fiscal;
+
+    private static IFiscalProvider ProviderNow => FiscalTestMode.IsOn ? FiscalTestMode.Provider : SiteLinkService.Instance.Provider;
+
     /// <summary>Έχει το μαγαζί πάροχο (που το ταμείο ξέρει) και είμαστε στο κύριο ταμείο;</summary>
-    public bool Active => !RemoteSync.IsClient && FiscalJournal.IsActive(SiteLinkService.Instance.Fiscal);
+    public bool Active => !RemoteSync.IsClient && FiscalJournal.IsActive(Fiscal);
 
     /// <summary>
     /// Για την οθόνη, σε ΟΠΟΙΟ ταμείο κι αν είμαστε: έχει το μαγαζί πάροχο; Τότε ο ΟΡΘΙΟΣ ρωτάει ΜΕΤΡΗΤΑ/ΚΑΡΤΑ (η κάρτα
@@ -119,7 +124,7 @@ public sealed class FiscalService
         _busy = true;
         try
         {
-            await journal.ProcessAsync(SiteLinkService.Instance.Provider);
+            await journal.ProcessAsync(ProviderNow);
             // Χαρτί ΔΕΝ βγαίνει μόνο του (απόφαση χρήστη 13/10/2026): η απόδειξη τυπώνεται όποτε τη ζητήσει το μαγαζί
             // (βλ. PrintReceipts), το δελτίο τραπεζιού ποτέ.
             AskAboutCards(journal);
@@ -163,15 +168,15 @@ public sealed class FiscalService
         }
         if (Journal is not { } journal)
             return 0;
-        var fiscal = SiteLinkService.Instance.Fiscal;
+        var fiscal = Fiscal;
         var s = SettingsStore.Instance.Settings;
         var printed = 0;
         foreach (var e in journal.ReceiptsFor(orders))
         {
             try
             {
-                var text = FiscalReceiptText.Build(e, s.ReceiptTitle, s.ShopAddress, fiscal.Afm, SiteLinkService.Instance.Provider.Name);
-                ReceiptPrinter.PrintFiscal(text, e.Result?.QrUrl ?? "", fiscal.Receipt == "other" ? fiscal.ReceiptPrinter : "");
+                var text = FiscalReceiptText.Build(e, s.ReceiptTitle, s.ShopAddress, fiscal.Afm, ProviderNow.Name);
+                ReceiptPrinter.PrintFiscal(text, e.Result?.QrUrl ?? "", fiscal.Receipt == "other" ? fiscal.ReceiptPrinter : "", preview: FiscalTestMode.IsOn);
                 journal.MarkPrinted(e.Id);
                 printed++;
             }
@@ -285,7 +290,7 @@ public sealed class FiscalService
     /// <summary>Το τερματικό του ταμείου (όρθιος, τραπέζι): το πρώτο που ΔΕΝ είναι του διανομέα.</summary>
     private static string CounterTerminal()
     {
-        var terminals = SiteLinkService.Instance.Fiscal.Terminals;
+        var terminals = Fiscal.Terminals;
         return (terminals.FirstOrDefault(t => !IsDelivery(t)) ?? terminals.FirstOrDefault())?.TerminalId ?? "";
     }
 
@@ -293,7 +298,7 @@ public sealed class FiscalService
     /// ίδιο με του ταμείου.</summary>
     private static string DeliveryTerminal()
     {
-        var terminals = SiteLinkService.Instance.Fiscal.Terminals;
+        var terminals = Fiscal.Terminals;
         return (terminals.FirstOrDefault(IsDelivery) ?? terminals.Skip(1).FirstOrDefault() ?? terminals.FirstOrDefault())?.TerminalId ?? "";
     }
 

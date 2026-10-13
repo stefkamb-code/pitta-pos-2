@@ -276,8 +276,9 @@ public static class ReceiptPrinter
     /// Η απόδειξη του παρόχου ΑΑΔΕ (ΜΑΡΚ + QR) — ΞΕΧΩΡΙΣΤΟ χαρτί από το δελτίο της παραγγελίας, που δεν αλλάζει. Στον
     /// εκτυπωτή απόδειξης του site αν έχει οριστεί «άλλος», αλλιώς στον ίδιο με τα δελτία. Καλείται μόνο με ενεργό πάροχο.
     /// </summary>
-    public static void PrintFiscal(string text, string qrUrl, string printerOverride) =>
-        PrintPlainText(text, FiscalReceiptTitle, QrImage(qrUrl), printerOverride);
+    /// <param name="preview">Δοκιμή παρόχου (βλ. FiscalTestMode): σε παράθυρο στην οθόνη, όχι στον εκτυπωτή.</param>
+    public static void PrintFiscal(string text, string qrUrl, string printerOverride, bool preview = false) =>
+        PrintPlainText(text, FiscalReceiptTitle, QrImage(qrUrl), printerOverride, preview);
 
     private static System.Windows.Media.ImageSource? QrImage(string url)
     {
@@ -305,7 +306,7 @@ public static class ReceiptPrinter
     }
 
     private static void PrintPlainText(string text, string title,
-        System.Windows.Media.ImageSource? qr = null, string printerOverride = "")
+        System.Windows.Media.ImageSource? qr = null, string printerOverride = "", bool preview = false)
     {
         // Δεύτερο ταμείο: ίδιος λόγος με το PrintOrder — ο εκτυπωτής είναι δεμένος στο κύριο ταμείο.
         // Χωρίς αυτό, «🖨 ΕΚΤΥΠΩΣΕΙΣ ΔΙΑΝΟΜΕΑ» και «ΕΚΤΥΠΩΣΗ ΤΩΡΑ» άνοιγαν εδώ ένα παράθυρο
@@ -318,7 +319,7 @@ public static class ReceiptPrinter
         }
 
         var printerName = printerOverride.Length > 0 ? printerOverride : SettingsStore.Instance.Settings.PrinterName;
-        if (printerName.Length == 0)
+        if (printerName.Length == 0 || preview)
         {
             _previewWindow?.Close();
             _previewWindow = new Views.DayReportWindow(text, FontSizeFor(title))
