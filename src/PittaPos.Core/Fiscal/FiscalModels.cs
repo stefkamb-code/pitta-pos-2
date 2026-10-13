@@ -61,9 +61,13 @@ public sealed class FiscalDocument
     public string ProviderTableRef { get; init; } = "";
     /// <summary>Τα ΜΑΡΚ που κλείνει (τα δελτία του τραπεζιού) ή πιστώνει (η αρχική απόδειξη).</summary>
     public IReadOnlyList<string> CorrelatedMarks { get; init; } = [];
-    /// <summary>Μόνο στο τιμολόγιο: ΑΦΜ και επωνυμία του πελάτη.</summary>
+    /// <summary>Μόνο στο τιμολόγιο: ΑΦΜ, επωνυμία και διεύθυνση του πελάτη (ο Wrapp τη ζητά ολόκληρη, staging 13/10/2026).</summary>
     public string CustomerVat { get; init; } = "";
     public string CustomerName { get; init; } = "";
+    public string CustomerStreet { get; init; } = "";
+    public string CustomerNumber { get; init; } = "";
+    public string CustomerPostalCode { get; init; } = "";
+    public string CustomerCity { get; init; } = "";
     /// <summary>Μοναδικό από το ταμείο (μαγαζί + ημέρα + παραγγελία + άτομο) — ξαναστάλσιμο δεν κόβει δεύτερο.</summary>
     public string ExternalId { get; init; } = "";
 

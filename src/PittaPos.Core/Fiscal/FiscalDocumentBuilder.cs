@@ -78,7 +78,8 @@ public static class FiscalDocumentBuilder
 
     /// <summary>Τιμολόγιο σε επιχείρηση.</summary>
     public static FiscalDocument Invoice(IEnumerable<TillLine> lines, decimal total, FiscalPay pay, string customerVat,
-        string customerName, string externalId, string terminalId = "") => new()
+        string customerName, string externalId, string terminalId = "",
+        string street = "", string number = "", string postalCode = "", string city = "") => new()
     {
         Type = FiscalDocType.SalesInvoice,
         Lines = Lines(lines, total),
@@ -86,6 +87,10 @@ public static class FiscalDocumentBuilder
         TerminalId = pay == FiscalPay.Card ? terminalId : "",
         CustomerVat = new string(customerVat.Where(char.IsDigit).ToArray()),
         CustomerName = customerName,
+        CustomerStreet = street,
+        CustomerNumber = number,
+        CustomerPostalCode = postalCode,
+        CustomerCity = city,
         ExternalId = externalId,
     };
 }

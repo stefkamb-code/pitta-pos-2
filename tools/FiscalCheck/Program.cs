@@ -94,7 +94,9 @@ var scenarios = new List<(string Name, Func<IFiscalProvider, Task<bool>> Run)>
     }),
     ("Τιμολόγιο σε επιχείρηση", async p =>
     {
-        var r = await p.IssueAsync(FiscalDocumentBuilder.Invoice([Food("ΠΙΤΤΑ ΚΟΤΟΠΟΥΛΟ", 10, 72.00m)], 72.00m, FiscalPay.Card, "094014201", "ΠΕΛΑΤΗΣ ΑΕ", $"t1-{day}-7", terminal));
+        // Μετρητά: το τιμολόγιο ελέγχεται και σε λογαριασμό χωρίς τερματικό (η κάρτα ελέγχεται στο «Διανομή, κάρτα»).
+        var r = await p.IssueAsync(FiscalDocumentBuilder.Invoice([Food("ΠΙΤΤΑ ΚΟΤΟΠΟΥΛΟ", 10, 72.00m)], 72.00m, FiscalPay.Cash, "094014201", "ΠΕΛΑΤΗΣ ΑΕ", $"t1-{day}-7",
+            street: "Λεωφόρος Ηρακλείου", number: "409", postalCode: "14122", city: "Ηράκλειο Αττικής"));
         return Show(r);
     }),
 };

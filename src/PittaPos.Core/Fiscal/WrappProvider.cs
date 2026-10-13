@@ -77,10 +77,13 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
 
     private static string ErrorText(JsonNode? node, string raw)
     {
-        // Τα λάθη γυρίζουν συνήθως ως errors[{title,detail}] ή message — ό,τι υπάρχει.
-        var e = node?["errors"]?[0];
-        var msg = e?["detail"]?.ToString() ?? e?["title"]?.ToString() ?? node?["message"]?.ToString() ?? node?["error"]?.ToString();
-        return msg ?? (raw.Length > 200 ? raw[..200] : raw);
+        // Τα λάθη γυρίζουν συνήθως ως errors[{title,detail}] ή message — ό,τι υπάρχει. Ποτέ εξαίρεση εδώ: το λάθος του
+        // παρόχου πρέπει να φτάσει στο ημερολόγιο όπως ήρθε.
+        var o = node as JsonObject;
+        var e = (o?["errors"] as JsonArray)?.FirstOrDefault() as JsonObject;
+        var msg = e?["detail"]?.ToString() ?? e?["title"]?.ToString() ?? o?["message"]?.ToString() ?? o?["error"]?.ToString()
+                  ?? (o?["errors"] is JsonValue v ? v.ToString() : null);
+        return msg ?? (raw.Length > 300 ? raw[..300] : raw);
     }
 
     /// <summary>Το βιβλίο (σειρά) για κάθε τύπο παραστατικού — μία φορά ανά άνοιγμα.</summary>
@@ -90,13 +93,16 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         {
             var (node, error) = await SendAsync(HttpMethod.Get, "/billing_books", null, ct);
             if (error is not null) return (null, error);
-            _books = new Dictionary<string, string>();
-            foreach (var b in Items(node))
+            // Χτίζεται ολόκληρη και ΜΕΤΑ κρατιέται: μια απάντηση που δεν διαβάστηκε δεν αφήνει «καμία σειρά» για πάντα.
+            var books = new Dictionary<string, string>();
+            foreach (var b in Items(node).OfType<JsonObject>())
             {
                 var code = Attr(b, "invoice_type_code");
-                var id = b?["id"]?.ToString() ?? Attr(b, "id");
-                if (code is not null && id is not null) _books.TryAdd(code, id);
+                var id = b["id"]?.ToString() ?? Attr(b, "id");
+                if (code is not null && id is not null) books.TryAdd(code, id);
             }
+            if (books.Count == 0) return (null, "Ο Wrapp δεν έδωσε καμία σειρά (billing_books).");
+            _books = books;
         }
         var c = FiscalCodes.Code(type);
         return _books.TryGetValue(c, out var book)
@@ -110,9 +116,9 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         if (_devices.TryGetValue(terminalId, out var known)) return (known, null);
         var (node, error) = await SendAsync(HttpMethod.Get, "/pos_devices", null, ct);
         if (error is not null) return (null, error);
-        foreach (var d in Items(node))
+        foreach (var d in Items(node).OfType<JsonObject>())
         {
-            var id = d?["id"]?.ToString();
+            var id = d["id"]?.ToString();
             var tid = Attr(d, "terminal_id") ?? Attr(d, "tid") ?? Attr(d, "terminal") ?? Attr(d, "name");
             if (id is not null && tid is not null) _devices[tid] = id;
         }
@@ -121,12 +127,35 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
             : (null, $"Το τερματικό {terminalId} δεν βρέθηκε στον Wrapp — πρόσθεσέ το εκεί (Ενσωματώσεις → POS).");
     }
 
+    /// <summary>Λίστα είτε σκέτη (έτσι γυρίζει το staging, 13/10/2026) είτε μέσα σε «data» (JSON:API).</summary>
+    /// <summary>
+    /// Τα τραπέζια στον Wrapp είναι ΜΟΝΙΜΑ: το «Τραπέζι 5» φτιάχνεται μία φορά και μετά το κλείσιμο μένει «διαθέσιμο». Η
+    /// επόμενη παρέα δεν μπορεί να το ξαναφτιάξει με το ίδιο όνομα (422 «το όνομα χρησιμοποιείται ήδη», staging 13/10/2026)
+    /// — το βρίσκουμε και το ξανανοίγουμε. Null id = δεν υπάρχει ακόμα· το πρώτο δελτίο το φτιάχνει με το όνομα.
+    /// </summary>
+    private async Task<(string? Id, string? Error)> OpenTableAsync(string name, CancellationToken ct)
+    {
+        var (node, error) = await SendAsync(HttpMethod.Get, "/catering_tables?name=" + Uri.EscapeDataString(name), null, ct);
+        if (error is not null) return (null, error);
+        var table = Items(node).OfType<JsonObject>()
+            .FirstOrDefault(t => string.Equals(Attr(t, "name")?.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (table is null) return (null, null);
+        var id = table["id"]?.ToString() ?? Attr(table, "id");
+        if (id is null) return (null, null);
+        if (!string.Equals(Attr(table, "status"), "open", StringComparison.OrdinalIgnoreCase))
+        {
+            var (_, openError) = await SendAsync(HttpMethod.Post, "/catering_tables/open_table", new { id }, ct);
+            if (openError is not null) return (null, openError);
+        }
+        return (id, null);
+    }
+
     private static IEnumerable<JsonNode?> Items(JsonNode? node) =>
-        (node?["data"] as JsonArray ?? node as JsonArray ?? []).AsEnumerable();
+        (node as JsonArray ?? (node as JsonObject)?["data"] as JsonArray ?? []).AsEnumerable();
 
     /// <summary>Πεδίο είτε σκέτο είτε μέσα σε «attributes» (μορφή JSON:API).</summary>
     private static string? Attr(JsonNode? n, string name) =>
-        n?[name]?.ToString() ?? n?["attributes"]?[name]?.ToString();
+        (n as JsonObject)?[name]?.ToString() ?? ((n as JsonObject)?["attributes"] as JsonObject)?[name]?.ToString();
 
     // ---------------------------------------------------------------- παραστατικά
 
@@ -154,7 +183,8 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         _ => (SalesCategory, "E3_561_003"),
     };
 
-    public static object Payload(FiscalDocument doc, string bookId, string? deviceId)
+    /// <param name="tableId">Το υπάρχον τραπέζι του Wrapp για το πρώτο δελτίο μιας νέας παρέας (βλ. OpenTableAsync).</param>
+    public static object Payload(FiscalDocument doc, string bookId, string? deviceId, string? tableId = null)
     {
         var (cat, type) = Classification(doc.Type);
         var lines = doc.Lines.Select((l, i) => new Dictionary<string, object>
@@ -189,8 +219,10 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
         if (doc.Preload && deviceId is not null) body["aade_preloaded"] = true;
         if (doc.Type == FiscalDocType.OrderSlip)
         {
-            // Το πρώτο δελτίο ανοίγει το τραπέζι με το όνομα· τα επόμενα πάνε στο catering_table_id που γύρισε.
+            // Το πρώτο δελτίο ανοίγει το τραπέζι (το υπάρχον, ή καινούριο με το όνομα)· τα επόμενα πάνε στο
+            // catering_table_id που γύρισε.
             if (doc.ProviderTableRef.Length > 0) body["catering_table_id"] = doc.ProviderTableRef;
+            else if (tableId is not null) body["catering_table_id"] = tableId;
             else if (doc.TableName.Length > 0) body["catering_table_name"] = doc.TableName;
         }
         else if (doc.CorrelatedMarks.Count > 0 && doc.ProviderTableRef.Length > 0)
@@ -205,7 +237,13 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
     /// δελτίο = το τραπέζι, τιμολόγιο = η επιχείρηση.</summary>
     private static Dictionary<string, object> Counterpart(FiscalDocument doc) => doc.Type switch
     {
-        FiscalDocType.SalesInvoice => new() { ["vat"] = doc.CustomerVat, ["name"] = doc.CustomerName },
+        // Το staging ζητά country_code και ολόκληρη διεύθυνση στο τιμολόγιο (422, 13/10/2026).
+        FiscalDocType.SalesInvoice => new()
+        {
+            ["vat"] = doc.CustomerVat, ["name"] = doc.CustomerName, ["country_code"] = "GR",
+            ["street"] = doc.CustomerStreet, ["number"] = doc.CustomerNumber,
+            ["postal_code"] = doc.CustomerPostalCode, ["city"] = doc.CustomerCity,
+        },
         FiscalDocType.OrderSlip => new()
         {
             ["name"] = doc.TableName.Length > 0 ? doc.TableName : "Τραπέζι",
@@ -231,7 +269,15 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
                 device = dev;
             }
 
-            var (node, error) = await SendAsync(HttpMethod.Post, "/invoices", Payload(doc, book!, device), ct);
+            string? tableId = null;
+            if (doc.Type == FiscalDocType.OrderSlip && doc.ProviderTableRef.Length == 0 && doc.TableName.Length > 0)
+            {
+                var (id, tableError) = await OpenTableAsync(doc.TableName, ct);
+                if (tableError is not null) return FiscalResult.Fail(tableError);
+                tableId = id;
+            }
+
+            var (node, error) = await SendAsync(HttpMethod.Post, "/invoices", Payload(doc, book!, device, tableId), ct);
             if (error is not null)
             {
                 // Το external_id υπάρχει ήδη = το ίδιο παραστατικό κόπηκε σε προηγούμενη απόπειρα (π.χ. έληξε ο χρόνος πριν
@@ -282,21 +328,25 @@ public sealed class WrappProvider(FiscalSettings settings, HttpClient http) : IF
 
     private static FiscalResult Read(JsonNode? node)
     {
-        var n = node?["data"] is JsonObject d ? (d["attributes"] as JsonObject ?? d) : node;
-        string S(string k) => n?[k]?.ToString() ?? "";
+        // Αντικείμενο, μέσα σε «data», ή (όπως γυρίζουν κάποιες λίστες του staging) σε σκέτη λίστα — ποτέ εξαίρεση εδώ.
+        var o = node as JsonObject ?? (node as JsonArray)?.FirstOrDefault() as JsonObject;
+        var n = o?["data"] is JsonObject d ? (d["attributes"] as JsonObject ?? d) : o;
+        string S(string k) => n?[k] is JsonNode v && v.GetValueKind() != System.Text.Json.JsonValueKind.Null ? v.ToString() : "";
         var mark = S("my_data_mark");
         return new FiscalResult
         {
             Ok = true,
             // «invoice_id»: η απάντηση {"status":"pending","invoice_id":…} (τεκμηρίωση Wrapp).
-            ProviderId = S("id").Length > 0 ? S("id") : node?["data"]?["id"]?.ToString() ?? S("invoice_id"),
+            ProviderId = S("id").Length > 0 ? S("id") : (o?["data"] as JsonObject)?["id"]?.ToString() ?? S("invoice_id"),
             Mark = mark,
             Uid = S("my_data_uid"),
             QrUrl = S("my_data_qr_url"),
             Series = S("series"),
             Number = long.TryParse(S("num"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var num) ? num : 0,
             PendingTransmission = S("transmission_failure").Length > 0,
-            PosTxn = S("transaction_id").Length > 0 ? S("transaction_id") : S("authentication_code"),
+            // ΜΟΝΟ η συναλλαγή του τερματικού. Το authentication_code το έχει ΚΑΘΕ παραστατικό (υπογραφή του παρόχου,
+            // staging 13/10/2026) — αν μετρούσε, μια προφορτωμένη κάρτα θα φαινόταν πληρωμένη πριν πληρωθεί.
+            PosTxn = S("transaction_id"),
             ProviderTableRef = S("catering_table_id"),
         };
     }
