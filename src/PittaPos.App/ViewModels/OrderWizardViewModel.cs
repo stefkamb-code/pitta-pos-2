@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PittaPos.App.Services;
+using PittaPos.Core.Fiscal;
 using PittaPos.Core.Data;
 using PittaPos.Core.Models;
 
@@ -404,6 +405,8 @@ public partial class OrderWizardViewModel : ObservableObject
             Channel = OrderType == Core.Models.OrderType.Apps ? AppPlatform : null,
             AppOrderRef = OrderType == Core.Models.OrderType.Apps && AppOrderRef.Trim().Length > 0 ? AppOrderRef.Trim() : null,
             PaymentMethod = NeedsPaymentMethod ? SelectedPaymentMethod : null,
+            // Ο διακόπτης «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ» όπως ήταν τη στιγμή της πληρωμής — μόνο εκεί που φαινόταν.
+            AutoReceipt = ShowReceiptSwitchFor ? ReceiptNow : null,
             Who = OrderType == Core.Models.OrderType.Table
                 ? "Τραπέζι " + TableNumber
                 : CustomerName.Trim(),
@@ -720,7 +723,40 @@ public partial class OrderWizardViewModel : ObservableObject
     /// πατήσει το τελικό «ΣΥΝΕΧΕΙΑ»/ΟΛΟΚΛΗΡΩΣΗ» για ΔΙΑΝΟΜΗ/BOX χωρίς να έχει διαλέξει ακόμα τρόπο
     /// πληρωμής (βλ. ContinueStep3) — επιλογή εκεί ολοκληρώνει κατευθείαν την παραγγελία.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowReceiptSwitch))]
     private bool _showPaymentPrompt;
+
+    /// <summary>
+    /// Πάροχος ΑΑΔΕ, μέσα στο παραθυράκι ΜΕΤΡΗΤΑ/ΚΑΡΤΑ (ΟΡΘΙΟΣ, ΔΙΑΝΟΜΗ): «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ». Ανοιχτό = κόβεται με την
+    /// καταχώρηση. Κλειστό = κόβεται ΑΡΓΟΤΕΡΑ, ποτέ «καθόλου»: ο όρθιος με μετρητά με την πληρωμή (Ιστορικό → ΚΟΨΕ), η
+    /// διανομή όταν φύγει με τον διανομέα — με όριο (βλ. Core.Fiscal.ReceiptPolicy). Η κάρτα στον όρθιο κόβεται πάντα τώρα.
+    /// Ένα πάτημα, χωρίς κωδικό, και ΘΥΜΑΤΑΙ τη θέση του (ζει στο κύριο ταμείο, βλ. FiscalService.AutoReceipt).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReceiptSwitchHint))]
+    private bool _receiptNow = true;
+
+    private bool _syncingReceiptSwitch;
+
+    partial void OnReceiptNowChanged(bool value)
+    {
+        if (!_syncingReceiptSwitch)
+            FiscalService.Instance.SetAutoReceipt(value, "ταμείο (παράθυρο πληρωμής)");
+    }
+
+    /// <summary>Μόνο εκεί που ο διακόπτης έχει νόημα: ΟΡΘΙΟΣ και ΔΙΑΝΟΜΗ (το BOX κόβεται πάντα αυτόματα).</summary>
+    private bool ShowReceiptSwitchFor => FiscalService.Instance.ProviderEnabled
+        && OrderType is Core.Models.OrderType.Pickup or Core.Models.OrderType.Delivery;
+
+    public bool ShowReceiptSwitch => ShowPaymentPrompt && ShowReceiptSwitchFor;
+
+    public string ReceiptSwitchHint => ReceiptNow
+        ? "Η απόδειξη κόβεται τώρα."
+        : OrderType == Core.Models.OrderType.Pickup
+            ? $"Μετρητά: κόβεται όταν πατήσεις ΚΟΨΕ στο Ιστορικό — το αργότερο σε {Hours(ReceiptPolicy.CounterMaxWait)}. Κάρτα: πάντα τώρα."
+            : $"Κόβεται όταν φύγει με τον διανομέα — το αργότερο σε {Hours(ReceiptPolicy.PhoneMaxWait)}.";
+
+    private static string Hours(TimeSpan t) => t.TotalHours == 1 ? "1 ώρα" : $"{t.TotalHours:0} ώρες";
 
     [RelayCommand] private void SelectCashPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Cash);
     [RelayCommand] private void SelectCardPayment() => ChoosePaymentMethod(Core.Models.PaymentMethod.Card);
@@ -1626,6 +1662,11 @@ public partial class OrderWizardViewModel : ObservableObject
         // ChoosePaymentMethod) και ολοκληρώνει κατευθείαν την παραγγελία.
         if (NeedsPaymentMethod && SelectedPaymentMethod is null)
         {
+            // Ο διακόπτης δείχνει πάντα αυτό που ισχύει (μπορεί να τον άλλαξε το άλλο ταμείο).
+            _syncingReceiptSwitch = true;
+            ReceiptNow = FiscalService.Instance.AutoReceipt;
+            _syncingReceiptSwitch = false;
+            OnPropertyChanged(nameof(ReceiptSwitchHint));
             ShowPaymentPrompt = true;
             return;
         }

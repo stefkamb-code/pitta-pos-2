@@ -61,9 +61,9 @@ public class AppSettings
     /// <summary>"el" ή "en".</summary>
     public string Language { get; set; } = "el";
     /// <summary>
-    /// Πάροχος ΑΑΔΕ: «Αυτόματη έκδοση απόδειξης» (βλ. Core.Fiscal.ReceiptPolicy). Ανοιχτό (όπως πάντα) = η απόδειξη κόβεται
-    /// με την καταχώρηση. Κλειστό = η ΔΙΑΝΟΜΗ κόβεται όταν φύγει με τον διανομέα και ο ΟΡΘΙΟΣ με μετρητά με την πληρωμή — το
-    /// αργότερο μέσα σε λίγες ώρες. Κάρτα στον ΟΡΘΙΟ, BOX, Wolt, e-food: πάντα αυτόματα. Ισχύει στο κύριο ταμείο.
+    /// Πάροχος ΑΑΔΕ: η τελευταία θέση του διακόπτη «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ» στο παράθυρο πληρωμής (βλ. Core.Fiscal.ReceiptPolicy).
+    /// Ανοιχτό (όπως πάντα) = η απόδειξη κόβεται με την καταχώρηση. Κλειστό = η ΔΙΑΝΟΜΗ κόβεται όταν φύγει με τον διανομέα
+    /// και ο ΟΡΘΙΟΣ με μετρητά με την πληρωμή — με όριο. Κάρτα στον ΟΡΘΙΟ, BOX, Wolt, e-food: πάντα αυτόματα. Ζει στο κύριο ταμείο.
     /// </summary>
     public bool AutoReceipt { get; set; } = true;
     /// <summary>Κωδικός για κλειδωμένα πεδία (Στατιστικά/Ιστορικό/Κατάλογος).</summary>
@@ -429,7 +429,7 @@ public class SettingsStore
         TouchLayoutChanged?.Invoke();
     }
 
-    /// <summary>Μόνο μέσω FiscalService.SetAutoReceipt — εκεί γράφεται και στο ημερολόγιο ελέγχου, με το ποιος το άλλαξε.</summary>
+    /// <summary>Μόνο μέσω FiscalService.SetAutoReceipt — εκεί γράφεται και στο ημερολόγιο ελέγχου.</summary>
     public void SetAutoReceipt(bool on)
     {
         if (Settings.AutoReceipt == on)

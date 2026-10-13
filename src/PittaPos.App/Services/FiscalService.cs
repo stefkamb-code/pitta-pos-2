@@ -66,8 +66,8 @@ public sealed class FiscalService
 
     public sealed record AutoReceiptRequest(bool On, string ChangedBy);
 
-    /// <summary>Αλλάζει τον διακόπτη (μόνο με κωδικό admin, βλ. SettingsWindow) και το γράφει στο ημερολόγιο ελέγχου με το
-    /// ποιος. Ό,τι περιμένει ήδη, συνεχίζει να περιμένει την αποστολή/πληρωμή του — δεν αλλάζει τίποτα που έχει γραφτεί.</summary>
+    /// <summary>Ο διακόπτης «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ» του παραθύρου πληρωμής (βλ. OrderWizardViewModel.ReceiptNow): θυμάται τη θέση
+    /// του και τη γράφει στο ημερολόγιο ελέγχου. Ό,τι περιμένει ήδη, συνεχίζει να περιμένει την αποστολή/πληρωμή του.</summary>
     public void SetAutoReceipt(bool on, string changedBy)
     {
         if (RemoteSync.IsClient)
@@ -186,7 +186,7 @@ public sealed class FiscalService
         // Διανομή (και BOX, που το φέρνει δικός μας διανομέας) με κάρτα: το ποσό προφορτώνεται στο φορητό POS του διανομέα
         // και πληρώνεται στην πόρτα. Όρθιος: η κάρτα πάει ΑΜΕΣΩΣ στο τερματικό του μαγαζιού.
         // ΠΟΤΕ φεύγει: το αποφασίζει ΜΟΝΟ το ReceiptPolicy (διακόπτης «Αυτόματη έκδοση» + υποχρεωτικά αυτόματα).
-        var decision = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt);
+        var decision = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order));
         j.Sale(order.OrderNumber, day, items, pay, PreloadFor(order, pay),
             decision.Deferred ? decision.MaxWait : null, decision.Reason, decision.WaitsFor);
     });
@@ -199,6 +199,10 @@ public sealed class FiscalService
     /// <summary>Κλείσιμο ημέρας (DayReportService.CloseDay): ό,τι περιμένει ακόμα από τη μέρα που κλείνει, κόβεται τώρα.</summary>
     public void OnDayClosing(DateTime businessDay) =>
         Safe("κλείσιμο ημέρας", j => j.ReleaseBefore(businessDay.Date.AddHours(SalesStatsService.DayCutoffHour), "κλείσιμο ημέρας"));
+
+    /// <summary>Ο διακόπτης «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ» όπως πατήθηκε στην πληρωμή αυτής της παραγγελίας· όπου δεν ρωτήθηκε, η
+    /// τελευταία θέση του.</summary>
+    private bool AutoOf(CompletedOrder order) => order.AutoReceipt ?? AutoReceipt;
 
     /// <summary>Το POS του διανομέα για προφόρτωση — μόνο σε κάρτα σε δική μας διανομή (ΔΙΑΝΟΜΗ, BOX).</summary>
     private static string PreloadFor(CompletedOrder order, FiscalPay pay) =>
@@ -352,7 +356,7 @@ public sealed class FiscalService
         var pay = method == PaymentMethod.Card ? FiscalPay.Card : FiscalPay.Cash;
         if (Find(orderNumber) is { } order && order.Type != OrderType.Table)
             j.ChangePayment(orderNumber, pay, PreloadFor(order, pay),
-                releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred);
+                releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order)).Deferred);
         else
             j.ChangePayment(orderNumber, pay);
     });
@@ -361,10 +365,10 @@ public sealed class FiscalService
     public void OnChannelChanged(CompletedOrder order) => Safe("αλλαγή καναλιού #" + order.OrderNumber, j =>
     {
         var pay = PayOf(order);
-        j.ChangePayment(order.OrderNumber, pay, PreloadFor(order, pay),
-            releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred);
+        var deferred = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order)).Deferred;
+        j.ChangePayment(order.OrderNumber, pay, PreloadFor(order, pay), releaseHeld: !deferred);
         // Έγινε εφαρμογή (πάντα αυτόματα) ενώ περίμενε με ίδιο τρόπο πληρωμής: φεύγει τώρα.
-        if (!ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred)
+        if (!deferred)
             j.Release([order.OrderNumber], "άλλαξε το κανάλι σε " + order.TypeLabel);
     });
 

@@ -56,6 +56,10 @@ public sealed class CompletedOrder
     /// στο ίδιο τραπέζι την ίδια μέρα θα εμφανίζονταν σαν ένας λογαριασμός. Null για ό,τι δεν είναι
     /// τραπέζι, και για παλιές παραγγελίες πριν μπει το πεδίο.</summary>
     public DateTime? TableOpenedAt { get; init; }
+    /// <summary>Πάροχος ΑΑΔΕ: ο διακόπτης «🧾 ΑΠΟΔΕΙΞΗ ΤΩΡΑ» τη στιγμή που πατήθηκε ΜΕΤΡΗΤΑ/ΚΑΡΤΑ (ΟΡΘΙΟΣ, ΔΙΑΝΟΜΗ) — βλ.
+    /// Core.Fiscal.ReceiptPolicy. Ταξιδεύει με την παραγγελία (και από το δεύτερο ταμείο), ώστε το κύριο να αποφασίσει με
+    /// αυτό που είδε ο ταμίας. null = δεν ρωτήθηκε (χωρίς πάροχο, τραπέζι, εφαρμογές, κινητό).</summary>
+    public bool? AutoReceipt { get; init; }
     /// <summary>Τηλέφωνο πελάτη — μόνο ΔΙΑΝΟΜΗ/BOX (εκεί συλλέγεται στο Βήμα 2), κενό για τα υπόλοιπα.</summary>
     public string Phone { get; init; } = "";
     /// <summary>Οδός/αριθμός/περιοχή/Τ.Κ. σε μία γραμμή — μόνο για ΔΙΑΝΟΜΗ/BOX, κενό για τα υπόλοιπα
@@ -444,6 +448,7 @@ public class SalesStatsService
         IsEveningShift = order.IsEveningShift,
         TablePerson = order.TablePerson,
         TableOpenedAt = order.TableOpenedAt,
+        AutoReceipt = order.AutoReceipt,
     };
 
     /// <summary>
@@ -534,6 +539,7 @@ public class SalesStatsService
                 IsEveningShift = order.IsEveningShift,
                 TablePerson = order.TablePerson,
                 TableOpenedAt = order.TableOpenedAt,
+                AutoReceipt = order.AutoReceipt,
             };
         }
         Save();
@@ -572,6 +578,7 @@ public class SalesStatsService
                 IsEveningShift = isEveningShift,
                 TablePerson = order.TablePerson,
                 TableOpenedAt = order.TableOpenedAt,
+                AutoReceipt = order.AutoReceipt,
             };
             Save();
         }
@@ -616,6 +623,7 @@ public class SalesStatsService
             IsEveningShift = order.IsEveningShift,
             TablePerson = order.TablePerson,
             TableOpenedAt = order.TableOpenedAt,
+            AutoReceipt = order.AutoReceipt,
         };
         Save();
         Changed?.Invoke();
@@ -679,6 +687,7 @@ public class SalesStatsService
             IsEveningShift = order.IsEveningShift,
             TablePerson = order.TablePerson,
             TableOpenedAt = order.TableOpenedAt,
+            AutoReceipt = order.AutoReceipt,
         };
         Save();
         Changed?.Invoke();

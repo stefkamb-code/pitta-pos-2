@@ -117,6 +117,27 @@
             </Setter>
         </Style>
 
+        <!-- Ο διακόπτης της απόδειξης στο παραθυράκι πληρωμής: σκέτος, χωρίς γράμματα (ζητήθηκε ρητά). -->
+        <Style x:Key="ReceiptSwitch" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="Track" Width="68" Height="38" CornerRadius="19" Background="{DynamicResource Neutral400}">
+                            <Border x:Name="Knob" Width="30" Height="30" CornerRadius="15" Background="White"
+                                    HorizontalAlignment="Left" Margin="4,0"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Accent}"/>
+                                <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="StepPanel" TargetType="FrameworkElement">
             <Setter Property="Visibility" Value="Collapsed"/>
         </Style>
@@ -1172,6 +1193,12 @@
                     <TextBlock Text="{Binding PaymentPromptSub}" FontSize="13.5"
                                Foreground="{DynamicResource Neutral600}" HorizontalAlignment="Center"
                                TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,26"/>
+                    <!-- Μόνο με πάροχο ΑΑΔΕ, σε ΟΡΘΙΟ/ΔΙΑΝΟΜΗ (βλ. OrderWizardViewModel.ReceiptNow): ανοιχτό = η απόδειξη
+                         κόβεται τώρα· κλειστό = αργότερα (πληρωμή/αποστολή, με όριο), ποτέ «καθόλου». Σκέτος διακόπτης· η
+                         εξήγηση μόνο στο tooltip. -->
+                    <CheckBox IsChecked="{Binding ReceiptNow}" Style="{StaticResource ReceiptSwitch}"
+                              HorizontalAlignment="Center" Margin="0,0,0,22" ToolTip="{Binding ReceiptSwitchHint}"
+                              Visibility="{Binding ShowReceiptSwitch, Converter={StaticResource BoolToVis}}"/>
                     <UniformGrid Columns="2">
                         <Button Content="💶 ΜΕΤΡΗΤΑ" Margin="0,0,10,0" Padding="18,20" FontSize="16" FontWeight="ExtraBold"
                                 Style="{StaticResource PaymentChoiceButton}" Command="{Binding SelectCashPaymentCommand}"/>
