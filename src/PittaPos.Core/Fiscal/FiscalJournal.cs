@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PittaPos.Core.Fiscal;
 
@@ -10,10 +11,20 @@ namespace PittaPos.Core.Fiscal;
 public sealed record FiscalItem(string Key, string Name, int Quantity, decimal Revenue, int VatRate)
 {
     /// <summary>Ο αριθμός παραγγελίας (γύρου) από το κλειδί.</summary>
+    [JsonIgnore]
     public int Order => int.Parse(Key.AsSpan(0, Key.IndexOf(':') is var i and >= 0 ? i : Key.Length));
 
+    /// <summary>Ακυρωμένο: κρατιέται στο παραστατικό που κόπηκε, αλλά δεν ταιριάζει ποτέ ξανά με γραμμή του ταμείου.</summary>
+    [JsonIgnore]
+    public bool IsVoid => Key.Contains('~');
+
     /// <summary>«παραγγελία:γραμμή» — χωρίς το τεμάχιο.</summary>
-    public string LineKey => Key.Count(c => c == ':') >= 2 ? Key[..Key.LastIndexOf(':')] : Key;
+    [JsonIgnore]
+    public string LineKey => IsVoid ? Key : Key.Count(c => c == ':') >= 2 ? Key[..Key.LastIndexOf(':')] : Key;
+
+    /// <summary>Η γραμμή (θέση στην παραγγελία) από το κλειδί.</summary>
+    [JsonIgnore]
+    public int Line => int.Parse(LineKey.AsSpan(LineKey.IndexOf(':') + 1));
 
     public static string KeyFor(int order, int line) => order + ":" + line;
     public static string KeyFor(int order, int line, int unit) => order + ":" + line + ":" + unit;
@@ -74,8 +85,11 @@ public sealed class FiscalEntry
     public FiscalPay? PayChangeWhenIssued { get; set; }
     public FiscalResult? Result { get; set; }
 
+    [JsonIgnore]
     public decimal Total => Items.Sum(i => i.Revenue);
+    [JsonIgnore]
     public string Mark => Result?.Mark ?? "";
+    [JsonIgnore]
     public bool IsLive => State is not FiscalEntryState.Dropped;
 }
 
@@ -254,7 +268,7 @@ public sealed class FiscalJournal
     {
         lock (_gate)
         {
-            bool Hit(FiscalItem i) => i.Order == orderNumber && (lineKeys is null || lineKeys.Contains(i.LineKey));
+            bool Hit(FiscalItem i) => !i.IsVoid && i.Order == orderNumber && (lineKeys is null || lineKeys.Contains(i.LineKey));
             foreach (var e in _entries.Where(e => e.IsLive && e.Kind is FiscalEntryKind.Receipt or FiscalEntryKind.Slip && e.Items.Any(Hit)).ToList())
             {
                 var hitKeys = e.Items.Where(Hit).Select(i => i.Key).ToList();
@@ -267,7 +281,9 @@ public sealed class FiscalJournal
                         if (e.Items.Count == 0) e.State = FiscalEntryState.Dropped;
                         break;
                     case FiscalEntryState.Sending:
-                        (e.UndoLinesWhenIssued ??= []).AddRange(hitKeys);
+                        // Σβήνονται ΤΩΡΑ από τη γραμμή του ταμείου (μπορεί αμέσως μετά να μετακινηθούν οι επόμενες γραμμές)·
+                        // η αναίρεση γίνεται μόλις κοπεί.
+                        (e.UndoLinesWhenIssued ??= []).AddRange(Void(e, hitKeys));
                         break;
                     case FiscalEntryState.Issued:
                         UndoIssued(e, hitKeys);
@@ -278,13 +294,48 @@ public sealed class FiscalJournal
         }
     }
 
+    /// <summary>
+    /// Το ταμείο έσβησε τη γραμμή <paramref name="lineIndex"/> της παραγγελίας και οι επόμενες ανέβηκαν μία θέση — το ίδιο
+    /// εδώ, ώστε μια επόμενη ακύρωση/πληρωμή να βρίσκει το σωστό προϊόν. Καλείται ΜΕΤΑ το <see cref="Cancel"/> της γραμμής.
+    /// </summary>
+    public void LineRemoved(int orderNumber, int lineIndex)
+    {
+        lock (_gate)
+        {
+            foreach (var e in _entries)
+                for (var k = 0; k < e.Items.Count; k++)
+                {
+                    var i = e.Items[k];
+                    if (i.IsVoid || i.Order != orderNumber || i.Line <= lineIndex) continue;
+                    var unit = i.Key.Count(c => c == ':') >= 2 ? i.Key[i.Key.LastIndexOf(':')..] : "";
+                    e.Items[k] = i with { Key = FiscalItem.KeyFor(orderNumber, i.Line - 1) + unit };
+                }
+            Commit();
+        }
+    }
+
+    /// <summary>Τα προϊόντα που ακυρώθηκαν μένουν στο παραστατικό που κόπηκε, αλλά δεν ταιριάζουν ποτέ ξανά με γραμμή του
+    /// ταμείου (που μπορεί να πάρει αμέσως τη θέση τους). Επιστρέφει τα νέα τους κλειδιά.</summary>
+    private static List<string> Void(FiscalEntry e, IReadOnlyCollection<string> keys)
+    {
+        var renamed = new List<string>();
+        for (var k = 0; k < e.Items.Count; k++)
+        {
+            if (!keys.Contains(e.Items[k].Key) || e.Items[k].IsVoid) continue;
+            var key = e.Items[k].Key + "~" + Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
+            e.Items[k] = e.Items[k] with { Key = key };
+            renamed.Add(key);
+        }
+        return renamed;
+    }
+
     /// <summary>Διόρθωση τρόπου πληρωμής μιας παραγγελίας εκ των υστέρων (π.χ. από το Ιστορικό).</summary>
     public void ChangePayment(int orderNumber, FiscalPay pay)
     {
         lock (_gate)
         {
             foreach (var e in _entries.Where(e => e.IsLive && e.Kind == FiscalEntryKind.Receipt && e.Pay != pay
-                                                  && e.Items.Any(i => i.Order == orderNumber)).ToList())
+                                                  && e.Items.Any(i => !i.IsVoid && i.Order == orderNumber)).ToList())
             {
                 switch (e.State)
                 {
@@ -482,8 +533,9 @@ public sealed class FiscalJournal
     /// <summary>Κάτι που ΚΟΠΗΚΕ ακυρώνεται (όλο ή κάποιες γραμμές).</summary>
     private void UndoIssued(FiscalEntry e, IReadOnlyCollection<string> keys)
     {
-        var undone = keys.Count == 0 ? e.Items : e.Items.Where(i => keys.Contains(i.Key)).ToList();
+        var undone = e.Items.Where(i => keys.Contains(i.Key)).ToList();
         if (undone.Count == 0) return;
+        var undoneKeys = undone.Select(i => i.Key).ToList();
         if (e.Kind == FiscalEntryKind.Receipt)
         {
             // Πληρώθηκε: πιστωτικό για ό,τι ακυρώθηκε, με τον ίδιο τρόπο — σε κάρτα η επιστροφή πάει στο τερματικό.
@@ -498,25 +550,30 @@ public sealed class FiscalJournal
                 TableSession = e.TableSession,
                 TableName = e.TableName,
             }, commit: false);
+            Void(e, undoneKeys);
             return;
         }
 
         // Δελτίο. Αν το έκλεισε ήδη απόδειξη, δεν ακυρώνεται: ό,τι πληρώθηκε πιστώνεται από τη δική του απόδειξη (εκεί
         // είναι τα χρήματα — το κάνει το Cancel, που περνά και από τις αποδείξεις με τα ίδια προϊόντα), ό,τι δεν
-        // πληρώθηκε απλώς δεν θα πληρωθεί ποτέ. Εδώ δεν γίνεται τίποτα — αλλιώς το πιστωτικό θα έβγαινε δύο φορές.
+        // πληρώθηκε απλώς δεν θα πληρωθεί ποτέ. Εδώ δεν κόβεται τίποτα — αλλιώς το πιστωτικό θα έβγαινε δύο φορές.
         if (IsClosed(e))
+        {
+            Void(e, undoneKeys);
             return;
+        }
 
-        // Δεν πληρώθηκε τίποτα: ακύρωση όλου του δελτίου, και νέο δελτίο με ό,τι έμεινε.
+        // Δεν πληρώθηκε τίποτα: ακύρωση όλου του δελτίου, και νέο δελτίο με ό,τι έμεινε. Το παλιό δεν ταιριάζει πια με
+        // τίποτα — αλλιώς μια επόμενη ακύρωση θα το «ξαναακύρωνε».
         Add(new FiscalEntry
         {
-            Id = NewId(DayOf(e), e.Items[0].Order, "x"),
+            Id = NewId(DayOf(e), undone[0].Order, "x"),
             Kind = FiscalEntryKind.SlipCancel,
             Correlates = [e.Id],
             TableSession = e.TableSession,
             TableName = e.TableName,
         }, commit: false);
-        var remaining = e.Items.Except(undone).ToList();
+        var remaining = e.Items.Where(i => !i.IsVoid && !undoneKeys.Contains(i.Key)).ToList();
         if (remaining.Count > 0)
             Add(new FiscalEntry
             {
@@ -526,6 +583,7 @@ public sealed class FiscalJournal
                 TableSession = e.TableSession,
                 TableName = e.TableName,
             }, commit: false);
+        Void(e, [.. e.Items.Where(i => !i.IsVoid).Select(i => i.Key)]);
     }
 
     /// <summary>
@@ -535,7 +593,7 @@ public sealed class FiscalJournal
     /// </summary>
     private void RepayIssued(FiscalEntry e, int orderNumber, FiscalPay pay)
     {
-        var moved = e.Items.Where(i => i.Order == orderNumber).ToList();
+        var moved = e.Items.Where(i => !i.IsVoid && i.Order == orderNumber).ToList();
         if (moved.Count == 0) return;
         Add(new FiscalEntry
         {
@@ -549,6 +607,8 @@ public sealed class FiscalJournal
             TableName = e.TableName,
         }, commit: false);
         Add(Copy(e, [.. moved], pay, "p"), commit: false);
+        // Από εδώ και πέρα αυτά ζουν στη νέα απόδειξη — η παλιά δεν ξαναπιστώνεται γι' αυτά.
+        Void(e, [.. moved.Select(i => i.Key)]);
     }
 
     private FiscalEntry Copy(FiscalEntry e, List<FiscalItem> items, FiscalPay pay, string kind) => new()

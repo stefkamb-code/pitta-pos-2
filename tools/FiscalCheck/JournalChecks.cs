@@ -214,6 +214,35 @@ static class JournalChecks
                   && inner.CancelledSlips.Count == cancelledBefore,
                 "Ακύρωση γύρου που ΗΔΗ πληρώθηκε → πιστωτικό της απόδειξης (εκεί είναι τα χρήματα), όχι ακύρωση δελτίου");
             Check(Net(j, 504) == 0m, "Τζίρος της ακυρωμένης = 0");
+            j.Cancel(504);
+            await j.ProcessAsync(inner);
+            Check(Net(j, 504) == 0m, "Δεύτερη ακύρωση της ίδιας → τίποτα (όχι δεύτερο πιστωτικό)");
+
+            // Οι γραμμές «ανεβαίνουν» μετά από διαγραφή: η επόμενη ακύρωση πρέπει να πέσει στο σωστό προϊόν.
+            j.Sale(505, Day, [Food(505, 0, "Γύρος", 1, 8.00m), Food(505, 1, "Πατάτες", 1, 3.50m), Drink(505, 2, "Amstel", 1, 3.50m)], FiscalPay.Cash);
+            await j.ProcessAsync(inner);
+            j.Cancel(505, [FiscalItem.KeyFor(505, 1)]);
+            j.LineRemoved(505, 1);                     // στο ταμείο, η Amstel είναι τώρα η γραμμή 1
+            j.Cancel(505, [FiscalItem.KeyFor(505, 1)]);
+            j.LineRemoved(505, 1);
+            await j.ProcessAsync(inner);
+            var credits = inner.Issued.Where(d => d.Doc.Type == FiscalDocType.RetailCredit).TakeLast(2).Select(d => d.Doc.Lines[0].Name).ToList();
+            Check(credits.SequenceEqual(["Πατάτες", "Amstel"]) && Net(j, 505) == 8.00m,
+                "Ακύρωση γραμμής 1 δύο φορές στη σειρά (όπως στο ταμείο) → πιστώνονται οι πατάτες και ΜΕΤΑ η Amstel, μένει ο γύρος");
+
+            j.TableRound(506, Day, "6@1800", "Τραπέζι 6", [Food(506, 0, "Σουβλάκι", 1, 2.50m), Food(506, 1, "Πίτα", 1, 0.50m), Drink(506, 2, "Νερό", 1, 0.50m)]);
+            await j.ProcessAsync(inner);
+            var cancelsBefore = inner.CancelledSlips.Count;
+            j.Cancel(506, [FiscalItem.KeyFor(506, 0)]);
+            j.LineRemoved(506, 0);
+            await j.ProcessAsync(inner);
+            j.Cancel(506, [FiscalItem.KeyFor(506, 0)]);  // η πίτα, που ανέβηκε στη θέση 0
+            j.LineRemoved(506, 0);
+            await j.ProcessAsync(inner);
+            var lastSlip = inner.Issued.Last(d => d.Doc.Type == FiscalDocType.OrderSlip).Doc;
+            Check(inner.CancelledSlips.Count == cancelsBefore + 2 && lastSlip.Lines.Count == 1 && lastSlip.Lines[0].Name == "Νερό",
+                "Δύο ακυρώσεις στο ίδιο δελτίο → κάθε φορά ακύρωση του τρέχοντος δελτίου και νέο, στο τέλος μένει μόνο το νερό");
+            Check(j.OpenSlips.Count == 1, "Ένα ανοιχτό δελτίο (το τελευταίο), όχι τα ακυρωμένα");
         }
 
         Console.WriteLine("  — διόρθωση μετρητά ↔ κάρτα εκ των υστέρων");
