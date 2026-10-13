@@ -161,6 +161,8 @@ if (mode == "wrapp")
 }
 else provider = new SimulatedProvider();
 
+failures += await JournalChecks.RunAsync();
+
 Console.WriteLine($"\nΣενάρια με «{provider.Name}»");
 foreach (var (name, run) in scenarios)
 {
@@ -170,6 +172,8 @@ foreach (var (name, run) in scenarios)
     catch (Exception ex) { Console.WriteLine("      ΕΞΑΙΡΕΣΗ: " + ex.Message); ok = false; }
     Check(ok, name);
 }
+
+failures += await JournalChecks.ContractAsync(provider, terminal);
 
 // ---------------------------------------------------------------- 3. ό,τι δεν έχει οδηγό το λέει καθαρά
 

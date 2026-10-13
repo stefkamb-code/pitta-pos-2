@@ -7,14 +7,20 @@ namespace PittaPos.Core.Fiscal;
 /// στέλνει τίποτα πουθενά. Για να δοκιμάζεται όλη η ροή του ταμείου πριν υπάρξει κλειδί από πάροχο — και για εκπαίδευση.
 /// Τα ΜΑΡΚ του ξεκινούν από 9 ώστε να μη μπερδεύονται ποτέ με αληθινά.
 /// </summary>
-public sealed class SimulatedProvider : IFiscalProvider
+public sealed class SimulatedProvider(bool fast = false) : IFiscalProvider
 {
     public string Name => FiscalProviders.Simulated;
 
     private long _next = 900_000_000_000_000 + Random.Shared.Next(1_000_000);
     private readonly Dictionary<string, long> _numbers = new();
     private readonly HashSet<string> _cancelled = new();
+    private readonly Dictionary<string, FiscalResult> _byExternalId = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
+
+    /// <summary>Όσα κόπηκαν — για τους ελέγχους (ποτέ διπλό).</summary>
+    public IReadOnlyCollection<(FiscalDocument Doc, FiscalResult Result)> Issued { get { lock (_gate) return [.. _issued]; } }
+    private readonly List<(FiscalDocument, FiscalResult)> _issued = [];
+    public IReadOnlyCollection<string> CancelledSlips { get { lock (_gate) return [.. _cancelled]; } }
 
     public async Task<FiscalResult> IssueAsync(FiscalDocument doc, CancellationToken ct = default)
     {
@@ -25,14 +31,18 @@ public sealed class SimulatedProvider : IFiscalProvider
             return FiscalResult.Fail("Δεν έχει οριστεί τερματικό κάρτας στις Ρυθμίσεις.");
 
         // Κάρτα: «ο πελάτης βάζει την κάρτα» — λίγη αναμονή, όπως στο αληθινό τερματικό.
-        await Task.Delay(doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip ? 1500 : 150, ct);
+        if (!fast)
+            await Task.Delay(doc.Pay == FiscalPay.Card && doc.Type != FiscalDocType.OrderSlip ? 1500 : 150, ct);
 
         lock (_gate)
         {
+            // Όπως οι πραγματικοί πάροχοι: ίδιο αναγνωριστικό = το ίδιο παραστατικό, όχι δεύτερο.
+            if (doc.ExternalId.Length > 0 && _byExternalId.TryGetValue(doc.ExternalId, out var already))
+                return already;
             var code = FiscalCodes.Code(doc.Type);
             _numbers[code] = _numbers.GetValueOrDefault(code) + 1;
             var mark = (++_next).ToString();
-            return new FiscalResult
+            var result = new FiscalResult
             {
                 Ok = true,
                 Mark = mark,
@@ -44,6 +54,9 @@ public sealed class SimulatedProvider : IFiscalProvider
                 ProviderId = Guid.NewGuid().ToString(),
                 ProviderTableRef = doc.TableName.Length > 0 ? (doc.ProviderTableRef.Length > 0 ? doc.ProviderTableRef : "table-" + Guid.NewGuid().ToString("N")[..8]) : "",
             };
+            if (doc.ExternalId.Length > 0) _byExternalId[doc.ExternalId] = result;
+            _issued.Add((doc, result));
+            return result;
         }
     }
 
