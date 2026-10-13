@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using PittaPos.App.Services;
+using PittaPos.Core.Fiscal;
 using PittaPos.Core.Models;
 
 namespace PittaPos.App.Views;
@@ -107,6 +108,19 @@ public partial class SettingsWindow : Window
     private void Light_Click(object sender, RoutedEventArgs e) { _store.SetTheme("light"); RefreshUi(); }
     private void Dark_Click(object sender, RoutedEventArgs e) { _store.SetTheme("dark"); RefreshUi(); }
 
+    /// <summary>Ο διακόπτης «Αυτόματη έκδοση απόδειξης» (πάροχος ΑΑΔΕ): μόνο ο admin — αλλάζει πότε κόβονται οι αποδείξεις,
+    /// και γράφεται στο ημερολόγιο ελέγχου.</summary>
+    private void AutoReceiptOn_Click(object sender, RoutedEventArgs e) => SetAutoReceipt(true);
+    private void AutoReceiptOff_Click(object sender, RoutedEventArgs e) => SetAutoReceipt(false);
+
+    private void SetAutoReceipt(bool on)
+    {
+        if (FiscalService.Instance.AutoReceipt == on || !PinDialog.RequireAdmin(this))
+            return;
+        FiscalService.Instance.SetAutoReceipt(on, "admin");
+        RefreshUi();
+    }
+
     private void MouseLayout_Click(object sender, RoutedEventArgs e) { _store.SetTouchLayout(false); RefreshUi(); }
     private void TouchLayout_Click(object sender, RoutedEventArgs e) { _store.SetTouchLayout(true); RefreshUi(); }
 
@@ -206,6 +220,19 @@ public partial class SettingsWindow : Window
         Highlight(MouseBtn, !_store.Settings.TouchLayout);
         Highlight(TouchBtn, _store.Settings.TouchLayout);
         TableCountText.Text = _store.Settings.TableCount.ToString();
+
+        var fiscal = FiscalService.Instance;
+        AutoReceiptSection.Visibility = fiscal.ProviderEnabled ? Visibility.Visible : Visibility.Collapsed;
+        Highlight(AutoReceiptOnBtn, fiscal.AutoReceipt);
+        Highlight(AutoReceiptOffBtn, !fiscal.AutoReceipt);
+        AutoReceiptHint.Text =
+            "ΝΑΙ: η απόδειξη κόβεται μόλις καταχωρηθεί η παραγγελία.\n" +
+            $"ΟΧΙ: η ΔΙΑΝΟΜΗ κόβεται όταν φύγει με τον διανομέα (το αργότερο σε {Hours(ReceiptPolicy.PhoneMaxWait)}) και ο ΟΡΘΙΟΣ " +
+            $"με μετρητά όταν πατήσεις «🧾 ΑΠΟΔΕΙΞΗ» στο Ιστορικό (το αργότερο σε {Hours(ReceiptPolicy.CounterMaxWait)}) — πάντα πριν " +
+            "κλείσει η μέρα, ώστε καμία πώληση να μη μείνει αδήλωτη. Ό,τι ακυρωθεί πριν, δεν κόβεται.\n" +
+            "Πάντα αυτόματα: κάρτα στον ΟΡΘΙΟ, BOX, Wolt, e-food.";
+
+        static string Hours(TimeSpan t) => t.TotalHours == 1 ? "1 ώρα" : $"{t.TotalHours:0} ώρες";
     }
 
     private static void Highlight(Button button, bool active)

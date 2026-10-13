@@ -33,7 +33,12 @@ public sealed class FiscalService
     private bool _busy;
     private readonly Dictionary<string, DateTime> _asked = [];
     private bool _hostActive;
+    private bool _hostAutoReceipt = true;
     private FiscalPay? _payHint;
+
+    /// <summary>Το ημερολόγιο ελέγχου (ένα αρχείο ανά μήνα, μόνο προσθήκες) — βλ. <see cref="FileFiscalAudit"/>.</summary>
+    private static readonly FileFiscalAudit Audit = new(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder, "fiscal-audit"));
 
     public event Action? Changed;
 
@@ -53,7 +58,31 @@ public sealed class FiscalService
     /// </summary>
     public bool ProviderEnabled => RemoteSync.IsClient ? _hostActive : Active;
 
-    public sealed record SyncDto(bool Active);
+    /// <summary>«Αυτόματη έκδοση απόδειξης» (βλ. <see cref="ReceiptPolicy"/>). Ζει στο κύριο ταμείο, που κόβει τις αποδείξεις·
+    /// το δεύτερο τη διαβάζει από εκεί.</summary>
+    public bool AutoReceipt => RemoteSync.IsClient ? _hostAutoReceipt : SettingsStore.Instance.Settings.AutoReceipt;
+
+    public sealed record SyncDto(bool Active, bool AutoReceipt = true);
+
+    public sealed record AutoReceiptRequest(bool On, string ChangedBy);
+
+    /// <summary>Αλλάζει τον διακόπτη (μόνο με κωδικό admin, βλ. SettingsWindow) και το γράφει στο ημερολόγιο ελέγχου με το
+    /// ποιος. Ό,τι περιμένει ήδη, συνεχίζει να περιμένει την αποστολή/πληρωμή του — δεν αλλάζει τίποτα που έχει γραφτεί.</summary>
+    public void SetAutoReceipt(bool on, string changedBy)
+    {
+        if (RemoteSync.IsClient)
+        {
+            _hostAutoReceipt = on;
+            _ = RemoteSync.PostAsync("/api/sync/fiscal/auto", new AutoReceiptRequest(on, changedBy));
+            return;
+        }
+        if (SettingsStore.Instance.Settings.AutoReceipt == on)
+            return;
+        SettingsStore.Instance.SetAutoReceipt(on);
+        Audit.Write(new FiscalAuditRecord(DateTime.Now, "ρύθμιση", "", "", "", "", 0, "",
+            $"Αυτόματη έκδοση απόδειξης: {(on ? "ΝΑΙ" : "ΟΧΙ")} — {changedBy}"));
+        Changed?.Invoke();
+    }
 
     /// <summary>Ο τρόπος πληρωμής που ξέρει ήδη μια εφαρμογή (π.χ. e-food: πληρωμένη online ή μετρητά στον διανομέα) για
     /// την παραγγελία που καταχωρείται ΑΜΕΣΩΣ μετά — χωρίς να γραφτεί στην ίδια την παραγγελία (εκεί θα μετρούσε δεύτερη
@@ -81,7 +110,10 @@ public sealed class FiscalService
             if (_journal is null)
             {
                 var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
-                _journal = new FiscalJournal(new FileFiscalJournalStore(Path.Combine(dir, "fiscal-journal.json")), StorePrefix());
+                _journal = new FiscalJournal(new FileFiscalJournalStore(Path.Combine(dir, "fiscal-journal.json")), StorePrefix())
+                {
+                    Audit = Audit,
+                };
                 _journal.Changed += () => Changed?.Invoke();
             }
             _journal.TerminalId = CounterTerminal();
@@ -104,7 +136,10 @@ public sealed class FiscalService
             RemoteSync.StartPolling(TimeSpan.FromSeconds(30), async () =>
             {
                 if (await RemoteSync.GetAsync<SyncDto>("/api/sync/fiscal") is { } dto)
+                {
                     _hostActive = dto.Active;
+                    _hostAutoReceipt = dto.AutoReceipt;
+                }
             });
             return;
         }
@@ -126,7 +161,8 @@ public sealed class FiscalService
         {
             await journal.ProcessAsync(ProviderNow);
             // Χαρτί ΔΕΝ βγαίνει μόνο του (απόφαση χρήστη 13/10/2026): η απόδειξη τυπώνεται όποτε τη ζητήσει το μαγαζί
-            // (βλ. PrintReceipts), το δελτίο τραπεζιού ποτέ.
+            // (βλ. PrintReceipts), το δελτίο τραπεζιού ποτέ. Εξαίρεση: ζητήθηκε ενώ περίμενε — τυπώνεται μόλις κοπεί.
+            PrintRequested(journal);
             AskAboutCards(journal);
         }
         finally { _busy = false; }
@@ -149,14 +185,70 @@ public sealed class FiscalService
         var pay = _payHint ?? PayOf(order);
         // Διανομή (και BOX, που το φέρνει δικός μας διανομέας) με κάρτα: το ποσό προφορτώνεται στο φορητό POS του διανομέα
         // και πληρώνεται στην πόρτα. Όρθιος: η κάρτα πάει ΑΜΕΣΩΣ στο τερματικό του μαγαζιού.
-        var ownDelivery = order.Type == OrderType.Delivery || (order.Type == OrderType.Apps && order.PaymentMethod is not null);
-        j.Sale(order.OrderNumber, day, items, pay, ownDelivery && pay == FiscalPay.Card ? DeliveryTerminal() : "");
+        // ΠΟΤΕ φεύγει: το αποφασίζει ΜΟΝΟ το ReceiptPolicy (διακόπτης «Αυτόματη έκδοση» + υποχρεωτικά αυτόματα).
+        var decision = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt);
+        j.Sale(order.OrderNumber, day, items, pay, PreloadFor(order, pay),
+            decision.Deferred ? decision.MaxWait : null, decision.Reason, decision.WaitsFor);
     });
+
+    /// <summary>Η διανομή πέρασε σε διανομέα (Ζωντανές, OrderBoardService.Dispatch/Reassign): η απόδειξη που περίμενε την
+    /// αποστολή φεύγει τώρα — σε κάρτα προφορτώνεται στο POS του διανομέα πριν φτάσει στην πόρτα.</summary>
+    public void OnDispatched(int orderNumber, string channel) =>
+        Safe("αποστολή #" + orderNumber, j => j.Release([orderNumber], "πέρασε σε " + channel));
+
+    /// <summary>Κλείσιμο ημέρας (DayReportService.CloseDay): ό,τι περιμένει ακόμα από τη μέρα που κλείνει, κόβεται τώρα.</summary>
+    public void OnDayClosing(DateTime businessDay) =>
+        Safe("κλείσιμο ημέρας", j => j.ReleaseBefore(businessDay.Date.AddHours(SalesStatsService.DayCutoffHour), "κλείσιμο ημέρας"));
+
+    /// <summary>Το POS του διανομέα για προφόρτωση — μόνο σε κάρτα σε δική μας διανομή (ΔΙΑΝΟΜΗ, BOX).</summary>
+    private static string PreloadFor(CompletedOrder order, FiscalPay pay) =>
+        pay == FiscalPay.Card && (order.Type == OrderType.Delivery || (order.Type == OrderType.Apps && order.PaymentMethod is not null))
+            ? DeliveryTerminal()
+            : "";
+
+    /// <summary>Η κατάσταση της απόδειξης μιας παραγγελίας, για το Ιστορικό. Held = περιμένει ακόμα (το κουμπί την κόβει).</summary>
+    public sealed record ReceiptStatus(bool Held, string Text);
+
+    /// <summary>Ίδιο με <see cref="StatusOf"/>, και από το δεύτερο ταμείο (ρωτά το κύριο, που έχει τις αποδείξεις).</summary>
+    public async Task<ReceiptStatus> StatusOfAsync(int orderNumber) => RemoteSync.IsClient
+        ? await RemoteSync.GetAsync<ReceiptStatus>($"/api/sync/fiscal/status/{orderNumber}") ?? new(false, "")
+        : StatusOf(orderNumber);
+
+    public ReceiptStatus StatusOf(int orderNumber)
+    {
+        if (Journal is not { } journal)
+            return new(false, "");
+        var lines = new List<string>();
+        var held = false;
+        foreach (var e in journal.EntriesFor(orderNumber).Where(e => e.IsLive))
+        {
+            var what = e.Kind switch
+            {
+                FiscalEntryKind.Slip => "Δελτίο παραγγελίας",
+                FiscalEntryKind.Credit => "Πιστωτικό",
+                FiscalEntryKind.SlipCancel => "Ακύρωση δελτίου",
+                _ => "Απόδειξη",
+            };
+            lines.Add(e.State switch
+            {
+                FiscalEntryState.Held => $"⏳ {what} σε αναμονή — {e.HoldReason}, το αργότερο {e.HeldUntil:HH:mm}",
+                FiscalEntryState.Issued => $"✓ {what} {e.Result?.Series} {e.Result?.Number} · ΜΑΡΚ {e.Mark}".Replace("  ", " "),
+                FiscalEntryState.NeedsDecision => $"⚠ {what}: η κάρτα δεν πέρασε — περιμένει απόφαση",
+                _ when e.LastError.Length > 0 => $"↻ {what}: ξαναδοκιμάζει ({e.LastError})",
+                _ => $"→ {what}: στέλνεται στον πάροχο",
+            });
+            held |= e.State == FiscalEntryState.Held;
+        }
+        return new(held, string.Join("\n", lines));
+    }
 
     /// <summary>
     /// Τυπώνει την απόδειξη (ΜΑΡΚ + QR) μιας παραγγελίας — μόνο όταν το ζητήσει το μαγαζί (Ιστορικό, ή κινητό μέσω
     /// /api/fiscal/print). Από το δεύτερο ταμείο πάει στο κύριο, που έχει τις αποδείξεις και τον εκτυπωτή. Επιστρέφει πόσες
-    /// τυπώθηκαν (0 = δεν έχει κοπεί ακόμα απόδειξη, π.χ. δεν πληρώθηκε ή περιμένει internet).
+    /// τυπώθηκαν ή θα τυπωθούν μόλις κοπούν (0 = δεν έχει απόδειξη, π.χ. τραπέζι που δεν πληρώθηκε).
+    ///
+    /// <para>Απόδειξη σε αναμονή (αυτόματη έκδοση κλειστή): το πάτημα ΕΙΝΑΙ η πληρωμή — κόβεται τώρα και τυπώνεται μόλις
+    /// έρθει το ΜΑΡΚ.</para>
     /// </summary>
     public int PrintReceipts(IEnumerable<int> orderNumbers)
     {
@@ -168,9 +260,12 @@ public sealed class FiscalService
         }
         if (Journal is not { } journal)
             return 0;
+        var released = journal.Release(orders, "ζητήθηκε η απόδειξη (πληρωμή)", print: true);
+        if (released > 0)
+            Kick();
         var fiscal = Fiscal;
         var s = SettingsStore.Instance.Settings;
-        var printed = 0;
+        var printed = released;
         foreach (var e in journal.ReceiptsFor(orders))
         {
             try
@@ -186,6 +281,28 @@ public sealed class FiscalService
             }
         }
         return printed;
+    }
+
+    /// <summary>Όσες ζητήθηκαν σε χαρτί πριν κοπούν: το χαρτί τους, μία φορά, μόλις κοπούν. Σημειώνεται ΠΡΙΝ το τύπωμα — αν
+    /// σκάσει ο εκτυπωτής, δεν ξαναπροσπαθεί σε κάθε γύρο (τυπώνεται ξανά από το Ιστορικό).</summary>
+    private void PrintRequested(FiscalJournal journal)
+    {
+        var fiscal = Fiscal;
+        var s = SettingsStore.Instance.Settings;
+        foreach (var e in journal.ToPrint)
+        {
+            journal.MarkPrinted(e.Id);
+            try
+            {
+                var text = FiscalReceiptText.Build(e, s.ReceiptTitle, s.ShopAddress, fiscal.Afm, ProviderNow.Name);
+                ReceiptPrinter.PrintFiscal(text, e.Result?.QrUrl ?? "", fiscal.Receipt == "other" ? fiscal.ReceiptPrinter : "",
+                    preview: FiscalTestMode.IsOn);
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("fiscal", $"Η απόδειξη {e.Result?.Series} {e.Result?.Number} δεν τυπώθηκε: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>Οι αποδείξεις του τραπεζιού όπως είναι ανοιχτό τώρα (όλα τα άτομα/γύροι) — για το κινητό.</summary>
@@ -228,13 +345,28 @@ public sealed class FiscalService
         j.LineRemoved(orderNumber, lineIndex);
     });
 
-    /// <summary>Διορθώθηκε ο τρόπος πληρωμής (Ιστορικό, ή μετρητά↔κάρτα ενός ατόμου τραπεζιού).</summary>
-    public void OnPaymentChanged(int orderNumber, PaymentMethod method) =>
-        Safe("αλλαγή πληρωμής #" + orderNumber, j => j.ChangePayment(orderNumber, method == PaymentMethod.Card ? FiscalPay.Card : FiscalPay.Cash));
+    /// <summary>Διορθώθηκε ο τρόπος πληρωμής (Ιστορικό, Ζωντανές, ή μετρητά↔κάρτα ενός ατόμου τραπεζιού). Αν η απόδειξη
+    /// περιμένει ακόμα, απλώς αλλάζει· και αν ο νέος τρόπος δεν επιτρέπει αναμονή (όρθιος → κάρτα), φεύγει τώρα.</summary>
+    public void OnPaymentChanged(int orderNumber, PaymentMethod method) => Safe("αλλαγή πληρωμής #" + orderNumber, j =>
+    {
+        var pay = method == PaymentMethod.Card ? FiscalPay.Card : FiscalPay.Cash;
+        if (Find(orderNumber) is { } order && order.Type != OrderType.Table)
+            j.ChangePayment(orderNumber, pay, PreloadFor(order, pay),
+                releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred);
+        else
+            j.ChangePayment(orderNumber, pay);
+    });
 
     /// <summary>Διορθώθηκε το κανάλι (π.χ. e-food → ΔΙΑΝΟΜΗ): αλλάζει το «πληρωμένη στην πλατφόρμα».</summary>
-    public void OnChannelChanged(CompletedOrder order) =>
-        Safe("αλλαγή καναλιού #" + order.OrderNumber, j => j.ChangePayment(order.OrderNumber, PayOf(order)));
+    public void OnChannelChanged(CompletedOrder order) => Safe("αλλαγή καναλιού #" + order.OrderNumber, j =>
+    {
+        var pay = PayOf(order);
+        j.ChangePayment(order.OrderNumber, pay, PreloadFor(order, pay),
+            releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred);
+        // Έγινε εφαρμογή (πάντα αυτόματα) ενώ περίμενε με ίδιο τρόπο πληρωμής: φεύγει τώρα.
+        if (!ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoReceipt).Deferred)
+            j.Release([order.OrderNumber], "άλλαξε το κανάλι σε " + order.TypeLabel);
+    });
 
     // ================================================================ βοηθητικά
 
@@ -245,12 +377,7 @@ public sealed class FiscalService
             if (Journal is { } j)
             {
                 action(j);
-                // Μόλις γραφτεί, φεύγει — χωρίς να περιμένει τον επόμενο γύρο του χρονοδιακόπτη.
-                _ = Application.Current?.Dispatcher.BeginInvoke(async () =>
-                {
-                    try { await TickAsync(); }
-                    catch (Exception ex) { AppLog.Write("fiscal", ex.GetType().Name + ": " + ex.Message); }
-                }, DispatcherPriority.Background);
+                Kick();
             }
         }
         catch (Exception ex)
@@ -258,6 +385,13 @@ public sealed class FiscalService
             AppLog.Write("fiscal", $"{what}: {ex.GetType().Name}: {ex.Message}");
         }
     }
+
+    /// <summary>Μόλις γραφτεί κάτι, φεύγει — χωρίς να περιμένει τον επόμενο γύρο του χρονοδιακόπτη.</summary>
+    private void Kick() => _ = Application.Current?.Dispatcher.BeginInvoke(async () =>
+    {
+        try { await TickAsync(); }
+        catch (Exception ex) { AppLog.Write("fiscal", ex.GetType().Name + ": " + ex.Message); }
+    }, DispatcherPriority.Background);
 
     private static List<FiscalItem> Items(CompletedOrder order) =>
         [.. order.Lines.Select((l, i) => new FiscalItem(FiscalItem.KeyFor(order.OrderNumber, i), l.Name, l.Quantity, l.Revenue,

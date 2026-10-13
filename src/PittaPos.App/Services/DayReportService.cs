@@ -491,6 +491,10 @@ public static class DayReportService
             return;
         }
 
+        // Πάροχος ΑΑΔΕ: ό,τι περιμένει ακόμα απόδειξη από τη μέρα που κλείνει (αυτόματη έκδοση κλειστή) κόβεται τώρα — καμία
+        // πώληση δεν περνά στην επόμενη μέρα αδήλωτη. Χωρίς πάροχο δεν κάνει τίποτα.
+        FiscalService.Instance.OnDayClosing(today);
+
         var report = Build();
         try
         {

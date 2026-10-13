@@ -60,6 +60,12 @@ public class AppSettings
     public bool TouchLayout { get; set; }
     /// <summary>"el" ή "en".</summary>
     public string Language { get; set; } = "el";
+    /// <summary>
+    /// Πάροχος ΑΑΔΕ: «Αυτόματη έκδοση απόδειξης» (βλ. Core.Fiscal.ReceiptPolicy). Ανοιχτό (όπως πάντα) = η απόδειξη κόβεται
+    /// με την καταχώρηση. Κλειστό = η ΔΙΑΝΟΜΗ κόβεται όταν φύγει με τον διανομέα και ο ΟΡΘΙΟΣ με μετρητά με την πληρωμή — το
+    /// αργότερο μέσα σε λίγες ώρες. Κάρτα στον ΟΡΘΙΟ, BOX, Wolt, e-food: πάντα αυτόματα. Ισχύει στο κύριο ταμείο.
+    /// </summary>
+    public bool AutoReceipt { get; set; } = true;
     /// <summary>Κωδικός για κλειδωμένα πεδία (Στατιστικά/Ιστορικό/Κατάλογος).</summary>
     public string Pin { get; set; } = "1992";
     /// <summary>Πόσα τραπέζια δείχνει το Βήμα 1 όταν επιλέγεται «ΤΡΑΠΕΖΙ».</summary>
@@ -421,6 +427,15 @@ public class SettingsStore
         Settings.TouchLayout = on;
         Save();
         TouchLayoutChanged?.Invoke();
+    }
+
+    /// <summary>Μόνο μέσω FiscalService.SetAutoReceipt — εκεί γράφεται και στο ημερολόγιο ελέγχου, με το ποιος το άλλαξε.</summary>
+    public void SetAutoReceipt(bool on)
+    {
+        if (Settings.AutoReceipt == on)
+            return;
+        Settings.AutoReceipt = on;
+        Save();
     }
 
     public void SetLanguage(string language)

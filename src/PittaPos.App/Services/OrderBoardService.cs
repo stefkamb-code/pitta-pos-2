@@ -361,6 +361,8 @@ public partial class OrderBoardService : ObservableObject
         // ΤΩΡΑ μπαίνει στον τζίρο, στη βάρδια αυτής της στιγμής — όσο ήταν στην αναμονή δεν μετρούσε
         // πουθενά (βλ. SalesStatsService.CountedOrders για το γιατί).
         SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
+        // Με πάροχο και αυτόματη έκδοση κλειστή: η απόδειξη που περίμενε την αποστολή κόβεται τώρα. Αλλιώς τίποτα.
+        FiscalService.Instance.OnDispatched(order.OrderNumber, channel);
         Notify();
     }
 
@@ -377,6 +379,7 @@ public partial class OrderBoardService : ObservableObject
         // Ίδιος κανόνας με το Dispatch: η βάρδια του τζίρου ακολουθεί τη βάρδια του καναλιού, ώστε
         // στατιστικά και ταμπελάκια καναλιών να μη λένε ποτέ διαφορετικά πράγματα.
         SalesStatsService.Instance.SetShift(order.OrderNumber, order.IsEveningShift);
+        FiscalService.Instance.OnDispatched(order.OrderNumber, channel);
         Notify();
     }
 
@@ -408,6 +411,9 @@ public partial class OrderBoardService : ObservableObject
             return;
         order.UpdatePaymentMethod(method);
         SalesStatsService.Instance.UpdatePaymentMethod(order.OrderNumber, method);
+        // Και η απόδειξη ακολουθεί (με πάροχο): αν δεν έχει κοπεί ακόμα αλλάζει απλώς ο τρόπος — μία απόδειξη· αν κόπηκε,
+        // πιστωτικό και νέα. Πριν, η μετακίνηση μετρητά↔κάρτα εδώ άφηνε την απόδειξη με τον παλιό τρόπο.
+        FiscalService.Instance.OnPaymentChanged(order.OrderNumber, method.Value);
     }
 
     /// <summary>

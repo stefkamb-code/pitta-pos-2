@@ -55,6 +55,12 @@ public enum FiscalEntryState
     /// <summary>Κάρτα που δεν πέρασε: δεν ξαναδοκιμάζεται μόνη της (ο πελάτης στέκεται μπροστά στο τερματικό) —
     /// ο ταμίας λέει «ξανά» ή «μετρητά».</summary>
     NeedsDecision,
+    /// <summary>
+    /// Αυτόματη έκδοση κλειστή (βλ. <see cref="ReceiptPolicy"/>): γραμμένη, αλλά δεν φεύγει ακόμα — περιμένει την αποστολή
+    /// ή την πληρωμή. Διορθώνεται/ακυρώνεται χωρίς να κοπεί τίποτα. ΔΕΝ μένει ποτέ αδήλωτη: φεύγει μόλις τη ζητήσει το
+    /// ταμείο, ή μόνη της στο <see cref="FiscalEntry.HeldUntil"/>, ή στο κλείσιμο της ημέρας.
+    /// </summary>
+    Held,
 }
 
 /// <summary>Ένα παραστατικό στο ημερολόγιο: τι πρέπει να κοπεί, και τι έγινε.</summary>
@@ -94,6 +100,14 @@ public sealed class FiscalEntry
     public FiscalResult? Result { get; set; }
     /// <summary>Το χαρτί της απόδειξης (ΜΑΡΚ + QR) βγήκε — δεν ξανατυπώνεται μόνο του, ούτε μετά από κλείσιμο.</summary>
     public bool Printed { get; set; }
+    /// <summary>Ζητήθηκε χαρτί πριν κοπεί (π.χ. «🧾 ΑΠΟΔΕΙΞΗ» σε απόδειξη που περίμενε): τυπώνεται μόλις κοπεί, μία φορά.</summary>
+    public bool PrintWhenIssued { get; set; }
+    /// <summary>Σε αναμονή (<see cref="FiscalEntryState.Held"/>): το αργότερο ως πότε — μετά φεύγει μόνη της.</summary>
+    public DateTime? HeldUntil { get; set; }
+    /// <summary>Γιατί περίμενε (από το <see cref="ReceiptPolicy"/>) — για το ημερολόγιο ελέγχου και την οθόνη.</summary>
+    public string HoldReason { get; set; } = "";
+    /// <summary>Πότε σταμάτησε να περιμένει: αυτή είναι η ημερομηνία έκδοσης της απόδειξης, όχι η ώρα της καταχώρησης.</summary>
+    public DateTime? ReleasedAt { get; set; }
 
     [JsonIgnore]
     public decimal Total => Items.Sum(i => i.Revenue);
@@ -192,6 +206,15 @@ public sealed class FiscalJournal
     /// <summary>Το τερματικό κάρτας του μαγαζιού (Terminal ID από τις Ρυθμίσεις).</summary>
     public string TerminalId { get; set; } = "";
 
+    /// <summary>Το ημερολόγιο ελέγχου: κάθε βήμα κάθε παραστατικού (βλ. <see cref="FileFiscalAudit"/>).</summary>
+    public IFiscalAudit Audit { get; set; } = NoFiscalAudit.Instance;
+
+    /// <summary>Μία γραμμή στο ημερολόγιο ελέγχου — και για γεγονότα του ταμείου που δεν είναι παραστατικό (π.χ. ρύθμιση).</summary>
+    public void Log(string ev, FiscalEntry? e, string detail = "") => Audit.Write(new FiscalAuditRecord(
+        _now(), ev, e?.Id ?? "", e?.Kind.ToString() ?? "", e?.State.ToString() ?? "",
+        e is null ? "" : string.Join(",", e.Items.Where(i => !i.IsVoid).Select(i => i.Order).Distinct()),
+        e?.Total ?? 0, e?.Pay.ToString() ?? "", detail));
+
     /// <summary>
     /// Δουλεύει ΜΟΝΟ όταν το μαγαζί έχει διαλέξει πάροχο που το ταμείο ξέρει. Χωρίς πάροχο (όλα τα μαγαζιά σήμερα) το
     /// ταμείο δουλεύει ακριβώς όπως πριν: κανένα ημερολόγιο, καμία αποστολή, κανένα χαρτί παραπάνω.
@@ -236,15 +259,26 @@ public sealed class FiscalJournal
         }
     }
 
-    /// <summary>Αποδείξεις και πιστωτικά που κόπηκαν και δεν έχει βγει ακόμα το χαρτί τους.</summary>
+    /// <summary>Αποδείξεις σε αναμονή (αυτόματη έκδοση κλειστή) — καμία δεν ξεχνιέται, βλ. <see cref="FiscalEntryState.Held"/>.</summary>
+    public IReadOnlyList<FiscalEntry> Held { get { lock (_gate) return [.. _entries.Where(e => e.State == FiscalEntryState.Held)]; } }
+
+    /// <summary>Αποδείξεις που ζητήθηκαν σε χαρτί πριν κοπούν και κόπηκαν τώρα — τυπώνονται μία φορά (χαρτί δεν βγαίνει
+    /// αλλιώς μόνο του· όποτε το ζητήσει το μαγαζί).</summary>
     public IReadOnlyList<FiscalEntry> ToPrint
     {
         get
         {
             lock (_gate)
-                return [.. _entries.Where(e => e.State == FiscalEntryState.Issued && !e.Printed
-                                               && e.Kind is FiscalEntryKind.Receipt or FiscalEntryKind.Credit)];
+                return [.. _entries.Where(e => e.State == FiscalEntryState.Issued && e.PrintWhenIssued && !e.Printed
+                                               && e.Kind == FiscalEntryKind.Receipt)];
         }
+    }
+
+    /// <summary>Όλα τα παραστατικά μιας παραγγελίας (για την οθόνη: σε αναμονή, φεύγει, κόπηκε με ΜΑΡΚ…).</summary>
+    public IReadOnlyList<FiscalEntry> EntriesFor(int orderNumber)
+    {
+        lock (_gate)
+            return [.. _entries.Where(e => e.Items.Any(i => !i.IsVoid && i.Order == orderNumber)).OrderBy(e => e.CreatedAt)];
     }
 
     /// <summary>Οι αποδείξεις που ισχύουν (κόπηκαν και δεν πιστώθηκαν ολόκληρες) για αυτές τις παραγγελίες — για το «τύπωσε
@@ -264,6 +298,7 @@ public sealed class FiscalJournal
         {
             if (Find(id) is not { } e || e.Printed) return;
             e.Printed = true;
+            Log("τυπώθηκε", e, $"{e.Result?.Series} {e.Result?.Number} ΜΑΡΚ {e.Mark}".Trim());
             Commit();
         }
     }
@@ -276,20 +311,71 @@ public sealed class FiscalJournal
     /// <summary>Παραγγελία εκτός τραπεζιού (όρθιος, διανομή, παραλαβή, εφαρμογή) → απόδειξη.</summary>
     /// <param name="preloadTerminal">Διανομή με κάρτα: το φορητό POS του διανομέα — το ποσό προφορτώνεται εκεί και πληρώνεται
     /// στην πόρτα. Κενό = η κάρτα πάει ΤΩΡΑ στο τερματικό του μαγαζιού (όρθιος).</param>
-    public FiscalEntry? Sale(int orderNumber, DateTime businessDay, IEnumerable<FiscalItem> items, FiscalPay pay, string preloadTerminal = "")
+    /// <param name="hold">Αυτόματη έκδοση κλειστή (βλ. <see cref="ReceiptPolicy"/>): γράφεται τώρα αλλά περιμένει το πολύ
+    /// τόσο (βλ. <see cref="FiscalEntryState.Held"/>). Null = φεύγει τώρα.</param>
+    /// <param name="reason">Γιατί αποφασίστηκε έτσι — στο ημερολόγιο ελέγχου.</param>
+    /// <param name="waitsFor">Για την οθόνη: τι περιμένει (π.χ. «κόβεται όταν φύγει με τον διανομέα»).</param>
+    public FiscalEntry? Sale(int orderNumber, DateTime businessDay, IEnumerable<FiscalItem> items, FiscalPay pay, string preloadTerminal = "",
+        TimeSpan? hold = null, string reason = "", string waitsFor = "")
     {
         var list = Billable(items);
         if (list.Count == 0) return null;
         var preload = pay == FiscalPay.Card && preloadTerminal.Length > 0;
-        return Add(new FiscalEntry
+        lock (_gate)
         {
-            Id = NewId(businessDay, orderNumber, "r"),
-            Kind = FiscalEntryKind.Receipt,
-            Items = list,
-            Pay = pay,
-            UseTerminal = pay == FiscalPay.Card && !preload,
-            PreloadTerminal = preload ? preloadTerminal : "",
-        });
+            var e = new FiscalEntry
+            {
+                Id = NewId(businessDay, orderNumber, "r"),
+                Kind = FiscalEntryKind.Receipt,
+                Items = list,
+                Pay = pay,
+                UseTerminal = pay == FiscalPay.Card && !preload,
+                PreloadTerminal = preload ? preloadTerminal : "",
+            };
+            Add(e, commit: false, reason);
+            if (hold is { } wait)
+            {
+                // Στην ίδια κλειδαριά με την προσθήκη: η αποστολή δεν προλαβαίνει να τη δει σαν «έτοιμη».
+                e.State = FiscalEntryState.Held;
+                e.HeldUntil = e.CreatedAt + wait;
+                e.HoldReason = waitsFor.Length > 0 ? waitsFor : reason;
+                Log("σε αναμονή", e, $"ως {e.HeldUntil:HH:mm} το αργότερο — {reason}");
+            }
+            Commit();
+            return e;
+        }
+    }
+
+    /// <summary>Οι αποδείξεις σε αναμονή αυτών των παραγγελιών φεύγουν ΤΩΡΑ (πέρασε σε διανομέα, πλήρωσε, ζητήθηκε).</summary>
+    /// <param name="print">Ζητήθηκε και χαρτί: τυπώνεται μόλις κοπεί (βλ. <see cref="ToPrint"/>).</param>
+    public int Release(IEnumerable<int> orderNumbers, string why, bool print = false)
+    {
+        var orders = orderNumbers.ToHashSet();
+        return ReleaseWhere(e => e.Items.Any(i => !i.IsVoid && orders.Contains(i.Order)), why, print);
+    }
+
+    /// <summary>Κλείσιμο ημέρας: ό,τι περιμένει από πριν από <paramref name="cutoff"/> φεύγει τώρα — καμία πώληση δεν περνά
+    /// στην επόμενη μέρα αδήλωτη.</summary>
+    public int ReleaseBefore(DateTime cutoff, string why) => ReleaseWhere(e => e.CreatedAt < cutoff, why, false);
+
+    private int ReleaseWhere(Func<FiscalEntry, bool> which, string why, bool print)
+    {
+        lock (_gate)
+        {
+            var held = _entries.Where(e => e.State == FiscalEntryState.Held && which(e)).ToList();
+            var now = _now();
+            foreach (var e in held)
+            {
+                e.State = FiscalEntryState.Waiting;
+                e.HeldUntil = null;
+                e.NextTryAt = null;
+                e.ReleasedAt = now;
+                e.PrintWhenIssued |= print;
+                Log("φεύγει", e, why);
+            }
+            if (held.Count > 0) Commit();
+            return held.Count;
+        }
     }
 
     /// <summary>Γύρος τραπεζιού → δελτίο παραγγελίας, τη στιγμή που γράφεται.</summary>
@@ -383,14 +469,19 @@ public sealed class FiscalJournal
                 {
                     case FiscalEntryState.Waiting:
                     case FiscalEntryState.NeedsDecision:
-                        // Δεν έφυγε ποτέ: απλώς δεν φεύγει (ή φεύγει χωρίς αυτά).
+                    case FiscalEntryState.Held:
+                        // Δεν έφυγε ποτέ: απλώς δεν φεύγει (ή φεύγει χωρίς αυτά) — καμία πώληση, κανένα πιστωτικό.
+                        var removed = e.Items.Where(i => hitKeys.Contains(i.Key)).Sum(i => i.Revenue);
                         e.Items.RemoveAll(i => hitKeys.Contains(i.Key));
                         if (e.Items.Count == 0) e.State = FiscalEntryState.Dropped;
+                        Log(e.State == FiscalEntryState.Dropped ? "ακυρώθηκε πριν κοπεί" : "αφαιρέθηκαν γραμμές πριν κοπεί", e,
+                            $"#{orderNumber}: −{removed:0.00}");
                         break;
                     case FiscalEntryState.Sending:
                         // Σβήνονται ΤΩΡΑ από τη γραμμή του ταμείου (μπορεί αμέσως μετά να μετακινηθούν οι επόμενες γραμμές)·
                         // η αναίρεση γίνεται μόλις κοπεί.
                         (e.UndoLinesWhenIssued ??= []).AddRange(Void(e, hitKeys));
+                        Log("ακύρωση όσο έφευγε", e, $"#{orderNumber}: η αναίρεση γίνεται μόλις κοπεί");
                         break;
                     case FiscalEntryState.Issued:
                         UndoIssued(e, hitKeys);
@@ -436,8 +527,14 @@ public sealed class FiscalJournal
         return renamed;
     }
 
-    /// <summary>Διόρθωση τρόπου πληρωμής μιας παραγγελίας εκ των υστέρων (π.χ. από το Ιστορικό).</summary>
-    public void ChangePayment(int orderNumber, FiscalPay pay)
+    /// <summary>
+    /// Διόρθωση τρόπου πληρωμής μιας παραγγελίας (Ιστορικό, Ζωντανές, κανάλι). Αν η απόδειξη δεν έχει κοπεί ακόμα (σε
+    /// αναμονή ή στην ουρά), απλώς αλλάζει — ΜΙΑ απόδειξη με τον σωστό τρόπο, όχι απόδειξη + πιστωτικό + απόδειξη.
+    /// </summary>
+    /// <param name="preloadTerminal">Διανομή: σε κάρτα, το φορητό POS του διανομέα (προφόρτωση) αντί για του ταμείου.</param>
+    /// <param name="releaseHeld">Μια απόδειξη σε αναμονή φεύγει ΤΩΡΑ (π.χ. όρθιος που γύρισε σε κάρτα: η χρέωση πάει στο
+    /// τερματικό τώρα). false = συνεχίζει να περιμένει (διανομή που δεν έφυγε ακόμα).</param>
+    public void ChangePayment(int orderNumber, FiscalPay pay, string preloadTerminal = "", bool releaseHeld = true)
     {
         lock (_gate)
         {
@@ -448,13 +545,24 @@ public sealed class FiscalJournal
                 {
                     case FiscalEntryState.Waiting:
                     case FiscalEntryState.NeedsDecision:
+                    case FiscalEntryState.Held:
                         if (e.Items.All(i => i.Order == orderNumber))
                         {
+                            var before = e.Pay;
                             e.Pay = pay;
                             // Κάρτα με πάροχο = πάντα μέσα από τερματικό (τώρα, ή προφορτωμένη στον διανομέα)· απόδειξη κάρτας
                             // χωρίς συναλλαγή δεν υπάρχει.
-                            if (pay != FiscalPay.Card) e.PreloadTerminal = "";
+                            e.PreloadTerminal = pay != FiscalPay.Card ? "" : preloadTerminal.Length > 0 ? preloadTerminal : e.PreloadTerminal;
                             e.UseTerminal = pay == FiscalPay.Card && e.PreloadTerminal.Length == 0;
+                            Log("αλλαγή πληρωμής πριν κοπεί", e, $"#{orderNumber}: {before} → {pay}");
+                            if (e.State == FiscalEntryState.Held && !releaseHeld)
+                                break;
+                            if (e.State == FiscalEntryState.Held)
+                            {
+                                e.HeldUntil = null;
+                                e.ReleasedAt = _now();
+                                Log("φεύγει", e, "άλλαξε ο τρόπος πληρωμής");
+                            }
                             e.State = FiscalEntryState.Waiting;
                         }
                         else
@@ -468,8 +576,10 @@ public sealed class FiscalJournal
                     case FiscalEntryState.Sending:
                         e.PayChangeOrder = orderNumber;
                         e.PayChangeWhenIssued = pay;
+                        Log("αλλαγή πληρωμής όσο έφευγε", e, $"#{orderNumber}: → {pay} μόλις κοπεί");
                         break;
                     case FiscalEntryState.Issued:
+                        Log("αλλαγή πληρωμής μετά την έκδοση", e, $"#{orderNumber}: {e.Pay} → {pay} (πιστωτικό + νέα απόδειξη)");
                         RepayIssued(e, orderNumber, pay);
                         break;
                 }
@@ -479,10 +589,10 @@ public sealed class FiscalJournal
     }
 
     /// <summary>Η κάρτα δεν πέρασε· ο ταμίας λέει «ξανά».</summary>
-    public void RetryCard(string id) => Decide(id, e => { e.State = FiscalEntryState.Waiting; e.NextTryAt = null; });
+    public void RetryCard(string id) => Decide(id, "κάρτα: ξανά στο τερματικό", e => { e.State = FiscalEntryState.Waiting; e.NextTryAt = null; });
 
     /// <summary>Η κάρτα δεν πέρασε· ο πελάτης πλήρωσε μετρητά.</summary>
-    public void PayCardAsCash(string id) => Decide(id, e =>
+    public void PayCardAsCash(string id) => Decide(id, "κάρτα: πλήρωσε μετρητά", e =>
     {
         e.Pay = FiscalPay.Cash;
         e.UseTerminal = false;
@@ -501,6 +611,10 @@ public sealed class FiscalJournal
         if (!await _processing.WaitAsync(0, ct)) return 0;
         try
         {
+            // Απόδειξη σε αναμονή που έφτασε στο όριό της: φεύγει με ό,τι τρόπο πληρωμής έχει — δεν μένει ποτέ αδήλωτη, ούτε
+            // αν το ταμείο ήταν κλειστό τη στιγμή που έληγε (φεύγει στο πρώτο άνοιγμα).
+            var now = _now();
+            ReleaseWhere(e => e.HeldUntil <= now, "έφτασε το όριο αναμονής", false);
             var sent = 0;
             while (!ct.IsCancellationRequested)
             {
@@ -512,6 +626,8 @@ public sealed class FiscalJournal
                     if (next is null) break;
                     next.State = FiscalEntryState.Sending;
                     next.Attempts++;
+                    Log("στέλνεται", next, $"απόπειρα {next.Attempts} → {provider.Name}" + (next.UseTerminal ? $", τερματικό {TerminalId}" : "")
+                        + (next.PreloadTerminal.Length > 0 ? $", προφόρτωση {next.PreloadTerminal}" : ""));
                     Commit();
                 }
 
@@ -541,6 +657,8 @@ public sealed class FiscalJournal
                         next.LastError = "";
                         next.NextTryAt = null;
                         sent++;
+                        Log("κόπηκε", next, $"{result.Series} {result.Number} ΜΑΡΚ {result.Mark} UID {result.Uid}".Trim()
+                            + (result.PosTxn.Length > 0 ? $", POS {result.PosTxn}" : ""));
                         if (next.UndoLinesWhenIssued is { } undo)
                         {
                             next.UndoLinesWhenIssued = null;
@@ -563,6 +681,7 @@ public sealed class FiscalJournal
                             next.State = FiscalEntryState.Waiting;
                             next.NextTryAt = _now() + Backoff(next.Attempts);
                         }
+                        Log("δεν κόπηκε", next, result.Error + (next.State == FiscalEntryState.Waiting ? $" — ξανά στις {next.NextTryAt:HH:mm:ss}" : " — ρωτά τον ταμία"));
                     }
                     Commit();
                 }
@@ -599,7 +718,8 @@ public sealed class FiscalJournal
         }
         doc.Series = e.Series;
         doc.Number = e.Number;
-        doc.IssueDate = e.CreatedAt;
+        // Απόδειξη που περίμενε: εκδίδεται τη στιγμή που ελευθερώθηκε (αποστολή/πληρωμή), όχι της καταχώρησης.
+        doc.IssueDate = e.ReleasedAt ?? e.CreatedAt;
         return doc;
     }
 
@@ -798,13 +918,19 @@ public sealed class FiscalJournal
         }
     }
 
-    private FiscalEntry Add(FiscalEntry e, bool commit = true)
+    private FiscalEntry Add(FiscalEntry e, bool commit = true, string reason = "")
     {
         lock (_gate)
         {
             e.CreatedAt = Later(_now());
             e.State = FiscalEntryState.Waiting;
             _entries.Add(e);
+            Log("νέο", e, string.Join(" — ", new[]
+            {
+                reason,
+                e.Correlates.Count > 0 ? "συσχετίζει " + string.Join(",", e.Correlates) : "",
+                e.TableName,
+            }.Where(s => s.Length > 0)));
             if (commit) Commit();
             return e;
         }
@@ -817,12 +943,13 @@ public sealed class FiscalJournal
         return t > last ? t : last.AddTicks(1);
     }
 
-    private void Decide(string id, Action<FiscalEntry> change)
+    private void Decide(string id, string what, Action<FiscalEntry> change)
     {
         lock (_gate)
         {
             if (Find(id) is not { State: FiscalEntryState.NeedsDecision } e) return;
             change(e);
+            Log(what, e);
             Commit();
         }
     }

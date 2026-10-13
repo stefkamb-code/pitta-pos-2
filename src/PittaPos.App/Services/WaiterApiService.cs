@@ -291,7 +291,17 @@ public static class WaiterApiService
 
         // ---- πάροχος ΑΑΔΕ: αν είναι ενεργός, ο ΟΡΘΙΟΣ ρωτάει ΜΕΤΡΗΤΑ/ΚΑΡΤΑ και στο δεύτερο ταμείο ----
         app.MapGet("/api/sync/fiscal", () =>
-            Results.Json(OnUi(() => new FiscalService.SyncDto(FiscalService.Instance.Active))));
+            Results.Json(OnUi(() => new FiscalService.SyncDto(FiscalService.Instance.Active, FiscalService.Instance.AutoReceipt))));
+        // Ο διακόπτης «Αυτόματη έκδοση απόδειξης» από το δεύτερο ταμείο (ο κωδικός admin ζητήθηκε εκεί) — ζει εδώ.
+        app.MapPost("/api/sync/fiscal/auto", async (HttpContext ctx) =>
+        {
+            var req = await ctx.Request.ReadFromJsonAsync<FiscalService.AutoReceiptRequest>();
+            if (req is not null) OnUi(() => { FiscalService.Instance.SetAutoReceipt(req.On, req.ChangedBy + " (δεύτερο ταμείο)"); return 0; });
+            return Results.Ok();
+        });
+        // Η κατάσταση της απόδειξης μιας παραγγελίας, για το Ιστορικό του δεύτερου ταμείου.
+        app.MapGet("/api/sync/fiscal/status/{orderNumber:int}", (int orderNumber) =>
+            Results.Json(OnUi(() => FiscalService.Instance.StatusOf(orderNumber))));
         app.MapPost("/api/sync/fiscal/print", async (HttpContext ctx) =>
         {
             var req = await ctx.Request.ReadFromJsonAsync<FiscalService.PrintRequest>();

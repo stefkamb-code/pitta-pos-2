@@ -218,7 +218,7 @@ public class SalesStatsService
     public void RaiseChanged() => Changed?.Invoke();
 
     /// <summary>Ώρα-όριο ημέρας: πριν από αυτήν η νύχτα μετράει ακόμα στην προηγούμενη μέρα.</summary>
-    private const int DayCutoffHour = 5;
+    public const int DayCutoffHour = 5;
 
     /// <summary>Ίδιος κανόνας ημέρας-επιχείρησης, διαθέσιμος και σε άλλα services (π.χ. αρχειοθέτηση ιστορικού).</summary>
     public static DateTime BusinessDay(DateTime t) => t.Hour < DayCutoffHour ? t.Date.AddDays(-1) : t.Date;

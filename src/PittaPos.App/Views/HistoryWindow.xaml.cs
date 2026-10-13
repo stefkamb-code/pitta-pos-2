@@ -21,13 +21,48 @@ public partial class HistoryWindow : Window
         Closed += (_, _) => _vm.Detach();
         ApplyReceiptSettings();
         FiscalReceiptButton.Visibility = FiscalService.Instance.ProviderEnabled ? Visibility.Visible : Visibility.Collapsed;
+        if (FiscalService.Instance.ProviderEnabled)
+        {
+            _vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(HistoryViewModel.SelectedOrder)) RefreshFiscalStatus();
+            };
+            // Κόπηκε/ελευθερώθηκε στο μεταξύ (κύριο ταμείο): η γραμμή ενημερώνεται μόνη της.
+            void OnFiscalChanged() => Dispatcher.BeginInvoke(RefreshFiscalStatus);
+            FiscalService.Instance.Changed += OnFiscalChanged;
+            Closed += (_, _) => FiscalService.Instance.Changed -= OnFiscalChanged;
+            RefreshFiscalStatus();
+        }
     }
 
-    /// <summary>Η απόδειξη του παρόχου ΑΑΔΕ (ΜΑΡΚ + QR) της επιλεγμένης παραγγελίας — μόνο όταν τη ζητήσει το μαγαζί.</summary>
-    private void FiscalReceipt_Click(object sender, RoutedEventArgs e)
+    /// <summary>Η απόδειξη του παρόχου ΑΑΔΕ (ΜΑΡΚ + QR) της επιλεγμένης παραγγελίας — μόνο όταν τη ζητήσει το μαγαζί. Αν
+    /// περιμένει ακόμα (αυτόματη έκδοση κλειστή), το πάτημα είναι η πληρωμή: κόβεται τώρα και τυπώνεται μόλις έρθει το ΜΑΡΚ.</summary>
+    private async void FiscalReceipt_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.SelectedOrder is { } order)
-            FiscalService.Instance.PrintReceipts([order.OrderNumber]);
+        if (_vm.SelectedOrder is not { } order)
+            return;
+        FiscalService.Instance.PrintReceipts([order.OrderNumber]);
+        // Από το δεύτερο ταμείο η αλλαγή γίνεται στο κύριο — μια ματιά λίγο μετά, για να φανεί ότι έφυγε.
+        await Task.Delay(1500);
+        RefreshFiscalStatus();
+    }
+
+    private int _statusFor = -1;
+
+    private async void RefreshFiscalStatus()
+    {
+        if (_vm.SelectedOrder is not { } order)
+        {
+            FiscalStatusText.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var number = _statusFor = order.OrderNumber;
+        var status = await FiscalService.Instance.StatusOfAsync(number);
+        if (number != _statusFor)
+            return; // άλλαξε η επιλογή όσο ρωτούσε το κύριο ταμείο
+        FiscalReceiptButton.Content = status.Held ? "🧾 ΚΟΨΕ ΚΑΙ ΤΥΠΩΣΕ ΑΠΟΔΕΙΞΗ" : "🧾 ΑΠΟΔΕΙΞΗ (ΜΑΡΚ)";
+        FiscalStatusText.Text = status.Text;
+        FiscalStatusText.Visibility = status.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Εφαρμόζει τις ρυθμίσεις «τι δείχνει η απόδειξη».</summary>

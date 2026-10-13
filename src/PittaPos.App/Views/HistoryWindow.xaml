@@ -623,6 +623,9 @@
                         <Button x:Name="FiscalReceiptButton" Content="🧾 ΑΠΟΔΕΙΞΗ (ΜΑΡΚ)" Style="{StaticResource FlatButton}"
                                 Width="420" Height="40" FontSize="13" FontWeight="Bold" HorizontalContentAlignment="Center"
                                 HorizontalAlignment="Left" Margin="0,8,0,0" Click="FiscalReceipt_Click" Visibility="Collapsed"/>
+                        <!-- Τι έγινε με την απόδειξη της παραγγελίας: σε αναμονή (και ως πότε), κόπηκε με ΜΑΡΚ, ξαναδοκιμάζει. -->
+                        <TextBlock x:Name="FiscalStatusText" Width="420" HorizontalAlignment="Left" Margin="2,6,0,0"
+                                   FontSize="11.5" Foreground="{DynamicResource Neutral600}" TextWrapping="Wrap" Visibility="Collapsed"/>
 
                         <Border Width="420" HorizontalAlignment="Left" Margin="0,14,0,0"
                                 BorderBrush="{DynamicResource Divider}" BorderThickness="0,1,0,0" Padding="0,8,0,0">

@@ -54,6 +54,26 @@
                 <TextBlock Text="Τίτλος, στοιχεία καταστήματος, υποσέλιδο και τι εμφανίζεται — με ζωντανή προεπισκόπηση."
                            FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,8,0,26"/>
 
+                <!-- Πάροχος ΑΑΔΕ: ΠΟΤΕ κόβεται η απόδειξη (Core.Fiscal.ReceiptPolicy). Μόνο όταν το μαγαζί έχει πάροχο —
+                     αλλιώς δεν φαίνεται καν. Αλλάζει μόνο με τον κωδικό admin. -->
+                <StackPanel x:Name="AutoReceiptSection" Visibility="Collapsed">
+                    <TextBlock Text="ΑΥΤΟΜΑΤΗ ΕΚΔΟΣΗ ΑΠΟΔΕΙΞΗΣ" FontSize="11" FontWeight="ExtraBold"
+                               Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" x:Name="AutoReceiptOnBtn" Content="ΝΑΙ" Height="52" FontSize="14" FontWeight="ExtraBold"
+                                Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="AutoReceiptOn_Click"/>
+                        <Button Grid.Column="2" x:Name="AutoReceiptOffBtn" Content="ΟΧΙ" Height="52" FontSize="14" FontWeight="ExtraBold"
+                                Style="{StaticResource FlatButton}" HorizontalContentAlignment="Center" Click="AutoReceiptOff_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="AutoReceiptHint" FontSize="11.5" Foreground="{DynamicResource Neutral500}"
+                               TextWrapping="Wrap" Margin="0,0,0,26"/>
+                </StackPanel>
+
                 <!-- printer -->
                 <TextBlock Text="ΕΚΤΥΠΩΤΗΣ" FontSize="11" FontWeight="ExtraBold"
                            Foreground="{DynamicResource Neutral600}" Margin="0,0,0,8"/>
