@@ -57,7 +57,8 @@ public partial class EfoodMatchViewModel : ObservableObject
     private void Rebuild()
     {
         var wasEmpty = _all.Count == 0;
-        Suggestions = EfoodMatcher.SuggestAll(Store.Catalog, Menu);
+        // Προτάσεις μόνο για όσα θέλουν ματιά — τα υπόλοιπα δείχνουν την αποθηκευμένη γραμμή τους (βλ. Load).
+        Suggestions = EfoodMatcher.SuggestAll(Store.Catalog.Where(i => Store.StateOf(i) == EfoodMatchState.Pending).ToList(), Menu);
         _all = Store.Catalog.Select(item => new EfoodMatchRowViewModel(this, item)).ToList();
         if (wasEmpty)
             ShowPendingOnly = _all.Any(r => r.NeedsConfirm);

@@ -76,6 +76,14 @@ public sealed class EfoodMatchStore
     /// <summary>Απόφαση ανθρώπου: αυτό το προϊόν του e-food είναι αυτό το προϊόν του ταμείου (κενό = δεν υπάρχει στο ταμείο).</summary>
     public void Set(EfoodCatalogItem item, string productId, string bread)
     {
+        // Αν ο κατάλογος ξανάρθει στο παρασκήνιο όσο είναι ανοιχτή η οθόνη, η γραμμή της οθόνης μπορεί να έχει τον
+        // παλιό αριθμό — η απόφαση πάει στο ίδιο προϊόν (ίδιος κωδικός) του τωρινού καταλόγου.
+        if (!_catalogIds.Contains(item.Id) && item.Code.Length > 0
+            && Catalog.FirstOrDefault(i => string.Equals(i.Code, item.Code, StringComparison.OrdinalIgnoreCase)) is { } current)
+        {
+            _matches.Remove(item.Id);
+            item = current;
+        }
         _matches[item.Id] = new EfoodMatch
         {
             EfoodId = item.Id,
@@ -83,10 +91,21 @@ public sealed class EfoodMatchStore
             EfoodName = item.Name,
             EfoodCategory = item.Category,
             ProductId = productId,
+            ProductName = productId.Length == 0 ? ""
+                : _menu.Categories.SelectMany(c => c.Products).FirstOrDefault(p => p.Id == productId)?.Name ?? "",
             Bread = bread,
             Confirmed = true,
         };
         SaveMatches();
+    }
+
+    /// <summary>Πριν ανοίξει η ΑΝΤΙΣΤΟΙΧΙΣΗ: οι γραμμές ακολουθούν ό,τι άλλαξε στο μενού του ταμείου από την εκκίνηση
+    /// (προϊόν που ξαναπεράστηκε) και τα καινούρια προϊόντα του ταμείου παίρνουν τις σίγουρες αυτόματες.</summary>
+    public void Reconcile()
+    {
+        if (EfoodMatchKeeper.Follow(Catalog, _matches, _menu))
+            SaveMatches();
+        AddAutoMatches();
     }
 
     /// <summary>Φέρνει τον κατάλογο από τη γέφυρα. Δύο κλήσεις μαζί περιμένουν την ίδια ερώτηση.</summary>
@@ -146,7 +165,9 @@ public sealed class EfoodMatchStore
             {
                 _log($"Δεν γράφτηκε το «efood-catalog.json»: {ex.GetType().Name}: {ex.Message}");
             }
-            AddAutoMatches();
+            // Οι αποφάσεις ακολουθούν τα προϊόντα τους ΠΡΙΝ από τις αυτόματες — ένας νέος αριθμός του e-food για το ίδιο
+            // προϊόν δεν σβήνει ό,τι αντιστοίχισε άνθρωπος.
+            Reconcile();
             _lastLogged = "";
             return (true, $"Ήρθε ο κατάλογος του e-food — {items.Count} προϊόντα.");
         }
@@ -200,10 +221,10 @@ public sealed class EfoodMatchStore
             _log($"Δεν διαβάστηκε το «efood-matching.json» ({ex.Message}) — κρατήθηκε ως {Path.GetFileName(kept)}");
         }
 
-        AddAutoMatches();
+        Reconcile();
     }
 
-    /// <summary>Ό,τι ταιριάζει αυτόματα (ίδιο όνομα, ίδια τιμή) γράφεται μία φορά και μένει — βλ. <see cref="EfoodContext.AutoMatches"/>.</summary>
+    /// <summary>Ό,τι ταιριάζει αυτόματα (ίδιες λέξεις, ίδια τιμή) γράφεται μία φορά και μένει — βλ. <see cref="EfoodContext.AutoMatches"/>.</summary>
     private void AddAutoMatches()
     {
         if (Catalog.Count == 0 || _menu.Categories.Count == 0)

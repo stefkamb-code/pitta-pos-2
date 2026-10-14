@@ -157,6 +157,85 @@ Check(EfoodOrderReader.CancelReasonText("platform: SOMETHING_NEW") == "ακύρ�
 Check(EfoodOrderReader.CancelReasonText("") == "" && EfoodOrderReader.CancelReasonText("TEST_ORDER") == "δοκιμαστική",
     "κενό → κενό · χωρίς «ποιος» → μόνο ο λόγος");
 
+Console.WriteLine("--- αυτόματη αντιστοίχιση με ΛΕΞΕΙΣ, πάνω σε μενού μαγαζιού γραμμένο αλλιώς από το e-food");
+{
+    var shop = new ShopMenu();
+    EfoodSuggestion? Suggest(string name, string category, decimal price) =>
+        EfoodMatcher.Suggest(new EfoodCatalogItem("1", "IT_1", name, category, price, true, []), shop);
+    void Expect(string name, string category, decimal price, string product, string bread, bool sure, bool samePrice = true)
+    {
+        var found = Suggest(name, category, price);
+        Check(found is not null && found.Product.Name == product && found.Bread == bread && found.Sure == sure && found.SamePrice == samePrice,
+            $"«{name}» → «{found?.Product.Name}»{(found?.Bread is { Length: > 0 } b ? " + " + b : "")}"
+            + (found is null ? "" : found.Sure ? (found.SamePrice ? " · αυτόματα" : " · ίδιες λέξεις, άλλη τιμή") : " · πρόταση για επιβεβαίωση"));
+    }
+
+    Expect("Πίττα κοτόπουλο", "Τυλιχτά", 4.40m, "ΠΙΤΑ ΚΟΤΟΠΟΥΛΟ", "", sure: true);
+    Expect("Κοτόπουλο μερίδα", "Μερίδες", 10.80m, "Μερίδα Κοτόπουλο", "", sure: true);
+    Expect("Μπιφτέκι μερίδα", "Μερίδες", 9.50m, "Μερίδα μπιφτέκια", "", sure: true);
+    Expect("Χωριάτικη σαλάτα", "Σαλάτες", 6.50m, "Σαλάτα χωριάτικη", "", sure: true);
+    Expect("Αραβική πίττα χοιρινό", "Αραβικές πίττες", 4.40m, "ΠΙΤΑ ΧΟΙΡΙΝΗ", "Αραβική", sure: true);
+    Expect("Σάντουιτς κοτόπουλο", "Σάντουιτς", 4.40m, "ΠΙΤΑ ΚΟΤΟΠΟΥΛΟ", "Ψωμί", sure: true);
+    Expect("Αραβική πίττα γύρος", "Αραβικές πίττες", 4.60m, "Αραβική γύρος", "", sure: true);
+    Expect("Coca-Cola 330ml", "Αναψυκτικά", 1.90m, "Κόκα Κόλα 330 ml", "", sure: true);
+    Expect("Coca-Cola Zero 330ml", "Αναψυκτικά", 1.90m, "Coca Cola ZERO 330ml", "", sure: true);
+    Expect("Coca-Cola 1.5L", "Αναψυκτικά", 3.00m, "Κόκα Κόλα 1,5 lt", "", sure: true);
+    Expect("Πατάτες", "Συνοδευτικά", 3.00m, "Πατάτες τηγανητές", "", sure: false);
+    Expect("Λαχανικών", "Νηστίσιμο menu", 7.00m, "Σαλάτα λαχανικών", "", sure: false, samePrice: false);
+    Expect("Burger απλό", "Burgers", 6.40m, "Μπέργκερ απλό", "", sure: true);
+    Expect("Πίττα κοτόπουλο", "Τυλιχτά", 5.00m, "ΠΙΤΑ ΚΟΤΟΠΟΥΛΟ", "", sure: true, samePrice: false);
+    Check(Suggest("Καλαμάρι τηγανητό", "Θαλασσινά", 8m) is not { Sure: true },
+        "«Καλαμάρι τηγανητό» ≠ «Καλαμάκι χοιρινό» (ένα γράμμα, άλλο φαγητό) — ποτέ αυτόματα");
+    Check(Suggest("Μους σοκολάτα", "Γλυκά", 4m) is null, "κάτι που δεν έχει το μαγαζί → καμία πρόταση, το διαλέγει άνθρωπος");
+
+    var catalog = new[]
+    {
+        new EfoodCatalogItem("1", "IT_1", "Κοτόπουλο μερίδα", "Μερίδες", 10.80m, true, []),
+        new EfoodCatalogItem("2", "IT_2", "Πατάτες", "Συνοδευτικά", 3.00m, true, []),
+        new EfoodCatalogItem("3", "IT_3", "Λαχανικών", "Νηστίσιμο menu", 7.00m, true, []),
+    };
+    var autos = EfoodContext.AutoMatches(catalog, [], shop);
+    Check(autos.Count == 1 && autos[0] is { EfoodId: "1", ProductName: "Μερίδα Κοτόπουλο" },
+        "γράφονται μόνες τους ΜΟΝΟ οι σίγουρες με ίδια τιμή — η «Πατάτες» και η «Λαχανικών» περιμένουν άνθρωπο");
+}
+
+Console.WriteLine("--- η ΑΝΤΙΣΤΟΙΧΙΣΗ δεν χάνεται όταν ξανάρθει ο κατάλογος του e-food");
+{
+    var shop = new ShopMenu();
+    var chickenPita = shop.Categories.SelectMany(c => c.Products).First(p => p.Name == "ΠΙΤΑ ΚΟΤΟΠΟΥΛΟ");
+    EfoodCatalogItem Listed(string id, string code, string name, string category) => new(id, code, name, category, 4.40m, true, []);
+    var matches = new Dictionary<string, EfoodMatch>(StringComparer.Ordinal)
+    {
+        ["100"] = new() { EfoodId = "100", EfoodCode = "IT_100", EfoodName = "Πίττα κοτόπουλο", EfoodCategory = "Τυλιχτά",
+            ProductId = chickenPita.Id, ProductName = chickenPita.Name, Bread = "Αραβική", Confirmed = true },
+        ["200"] = new() { EfoodId = "200", EfoodCode = "IT_200", EfoodName = "Πίττα club", EfoodCategory = "Τυλιχτά", Confirmed = true },
+    };
+    bool Keeps(string id, string productId, string bread) =>
+        matches.TryGetValue(id, out var m) && m.ProductId == productId && m.Bread == bread && m.Confirmed;
+
+    var renumbered = new[] { Listed("101", "IT_100", "Πίττα κοτόπουλο", "Τυλιχτά"), Listed("201", "IT_200", "Πίττα club", "Τυλιχτά") };
+    Check(EfoodMatchKeeper.Follow(renumbered, matches, shop) && Keeps("101", chickenPita.Id, "Αραβική") && Keeps("201", "", "")
+          && !matches.ContainsKey("100") && !matches.ContainsKey("200"),
+        "νέοι αριθμοί, ίδιος κωδικός → οι αποφάσεις μετακομίζουν στους νέους αριθμούς (και το «δεν υπάρχει στο ταμείο»)");
+    Check(EfoodContext.AutoMatches(renumbered, matches.Values, shop).Count == 0,
+        "και καμία αυτόματη δεν παίρνει τη θέση τους");
+    Check(!EfoodMatchKeeper.Follow(renumbered, matches, shop), "δεύτερη φορά, τίποτα να αλλάξει");
+
+    var recoded = new[] { Listed("102", "IT_900", "Πίττα  Κοτόπουλο", "ΤΥΛΙΧΤΑ"), Listed("202", "IT_901", "Πίττα club", "Τυλιχτά") };
+    Check(EfoodMatchKeeper.Follow(recoded, matches, shop) && Keeps("102", chickenPita.Id, "Αραβική") && Keeps("202", "", ""),
+        "άλλος αριθμός ΚΑΙ άλλος κωδικός → ξαναβρίσκονται με το όνομα και την κατηγορία");
+
+    var partial = new[] { Listed("102", "IT_900", "Πίττα κοτόπουλο", "Τυλιχτά") };
+    Check(!EfoodMatchKeeper.Follow(partial, matches, shop) && Keeps("202", "", ""),
+        "προϊόν που λείπει από τον κατάλογο → η γραμμή του μένει, για όταν ξαναφανεί");
+
+    var reentered = new Product { Id = "u-new", Name = "Πίτα κοτόπουλο", Price = 3.8m, DeliveryPrice = 4.4m };
+    var category = shop.Categories.First(c => c.Products.Contains(chickenPita));
+    category.Products[category.Products.IndexOf(chickenPita)] = reentered;
+    Check(EfoodMatchKeeper.Follow(partial, matches, shop) && Keeps("102", "u-new", "Αραβική") && matches["102"].ProductName == "Πίτα κοτόπουλο",
+        "το προϊόν του ταμείου σβήστηκε και ξαναπεράστηκε (νέο id) → η γραμμή το ξαναβρίσκει με το όνομα");
+}
+
 // Ο ολόκληρος κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
 if (args.Length > 0 && File.Exists(args[0]))
 {
@@ -246,4 +325,35 @@ sealed class SeedMenu : IEfoodMenu
     public bool SupportsDoublePita(string name) => Find(name)?.SupportsDoublePita ?? MenuSeed.SupportsDoublePita(name);
     public decimal DoublePitaPriceFor(string name) => SupportsDoublePita(name) ? MenuSeed.DoublePitaPrices.GetValueOrDefault(name) : 0m;
     private static MenuCategory? Find(string name) => MenuSeed.Categories.FirstOrDefault(c => c.Name == name);
+}
+
+/// <summary>Μενού μαγαζιού γραμμένο ΑΛΛΙΩΣ από το e-food (κεφαλαία, άλλη σειρά λέξεων, ελληνικά αντί για λατινικά,
+/// ποσότητες με κενό) — όπως είναι στην πράξη, όχι ο MenuSeed.</summary>
+sealed class ShopMenu : IEfoodMenu
+{
+    private static int _next;
+
+    private static MenuCategory Category(string name, bool bread, params (string Name, decimal Price)[] products) => new()
+    {
+        Id = "c" + ++_next, Name = name, HasBread = bread,
+        Products = products.Select(p => new Product { Id = "p" + ++_next, Name = p.Name, Price = p.Price - 0.6m, DeliveryPrice = p.Price, Customizable = bread }).ToList(),
+    };
+
+    public IReadOnlyList<MenuCategory> Categories { get; } =
+    [
+        Category("ΤΥΛΙΧΤΑ", true, ("ΠΙΤΑ ΚΟΤΟΠΟΥΛΟ", 4.40m), ("ΠΙΤΑ ΧΟΙΡΙΝΗ", 4.40m), ("Πίτα γύρος", 4.60m), ("Αραβική γύρος", 4.60m)),
+        Category("ΜΕΡΙΔΕΣ", false, ("Μερίδα Κοτόπουλο", 10.80m), ("Μερίδα μπιφτέκια", 9.50m), ("Καλαμάκι χοιρινό", 2.20m)),
+        Category("ΣΑΛΑΤΕΣ", false, ("Σαλάτα χωριάτικη", 6.50m), ("Σαλάτα λαχανικών", 5.50m)),
+        Category("ΑΝΑΨΥΚΤΙΚΑ", false, ("Κόκα Κόλα 330 ml", 1.90m), ("Coca Cola ZERO 330ml", 1.90m), ("Κόκα Κόλα 1,5 lt", 3.00m)),
+        Category("ΣΥΝΟΔΕΥΤΙΚΑ", false, ("Πατάτες τηγανητές", 3.00m), ("Τζατζίκι", 3.50m)),
+        Category("BURGERS", false, ("Μπέργκερ απλό", 6.40m)),
+    ];
+
+    public IReadOnlyList<ExtraItem> Extras => [];
+    public bool OpensIngredients(Product product) => product.Customizable;
+    public IReadOnlyList<string> IngredientsFor(Product product) => [];
+    public bool HasBreadChoice(string name) => Categories.FirstOrDefault(c => c.Name == name)?.HasBread ?? false;
+    public bool FuseBreadIntoName(string name) => HasBreadChoice(name);
+    public bool SupportsDoublePita(string name) => false;
+    public decimal DoublePitaPriceFor(string name) => 0m;
 }

@@ -40,7 +40,7 @@ public sealed class EfoodContext
     public EfoodMatch? Match(string efoodId) => _matches.GetValueOrDefault(efoodId);
 
     /// <summary>
-    /// Οι αποθηκευμένες γραμμές αντιστοίχισης, και για όσα προϊόντα δεν έχουν γραμμή οι αυτόματες προτάσεις με ΙΔΙΑ τιμή
+    /// Οι αποθηκευμένες γραμμές αντιστοίχισης, και για όσα προϊόντα δεν έχουν γραμμή οι σίγουρες προτάσεις με ΙΔΙΑ τιμή
     /// (βλ. <see cref="EfoodMatcher"/>). Όσα έχουν πρόταση με άλλη τιμή ή καμία πρόταση μένουν χωρίς αντιστοίχιση μέχρι
     /// να τα δει άνθρωπος — τυπώνονται με το όνομα του e-food.
     /// </summary>
@@ -52,19 +52,21 @@ public sealed class EfoodContext
     }
 
     /// <summary>
-    /// Οι ΝΕΕΣ αυτόματες γραμμές: για όσα προϊόντα του καταλόγου δεν έχουν ήδη γραμμή και η πρόταση έχει ΙΔΙΑ τιμή. Το
-    /// ταμείο τις κρατάει μόλις βγουν, ώστε μια μεταγενέστερη αλλαγή τιμής στο μενού του ταμείου να μην ξε-αντιστοιχίσει
-    /// ό,τι ήδη δούλευε.
+    /// Οι ΝΕΕΣ αυτόματες γραμμές: για όσα προϊόντα του καταλόγου δεν έχουν ήδη γραμμή και η πρόταση είναι σίγουρη (ίδιες
+    /// λέξεις) με ΙΔΙΑ τιμή. Το ταμείο τις κρατάει μόλις βγουν, ώστε μια μεταγενέστερη αλλαγή τιμής στο μενού του ταμείου
+    /// να μην ξε-αντιστοιχίσει ό,τι ήδη δούλευε.
     /// </summary>
     public static IReadOnlyList<EfoodMatch> AutoMatches(IReadOnlyList<EfoodCatalogItem> catalog, IEnumerable<EfoodMatch> existing, IEfoodMenu menu)
     {
         var known = new HashSet<string>(existing.Select(m => m.EfoodId), StringComparer.Ordinal);
-        var suggestions = EfoodMatcher.SuggestAll(catalog, menu);
+        var unmatched = catalog.Where(i => i.Id.Length > 0 && known.Add(i.Id)).ToList();
+        if (unmatched.Count == 0)
+            return [];
+        var suggestions = EfoodMatcher.SuggestAll(unmatched, menu);
         var added = new List<EfoodMatch>();
-        foreach (var item in catalog)
+        foreach (var item in unmatched)
         {
-            if (item.Id.Length == 0 || !known.Add(item.Id)
-                || suggestions.GetValueOrDefault(EfoodMatcher.KeyOf(item)) is not { SamePrice: true } suggestion)
+            if (suggestions.GetValueOrDefault(EfoodMatcher.KeyOf(item)) is not { SamePrice: true, Sure: true } suggestion)
                 continue;
             added.Add(new EfoodMatch
             {
@@ -73,6 +75,7 @@ public sealed class EfoodContext
                 EfoodName = item.Name,
                 EfoodCategory = item.Category,
                 ProductId = suggestion.Product.Id,
+                ProductName = suggestion.Product.Name,
                 Bread = suggestion.Bread,
             });
         }

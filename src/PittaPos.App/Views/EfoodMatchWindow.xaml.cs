@@ -18,6 +18,7 @@ public partial class EfoodMatchWindow : Window
         InitializeComponent();
         // Μαύρη μπάρα τίτλου μαζί με το θέμα, ΠΡΙΝ φανεί το παράθυρο (βλ. TitleBarTheme).
         TitleBarTheme.Attach(this);
+        store.Reconcile();
         var vm = new EfoodMatchViewModel(store, menu);
         DataContext = vm;
         // Ο κατάλογος του e-food αλλάζει όποτε το μαγαζί προσθέτει κάτι εκεί — φέρνεται φρέσκος αν είναι πάνω από μία ώρα.
