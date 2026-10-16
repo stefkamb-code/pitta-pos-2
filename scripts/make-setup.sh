@@ -19,7 +19,9 @@ set -e
 cd "$(dirname "$0")/.."
 
 PUBLISH_DIR="publish"
-DESKTOP="/c/Users/stefa/Desktop"
+# Πού βγαίνει το setup: η Επιφάνεια του υπολογιστή ανάπτυξης — ή, στο GitHub (build.yml), ο φάκελος που δίνει το
+# PITTA_SETUP_OUT, για να κατεβαίνει το setup από τη σελίδα του build.
+DESKTOP="${PITTA_SETUP_OUT:-/c/Users/stefa/Desktop}"
 VERSION="$(tr -d '[:space:]' < src/PittaPos.App/version.txt)"
 BAT="$DESKTOP/PittaPOS2-Setup-v$VERSION.bat"
 TMP_ZIP="$(cygpath -w "$(mktemp -u)").zip"
