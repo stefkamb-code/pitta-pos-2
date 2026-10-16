@@ -25,7 +25,8 @@ namespace PittaPos.App.Services;
 ///
 /// <para><b>Ακύρωση από το e-food</b> (πελάτης, tablet, 3' χωρίς αποδοχή): η γέφυρα τη δίνει στην ίδια λίστα ως
 /// <c>kind: "cancel"</c>. Αν η παραγγελία έχει μπει εδώ, ακυρώνεται όπως από το Ιστορικό (με «e-food» για όνομα)
-/// και βγαίνει χαρτί ΑΚΥΡΩΣΗ — η κουζίνα έχει ήδη το δελτίο. Αν δεν μπήκε ποτέ, δεν γίνεται τίποτα.</para>
+/// και βγαίνει χαρτί ΑΚΥΡΩΣΗ — η κουζίνα έχει ήδη το δελτίο. Βρίσκεται και με τον κωδικό του e-food (μπήκε με το χέρι).
+/// Αν δεν υπάρχει, δεν γίνεται τίποτα — γράφεται μόνο στο log, με το γιατί.</para>
 ///
 /// <para>ΜΟΝΟ στο κύριο ταμείο (αυτό έχει τον εκτυπωτή). Ίδιος κώδικας για κάθε κατάστημα: ό,τι το
 /// ξεχωρίζει είναι η διεύθυνση και το κλειδί στις ρυθμίσεις (Ρυθμίσεις → E-FOOD).</para>
@@ -129,9 +130,10 @@ public sealed class EfoodBridgeService
                 if (entry["kind"] is JsonValue kind && kind.TryGetValue(out string? kindText) && kindText == "cancel")
                 {
                     var reason = entry["reason"] is JsonValue r && r.TryGetValue(out string? reasonText) ? reasonText ?? "" : "";
+                    var cancelRef = entry["ref"] is JsonValue c && c.TryGetValue(out string? refText) ? refText?.Trim() ?? "" : "";
                     try
                     {
-                        Cancel(efoodId, reason);
+                        Cancel(efoodId, reason, cancelRef);
                     }
                     catch (Exception ex)
                     {
@@ -253,23 +255,24 @@ public sealed class EfoodBridgeService
         return order;
     }
 
-    /// <summary>Το e-food ακύρωσε μια παραγγελία. Αν μπήκε εδώ και υπάρχει ακόμα στην ημέρα, ακυρώνεται με τον ίδιο
-    /// δρόμο που ακυρώνει ο ταμίας από το Ιστορικό (φεύγει από τζίρο, Ζωντανές Παραγγελίες, πάει στις ΑΚΥΡΩΜΕΝΕΣ) και
-    /// τυπώνεται ΑΚΥΡΩΣΗ. Αλλιώς τίποτα: δεν μπήκε ποτέ (το e-food την ακύρωσε πριν τη φέρει η γέφυρα), ή την έχει ήδη
-    /// σβήσει ο ταμίας. Δεύτερη φορά η ίδια δεν βρίσκει τίποτα — δεν βγαίνει δεύτερο χαρτί.</summary>
-    private void Cancel(long efoodId, string reason)
+    /// <summary>Το e-food ακύρωσε μια παραγγελία. Αν υπάρχει ακόμα στην ημέρα, ακυρώνεται με τον ίδιο δρόμο που ακυρώνει
+    /// ο ταμίας από το Ιστορικό (φεύγει από τζίρο, Ζωντανές Παραγγελίες, πάει στις ΑΚΥΡΩΜΕΝΕΣ) και τυπώνεται ΑΚΥΡΩΣΗ.
+    /// Αλλιώς δεν αλλάζει τίποτα — αλλά ΓΡΑΦΕΤΑΙ στο log γιατί (16/10/2026: μια ακύρωση χάθηκε χωρίς κανένα ίχνος).
+    /// Δεύτερη φορά η ίδια δεν βρίσκει τίποτα — δεν βγαίνει δεύτερο χαρτί.</summary>
+    /// <param name="reference">Ο κωδικός της παραγγελίας όπως τον ξέρει το μαγαζί (short_code), από τη γέφυρα· κενό από παλιά γέφυρα.</param>
+    private void Cancel(long efoodId, string reason, string reference)
     {
-        if (!_imported.TryGetValue(efoodId, out var imported) || imported.OrderNumber == 0)
-            return;
-        // Ο αριθμός ΚΑΙ ο κωδικός της πλατφόρμας: ο αριθμός μόνος του μπορεί να ανήκει σε άλλη παραγγελία άλλης μέρας.
-        var order = SalesStatsService.Instance.Orders.FirstOrDefault(o =>
-            o.OrderNumber == imported.OrderNumber && (o.AppOrderRef ?? "") == imported.Ref);
+        var why = EfoodOrderReader.CancelReasonText(reason);
+        var order = FindCancelled(efoodId, reference, out var notFound);
         if (order is null)
+        {
+            AppLog.Write("efood", $"Ακύρωση από το e-food για την {efoodId}" + (reference.Length > 0 ? $" (#{reference})" : "")
+                + (why.Length > 0 ? $", {why}" : "") + $": {notFound} — δεν άλλαξε τίποτα στο ταμείο.");
             return;
+        }
 
         OrderCancellationService.CancelOrder(order.OrderNumber, CancelledBy);
-        var why = EfoodOrderReader.CancelReasonText(reason);
-        AppLog.Write("efood", $"Η e-food #{order.DisplayNumber} ακυρώθηκε από το e-food" + (why.Length > 0 ? $" ({why})" : ""));
+        AppLog.Write("efood", $"Η e-food #{order.DisplayNumber} ({efoodId}) ακυρώθηκε από το e-food" + (why.Length > 0 ? $" ({why})" : ""));
         try
         {
             ReceiptPrinter.PrintText(CancelSlip(order, why), ReceiptPrinter.EfoodCancelTitle);
@@ -278,6 +281,37 @@ public sealed class EfoodBridgeService
         {
             AppLog.Write("efood", $"Η ακύρωση της e-food #{order.DisplayNumber} δεν τυπώθηκε: {ex.Message}");
         }
+    }
+
+    /// <summary>Η παραγγελία που ακύρωσε το e-food, αν είναι ακόμα στην ημέρα. Πρώτα όπως την πέρασε εδώ η γέφυρα (αριθμός
+    /// ΚΑΙ κωδικός: ο αριθμός μόνος του μπορεί να ανήκει σε άλλη παραγγελία άλλης μέρας). Αλλιώς με τον κωδικό του e-food
+    /// ανάμεσα στις e-food της ημέρας — έτσι βρίσκεται και όταν μπήκε με το χέρι, και όταν μπήκε πριν κρατιέται ο αριθμός
+    /// (παλιό efood-imported.json). Με δύο ίδιους κωδικούς δεν διαλέγει: καλύτερα καμία ακύρωση παρά λάθος ακύρωση.</summary>
+    private CompletedOrder? FindCancelled(long efoodId, string reference, out string notFound)
+    {
+        notFound = "";
+        var orders = SalesStatsService.Instance.Orders;
+        var imported = _imported.GetValueOrDefault(efoodId);
+        if (imported is { OrderNumber: > 0 } mine
+            && orders.FirstOrDefault(o => o.OrderNumber == mine.OrderNumber && (o.AppOrderRef ?? "") == mine.Ref) is { } exact)
+            return exact;
+
+        var code = reference.Length > 0 ? reference : imported?.Ref ?? "";
+        if (code.Length > 0)
+        {
+            var byCode = orders.Where(o => o.Channel == "e-food" && o.AppOrderRef == code).ToList();
+            if (byCode.Count == 1)
+                return byCode[0];
+            if (byCode.Count > 1)
+            {
+                notFound = $"{byCode.Count} παραγγελίες e-food με τον κωδικό #{code} σήμερα — ακύρωσέ τη από το Ιστορικό";
+                return null;
+            }
+        }
+        notFound = imported is not null
+            ? "δεν υπάρχει πια στην ημέρα (την ακύρωσε ήδη ο ταμίας ή έκλεισε η μέρα)"
+            : "δεν μπήκε ποτέ σε αυτό το ταμείο (ούτε από τη γέφυρα ούτε με το χέρι)";
+        return null;
     }
 
     private static string CancelSlip(CompletedOrder order, string why)
