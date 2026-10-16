@@ -343,6 +343,13 @@ public sealed class SiteLinkService
 
     private static (object Board, object Tables) LiveBoard()
     {
+        var orders = SalesStatsService.Instance.Orders;
+        // Μια διανομή που περιμένει διανομέα δεν ανεβαίνει ως παραγγελία (βλ. CountedOrders) — τι έχει μέσα το μαθαίνει
+        // το site μόνο από εδώ. Όσες πέρασαν σε κανάλι είναι ήδη παραγγελίες του site, γι' αυτές φτάνει το ποσό.
+        var sold = new Dictionary<int, CompletedOrder>();
+        foreach (var o in orders)
+            if (o.TablePerson is null) sold.TryAdd(o.OrderNumber, o);
+
         var board = OrderBoardService.Instance.Orders.Select(b => new
         {
             orderNumber = b.OrderNumber,
@@ -351,9 +358,14 @@ public sealed class SiteLinkService
             placedAt = b.PlacedAt,
             dispatchedAt = b.IsPending ? (DateTime?)null : b.SentAt,
             total = b.Total,
+            name = b.Name,
+            address = b.Address,
+            pay = b.PaymentMethod?.ToString(),
+            lines = b.IsPending && sold.TryGetValue(b.OrderNumber, out var order)
+                ? order.Lines.Select(l => new { name = l.Name, quantity = l.Quantity, revenue = l.Revenue, details = l.Details }).ToList()
+                : null,
         }).ToList();
 
-        var orders = SalesStatsService.Instance.Orders;
         var tables = TableStatusService.Instance.OpenSince.Select(t =>
         {
             var mine = orders.Where(o => o.Type == OrderType.Table && o.TableNumberLabel == t.Key.ToString() && o.PlacedAt >= t.Value).ToList();
