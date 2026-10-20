@@ -78,6 +78,8 @@ public partial class StatsViewModel : ObservableObject
         ThemeManager.Changed += RefreshChart;
         // Δεύτερο ταμείο: το διάγραμμα παλιότερων ημερών βγαίνει από το ίδιο αρχείο με το Ιστορικό.
         HistoryArchiveService.Changed += Refresh;
+        // Άνοιγμα/κλείσιμο τραπεζιού μετακινεί λεφτά μέσα/έξω από τον τζίρο (βλ. SalesStatsService.CountedOrders).
+        TableStatusService.Instance.Changed += OnTablesChanged;
         Refresh();
 
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -106,7 +108,21 @@ public partial class StatsViewModel : ObservableObject
         _stats.Changed -= Refresh;
         ThemeManager.Changed -= RefreshChart;
         HistoryArchiveService.Changed -= Refresh;
+        TableStatusService.Instance.Changed -= OnTablesChanged;
         _clock.Stop();
+    }
+
+    /// <summary>Ποια τραπέζια ήταν ανοιχτά στο τελευταίο Refresh — στο δεύτερο ταμείο το Changed των
+    /// τραπεζιών σηκώνεται σε ΚΑΘΕ poll (κάθε 2"), οπότε ξαναχτίζουμε μόνο όταν όντως άλλαξε κάτι.</summary>
+    private string _openTablesKey = "";
+
+    private static string OpenTablesKey() => string.Join(",",
+        TableStatusService.Instance.OpenSince.OrderBy(t => t.Key).Select(t => t.Key + "@" + t.Value.Ticks));
+
+    private void OnTablesChanged()
+    {
+        if (OpenTablesKey() != _openTablesKey)
+            Refresh();
     }
 
     // ---- Καρτέλα «ΔΙΑΓΡΑΜΜΑ»: πωλήσεις ανά ώρα/ημέρα/μήνα, με επιλογή ημερομηνίας ----
@@ -414,6 +430,12 @@ public partial class StatsViewModel : ObservableObject
     public string PendingCountLabel { get; private set; } = "0 παραγγελίες";
     public bool HasPending { get; private set; }
 
+    /// <summary>Τα τραπέζια που είναι ακόμα ανοιχτά — εκτός τζίρου μέχρι να κλείσουν (βλ.
+    /// SalesStatsService.CountedOrders). Ίδια διακριτική γραμμή με τις διανομές σε αναμονή.</summary>
+    public string OpenTablesRevenueLabel { get; private set; } = Order.FormatPrice(0);
+    public string OpenTablesCountLabel { get; private set; } = "0 τραπέζια";
+    public bool HasOpenTables { get; private set; }
+
     public IReadOnlyList<ProductStatViewModel> ProductStats { get; private set; } = [];
     /// <summary>Οι κάρτες καναλιού της ΠΡΩΙΝΗΣ και της ΒΡΑΔΙΝΗΣ βάρδιας, χωριστά.</summary>
     public IReadOnlyList<ChannelRevenueViewModel> MorningChannelRevenues { get; private set; } = [];
@@ -504,6 +526,8 @@ public partial class StatsViewModel : ObservableObject
         // (βλ. SalesStatsService.CountedOrders) — μετράνε μόλις περάσουν σε κανάλι.
         var orders = _stats.CountedOrders;
         var awaiting = _stats.AwaitingChannelOrders;
+        var openTables = _stats.OpenTableOrders;
+        _openTablesKey = OpenTablesKey();
 
         var revenue = orders.Sum(o => o.Total);
         RevenueLabel = Order.FormatPrice(revenue);
@@ -583,6 +607,11 @@ public partial class StatsViewModel : ObservableObject
         PendingCountLabel = CountLabel(awaiting.Count);
         HasPending = awaiting.Count > 0;
 
+        var openTableCount = openTables.Select(o => o.TableNumberLabel).Distinct().Count();
+        OpenTablesRevenueLabel = Order.FormatPrice(openTables.Sum(o => o.Total));
+        OpenTablesCountLabel = openTableCount + (openTableCount == 1 ? " τραπέζι" : " τραπέζια");
+        HasOpenTables = openTables.Count > 0;
+
         NoData = orders.Count == 0;
         // ΟΛΕΣ οι σημερινές, όχι μόνο όσες πέρασαν σε κανάλι (βλ. ConsumptionService.Today):
         // το κρέας φεύγει από το ψυγείο μόλις χτυπηθεί η παραγγελία, όχι όταν αποφασιστεί το κανάλι.
@@ -604,6 +633,9 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(PendingRevenueLabel));
         OnPropertyChanged(nameof(PendingCountLabel));
         OnPropertyChanged(nameof(HasPending));
+        OnPropertyChanged(nameof(OpenTablesRevenueLabel));
+        OnPropertyChanged(nameof(OpenTablesCountLabel));
+        OnPropertyChanged(nameof(HasOpenTables));
         OnPropertyChanged(nameof(CashTotalLabel));
         OnPropertyChanged(nameof(CardTotalLabel));
         OnPropertyChanged(nameof(CounterTotalLabel));

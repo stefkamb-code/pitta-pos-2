@@ -133,16 +133,22 @@ public class TableStatusService
         TableSettlementService.Instance.ClearTable(table);
         // Και ο χωρισμός σε άτομα: ανήκει στην παρέα που μόλις έφυγε, όχι στο τραπέζι.
         TablePersonsService.Instance.ClearTable(table);
-        if (!_openSince.Remove(table))
+        if (!_openSince.Remove(table, out var openedAt))
             return;
         Save();
+        // ΤΩΡΑ μπαίνει το τραπέζι στον τζίρο, στη βάρδια αυτής της στιγμής (βλ. SalesStatsService.CountedOrders).
+        // ΜΕΤΑ το Remove: έτσι τα στατιστικά, που ξαναχτίζονται μέσα από εδώ, το βρίσκουν ήδη κλειστό.
+        SalesStatsService.Instance.EnterClosedTable(table, openedAt, SettingsStore.Instance.Settings.IsEveningShift);
         Changed?.Invoke();
     }
 
     /// <summary>
     /// Κλείνει όλα τα ανοιχτά τραπέζια — καλείται στο κλείσιμο μέρας, ώστε ένα τραπέζι που έμεινε
-    /// ανοιχτό να μη μείνει «κολλημένο» σαν ανοιχτό με €0 την επόμενη μέρα (οι παραγγελίες του
-    /// έχουν ήδη αρχειοθετηθεί και καθαρίσει από το SalesStatsService).
+    /// ανοιχτό να μη μείνει «κολλημένο» σαν ανοιχτό με €0 την επόμενη μέρα. Καλείται ΠΡΙΝ βγει η
+    /// αναφορά (βλ. DayReportService.CloseDay), ώστε ό,τι έμεινε ανοιχτό να μπει στον τζίρο της μέρας
+    /// (ως «Ανεξόφλητα» αν δεν πληρώθηκε), όπως και πριν μείνουν τα ανοιχτά τραπέζια εκτός τζίρου.
+    /// <para>Η βάρδια τους ΔΕΝ ξαναγράφεται εδώ: στις 5 το πρωί η βάρδια μπορεί να έχει ήδη γυρίσει μόνη
+    /// της σε πρωινή, και ένα τραπέζι της βραδινής θα έπεφτε λάθος στην πρωινή.</para>
     /// </summary>
     public void CloseAll()
     {
@@ -161,6 +167,8 @@ public class TableStatusService
         }
         _openSince.Clear();
         Save();
+        // Οι παραγγελίες τους μόλις μπήκαν στον τζίρο (βλ. SalesStatsService.CountedOrders).
+        SalesStatsService.Instance.RaiseChanged();
         Changed?.Invoke();
     }
 

@@ -85,6 +85,28 @@ public static class DayReportService
         sb.AppendLine("  (μπαίνουν μόλις περάσουν σε κανάλι)");
     }
 
+    /// <summary>
+    /// Τα τραπέζια που είναι ακόμα ανοιχτά — ΕΚΤΟΣ τζίρου μέχρι να κλείσουν (βλ.
+    /// SalesStatsService.CountedOrders). Ίδια λογική με τις διανομές σε αναμονή: χωριστό μπλοκ, ώστε τα
+    /// λεφτά να μη λείπουν σιωπηλά από το χαρτί. Μία γραμμή ανά τραπέζι, με το ποσό που έχει χτυπηθεί
+    /// μέχρι τώρα. Παραλείπεται όταν δεν υπάρχει ανοιχτό τραπέζι.
+    /// </summary>
+    private static void AppendOpenTables(StringBuilder sb, List<CompletedOrder> open, bool perTable)
+    {
+        if (open.Count == 0)
+            return;
+        var tables = open.GroupBy(o => o.TableNumberLabel).OrderBy(g => g.Min(o => o.PlacedAt)).ToList();
+        sb.AppendLine("ΑΝΟΙΧΤΑ ΤΡΑΠΕΖΙΑ — ΕΚΤΟΣ ΤΖΙΡΟΥ");
+        sb.AppendLine("  (μπαίνουν μόλις κλείσει το τραπέζι)");
+        if (perTable)
+            foreach (var t in tables)
+                sb.AppendLine($"  ΤΡΑΠΕΖΙ {t.Key} · {TimeRangeLabel(t.ToList())}   {Order.FormatPrice(t.Sum(o => o.Total))}");
+        else
+            sb.AppendLine($"  Τραπέζια    : {tables.Count}");
+        sb.AppendLine($"  Σύνολο      : {Order.FormatPrice(open.Sum(o => o.Total))}");
+        sb.AppendLine();
+    }
+
     private static void AppendSummary(StringBuilder sb, List<CompletedOrder> orders)
     {
         var revenue = orders.Sum(o => o.Total);
@@ -159,6 +181,9 @@ public static class DayReportService
     {
         var lines = new List<UnsettledEntry>();
         var payments = TablePaymentsService.Instance;
+        // Εισπράξεις τραπεζιού που είναι ΑΚΟΜΑ ανοιχτό δεν αφαιρούνται: ανήκουν σε παραγγελίες εκτός τζίρου,
+        // αλλιώς ένα τραπέζι που έκλεισε απλήρωτο και ξανάνοιξε θα έδειχνε μικρότερο υπόλοιπο.
+        var open = SalesStatsService.Instance.OpenTableOrderNumbers;
 
         // ΤΡΑΠΕΖΙΑ — μία γραμμή ανά τραπέζι, όχι ανά άτομο: το τραπέζι είναι που «έμεινε», και τρεις
         // σχεδόν ταυτόχρονες γραμμές για την ίδια παρέα δεν λένε κάτι παραπάνω.
@@ -169,7 +194,8 @@ public static class DayReportService
             var number = int.TryParse(table.Key, out var t) ? t : 0;
             // Οι εισπράξεις μετριούνται ανά ΤΡΑΠΕΖΙ και όχι ανά παραγγελία, ώστε να πιάνονται και οι
             // παλιές εγγραφές που δεν κρατούσαν αριθμό παραγγελίας (βλ. TablePayment.OrderNumber).
-            var owed = table.Sum(o => o.Total) - (number > 0 ? payments.TotalForTable(number) : 0m);
+            var owed = table.Sum(o => o.Total)
+                - (number > 0 ? payments.Payments.Where(p => p.Table == number && !open.Contains(p.OrderNumber)).Sum(p => p.Amount) : 0m);
             if (owed < 0.005m)
                 continue;
 
@@ -237,11 +263,15 @@ public static class DayReportService
         // Τα ΤΡΑΠΕΖΙΑ εξαιρούνται ρητά από το πρώτο άθροισμα: μετρώνται ΜΟΝΟ από τις εισπράξεις τους,
         // αλλιώς μια παραγγελία τραπεζιού με τρόπο πληρωμής πάνω της θα μετρούσε δύο φορές.
         var tracked = orders.Where(o => o.PaymentMethod is not null && o.Type != OrderType.Table).ToList();
-        var tables = TablePaymentsService.Instance;
+        // Εισπράξεις από τραπέζια που είναι ΑΚΟΜΑ ανοιχτά (π.χ. ένας της παρέας πλήρωσε και έφυγε) δεν
+        // μετράνε εδώ: οι παραγγελίες τους είναι εκτός τζίρου μέχρι να κλείσει το τραπέζι (βλ.
+        // SalesStatsService.CountedOrders) — αλλιώς μετρητά+κάρτα θα ξεπερνούσαν τον τζίρο.
+        var open = SalesStatsService.Instance.OpenTableOrderNumbers;
+        var tables = TablePaymentsService.Instance.Payments.Where(p => !open.Contains(p.OrderNumber)).ToList();
         var cash = tracked.Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Cash).Sum(o => o.Total)
-            + tables.TotalFor(Core.Models.PaymentMethod.Cash);
+            + tables.Where(p => p.Method == Core.Models.PaymentMethod.Cash).Sum(p => p.Amount);
         var card = tracked.Where(o => o.PaymentMethod == Core.Models.PaymentMethod.Card).Sum(o => o.Total)
-            + tables.TotalFor(Core.Models.PaymentMethod.Card);
+            + tables.Where(p => p.Method == Core.Models.PaymentMethod.Card).Sum(p => p.Amount);
         // Οι πλατφόρμες πληρώνονται ΜΕΣΑ στην εφαρμογή (Wolt/e-food) — δεν περνάει ευρώ από το ταμείο,
         // οπότε δεν είναι ούτε μετρητά ούτε κάρτα. Το BOX εξαιρείται: το παραδίδει δικός μας διανομέας
         // και έχει κανονικό τρόπο πληρωμής, άρα μετρήθηκε ήδη παραπάνω.
@@ -433,6 +463,7 @@ public static class DayReportService
         AppendHeader(sb);
         AppendSummary(sb, orders);
         AppendAwaiting(sb, awaiting);
+        AppendOpenTables(sb, SalesStatsService.Instance.OpenTableOrders, perTable: true);
         AppendPerChannel(sb, orders);
         AppendPerCategory(sb, orders);
         AppendConsumption(sb);
@@ -459,6 +490,8 @@ public static class DayReportService
         AppendHeader(sb);
         AppendPrintSummary(sb, orders);
         AppendAwaitingPrint(sb, SalesStatsService.Instance.AwaitingChannelOrders);
+        // Στο χαρτί μόνο πλήθος και σύνολο — ίδιος λόγος με το AppendAwaitingPrint (πλάτος γραμμής).
+        AppendOpenTables(sb, SalesStatsService.Instance.OpenTableOrders, perTable: false);
         AppendPrintPerChannel(sb, orders);
         AppendConsumption(sb);
         return sb.ToString();
@@ -494,6 +527,12 @@ public static class DayReportService
         // Πάροχος ΑΑΔΕ: ό,τι περιμένει ακόμα απόδειξη από τη μέρα που κλείνει (αυτόματη έκδοση κλειστή) κόβεται τώρα — καμία
         // πώληση δεν περνά στην επόμενη μέρα αδήλωτη. Χωρίς πάροχο δεν κάνει τίποτα.
         FiscalService.Instance.OnDayClosing(today);
+
+        // Ό,τι τραπέζι έμεινε ανοιχτό κλείνει ΠΡΙΝ βγει η αναφορά: τα ανοιχτά τραπέζια είναι εκτός τζίρου
+        // (βλ. SalesStatsService.CountedOrders), και χωρίς αυτό η μέρα θα έκλεινε χωρίς τα λεφτά τους —
+        // ενώ οι παραγγελίες τους αρχειοθετούνται κανονικά. Έτσι μπαίνουν στον τζίρο, ως «Ανεξόφλητα»
+        // αν δεν πληρώθηκαν, ακριβώς όπως πριν. (Το CloseAll πιο κάτω βρίσκει πια άδεια λίστα.)
+        TableStatusService.Instance.CloseAll();
 
         var report = Build();
         try

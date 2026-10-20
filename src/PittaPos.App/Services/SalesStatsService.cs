@@ -192,17 +192,50 @@ public class SalesStatsService
     /// μάλιστα με το ταμπελάκι του καναλιού (που ακολουθεί το Dispatch) να λέει ήδη το αντίθετο.
     /// Τώρα η παραγγελία μπαίνει στον τζίρο τη στιγμή που περνάει σε κανάλι, με τη βάρδια εκείνης της
     /// στιγμής — βλ. <see cref="SetShift"/>, που το καλεί το OrderBoardService.Dispatch/Reassign.</para>
+    ///
+    /// <para>ΤΡΑΠΕΖΙΑ: ίδια λογική. Ό,τι χτυπιέται σε τραπέζι μένει ΕΚΤΟΣ τζίρου όσο το τραπέζι είναι
+    /// ανοιχτό (βλ. <see cref="OpenTableOrders"/>) και μπαίνει τη στιγμή που κλείνει, με τη βάρδια εκείνης
+    /// της στιγμής — βλ. <see cref="EnterClosedTable"/>. Πριν, ένα τραπέζι που χτυπήθηκε 18:30 και πλήρωσε
+    /// μετά την αλλαγή βάρδιας έγραφε τζίρο στην πρωινή, ενώ τα λεφτά τα εισέπραττε ο βραδινός.</para>
     /// </summary>
     public List<CompletedOrder> CountedOrders
     {
         get
         {
             var awaiting = OrderBoardService.Instance.AwaitingChannelNumbers;
-            return awaiting.Count == 0
+            var openSince = TableStatusService.Instance.OpenSince;
+            return awaiting.Count == 0 && openSince.Count == 0
                 ? _orders.Values.ToList()
-                : _orders.Values.Where(o => !awaiting.Contains(o.OrderNumber)).ToList();
+                : _orders.Values.Where(o => !awaiting.Contains(o.OrderNumber) && !IsInOpenTable(o, openSince)).ToList();
         }
     }
+
+    /// <summary>Παραγγελίες τραπεζιών που είναι ακόμα ανοιχτά — ΕΚΤΟΣ τζίρου μέχρι να κλείσει το τραπέζι
+    /// (βλ. <see cref="CountedOrders"/>). Όπως και οι διανομές σε αναμονή, ΔΕΝ κρύβονται: φαίνονται σε δική
+    /// τους γραμμή στα στατιστικά και στην αναφορά.</summary>
+    public List<CompletedOrder> OpenTableOrders
+    {
+        get
+        {
+            var openSince = TableStatusService.Instance.OpenSince;
+            return openSince.Count == 0
+                ? []
+                : _orders.Values.Where(o => IsInOpenTable(o, openSince)).ToList();
+        }
+    }
+
+    /// <summary>Οι αριθμοί των <see cref="OpenTableOrders"/> — για να μη μετρήσουν στα μετρητά/κάρτα οι
+    /// εισπράξεις τραπεζιών που δεν έχουν μπει ακόμα στον τζίρο (βλ. DayReportService.SplitMoney).</summary>
+    public HashSet<int> OpenTableOrderNumbers => OpenTableOrders.Select(o => o.OrderNumber).ToHashSet();
+
+    /// <summary>Ανήκει η παραγγελία στο ΤΡΕΧΟΝ άνοιγμα ενός ανοιχτού τραπεζιού; Ίδιο κριτήριο με την
+    /// οθόνη τραπεζιού και το κλείσιμο (Who = «Τραπέζι Ν» και χτυπήθηκε μετά το άνοιγμα) — ώστε ό,τι
+    /// βλέπει ο ταμίας ως «ανοιχτό τραπέζι» να είναι ακριβώς ό,τι λείπει από τον τζίρο.</summary>
+    private static bool IsInOpenTable(CompletedOrder o, IReadOnlyDictionary<int, DateTime> openSince) =>
+        o.Type == OrderType.Table
+        && int.TryParse(o.TableNumberLabel, out var table)
+        && openSince.TryGetValue(table, out var since)
+        && o.PlacedAt >= since;
 
     /// <summary>Όσες δεν έχουν μπει ακόμα στον τζίρο. ΔΕΝ κρύβονται: παίρνουν δική τους γραμμή στα
     /// στατιστικά και στην αναφορά, ώστε να μη «λείπουν» λεφτά χωρίς εξήγηση.</summary>
@@ -559,33 +592,64 @@ public class SalesStatsService
             return;
         if (order.IsEveningShift != isEveningShift)
         {
-            _orders[orderNumber] = new CompletedOrder
-            {
-                OrderNumber = order.OrderNumber,
-                Type = order.Type,
-                Channel = order.Channel,
-                AppOrderRef = order.AppOrderRef,
-                PaymentMethod = order.PaymentMethod,
-                Who = order.Who,
-                Phone = order.Phone,
-                DeliveryAddress = order.DeliveryAddress,
-                DeliveryFloor = order.DeliveryFloor,
-                DeliveryNotes = order.DeliveryNotes,
-                Total = order.Total,
-                Lines = order.Lines,
-                Note = order.Note,
-                PlacedAt = order.PlacedAt,
-                IsEveningShift = isEveningShift,
-                TablePerson = order.TablePerson,
-                TableOpenedAt = order.TableOpenedAt,
-                AutoReceipt = order.AutoReceipt,
-            };
+            _orders[orderNumber] = WithShift(order, isEveningShift);
             Save();
         }
         // Πάντα, ακόμα κι αν η βάρδια δεν άλλαξε: το ποσό μόλις μπήκε στον τζίρο και τα στατιστικά
         // πρέπει να το δείξουν.
         Changed?.Invoke();
     }
+
+    /// <summary>
+    /// Το τραπέζι μόλις έκλεισε: ΟΛΕΣ οι παραγγελίες αυτού του ανοίγματος μπαίνουν τώρα στον τζίρο, με τη
+    /// βάρδια ΑΥΤΗΣ της στιγμής — όχι αυτή που ίσχυε όταν χτυπήθηκαν. Ίδιος κανόνας με το
+    /// <see cref="SetShift"/> των διανομών: η βάρδια του τζίρου είναι η βάρδια που εισπράττει.
+    /// Καλείται από το TableStatusService.MarkClosed ΑΦΟΥ το τραπέζι έχει φύγει από τα ανοιχτά, ώστε το
+    /// <see cref="Changed"/> να βρει τις παραγγελίες ήδη μέσα στο <see cref="CountedOrders"/>.
+    /// </summary>
+    /// <remarks>Μόνο στο κύριο ταμείο — το δεύτερο στέλνει το κλείσιμο στο host (βλ. MarkClosed).</remarks>
+    public void EnterClosedTable(int table, DateTime openedAt, bool isEveningShift)
+    {
+        if (RemoteSync.IsClient)
+            return;
+        var who = "Τραπέζι " + table;
+        var restamped = false;
+        foreach (var order in _orders.Values
+                     .Where(o => o.Type == OrderType.Table && o.Who == who && o.PlacedAt >= openedAt
+                                 && o.IsEveningShift != isEveningShift)
+                     .ToList())
+        {
+            _orders[order.OrderNumber] = WithShift(order, isEveningShift);
+            restamped = true;
+        }
+        if (restamped)
+            Save();
+        // Πάντα: ακόμα κι αν δεν άλλαξε βάρδια, το ποσό μόλις μπήκε στον τζίρο.
+        Changed?.Invoke();
+    }
+
+    /// <summary>Αντίγραφο της παραγγελίας με άλλη βάρδια — όλα τα υπόλοιπα πεδία ίδια.</summary>
+    private static CompletedOrder WithShift(CompletedOrder order, bool isEveningShift) => new()
+    {
+        OrderNumber = order.OrderNumber,
+        Type = order.Type,
+        Channel = order.Channel,
+        AppOrderRef = order.AppOrderRef,
+        PaymentMethod = order.PaymentMethod,
+        Who = order.Who,
+        Phone = order.Phone,
+        DeliveryAddress = order.DeliveryAddress,
+        DeliveryFloor = order.DeliveryFloor,
+        DeliveryNotes = order.DeliveryNotes,
+        Total = order.Total,
+        Lines = order.Lines,
+        Note = order.Note,
+        PlacedAt = order.PlacedAt,
+        IsEveningShift = isEveningShift,
+        TablePerson = order.TablePerson,
+        TableOpenedAt = order.TableOpenedAt,
+        AutoReceipt = order.AutoReceipt,
+    };
 
     /// <summary>Διορθώνει τον τρόπο πληρωμής μιας ήδη ολοκληρωμένης παραγγελίας — π.χ. ο ταμίας πάτησε
     /// κατά λάθος Μετρητά αντί για Κάρτα (βλ. Ιστορικό). Μόνο για σημερινές παραγγελίες (ακόμα στη μνήμη·
