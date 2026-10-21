@@ -4,26 +4,51 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using PittaPos.Core.Box;
 using PittaPos.Core.Efood;
 
 namespace PittaPos.App.Services;
 
+/// <summary>Τι διαφέρει ανά πλατφόρμα στην ΑΝΤΙΣΤΟΙΧΙΣΗ: τα αρχεία, η ανάγνωση του καταλόγου και τα ονόματα στα μηνύματα.</summary>
+/// <param name="Stem">Το πρώτο κομμάτι των αρχείων: «efood» → efood-catalog.json, efood-matching.json.</param>
+/// <param name="Label">Όπως γράφεται στις οθόνες: «e-food», «Box».</param>
+/// <param name="Of">Με άρθρο, για τις προτάσεις: «του e-food», «της Box».</param>
+/// <param name="SettingsName">Το κουμπί στις Ρυθμίσεις: «E-FOOD», «BOX».</param>
+public sealed record MatchPlatform(string Stem, string Label, string Of, string SettingsName,
+    Func<string, IReadOnlyList<EfoodCatalogItem>> Parse);
+
 /// <summary>
-/// Η ΑΝΤΙΣΤΟΙΧΙΣΗ του e-food στο ταμείο: ένα αντίγραφο του καταλόγου του καταστήματος στο e-food (efood-catalog.json,
-/// μόνο για ανάγνωση — από τη γέφυρα) και ποιο προϊόν του ταμείου είναι το καθένα (efood-matching.json).
+/// Η ΑΝΤΙΣΤΟΙΧΙΣΗ του e-food — και της Box, με τον ίδιο τρόπο — στο ταμείο: ένα αντίγραφο του καταλόγου του
+/// καταστήματος στην πλατφόρμα (efood-catalog.json / box-catalog.json, μόνο για ανάγνωση — από τη γέφυρα) και ποιο
+/// προϊόν του ταμείου είναι το καθένα (efood-matching.json / box-matching.json).
 ///
-/// <para>Ο κατάλογος του e-food δεν αλλάζει ποτέ από εδώ, ούτε το μενού του ταμείου ή το πώς τυπώνει: αλλάζει μόνο
-/// το πώς διαβάζονται οι παραγγελίες του e-food (βλ. <see cref="EfoodOrderReader"/>).</para>
+/// <para>Ο κατάλογος της πλατφόρμας δεν αλλάζει ποτέ από εδώ, ούτε το μενού του ταμείου ή το πώς τυπώνει: αλλάζει μόνο
+/// το πώς διαβάζονται οι παραγγελίες της (βλ. <see cref="EfoodOrderReader"/>, <see cref="BoxOrderReader"/>).</para>
 /// </summary>
 public sealed class EfoodMatchStore
 {
+    public static readonly MatchPlatform EfoodPlatform = new("efood", "e-food", "του e-food", "E-FOOD", EfoodCatalogParser.Parse);
+    public static readonly MatchPlatform BoxPlatform = new("box", "Box", "της Box", "BOX", BoxCatalogParser.Parse);
+
+    private static string Folder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
+
     private static readonly Lazy<EfoodMatchStore> Shared = new(() => new EfoodMatchStore(
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder),
+        Folder,
         EfoodMenu.Live,
         () => (SettingsStore.Instance.Settings.EfoodBridgeUrl.Trim().TrimEnd('/'), SettingsStore.Instance.Settings.EfoodTillKey.Trim()),
         message => AppLog.Write("efood", message)));
 
+    private static readonly Lazy<EfoodMatchStore> SharedBox = new(() => new EfoodMatchStore(
+        Folder,
+        EfoodMenu.Live,
+        () => (SettingsStore.Instance.Settings.BoxBridgeUrl.Trim().TrimEnd('/'), SettingsStore.Instance.Settings.BoxTillKey.Trim()),
+        message => AppLog.Write("box", message),
+        BoxPlatform));
+
     public static EfoodMatchStore Instance => Shared.Value;
+
+    /// <summary>Η ΑΝΤΙΣΤΟΙΧΙΣΗ της Box (βλ. BoxBridgeService).</summary>
+    public static EfoodMatchStore Box => SharedBox.Value;
 
     /// <summary>Το e-food αργεί να δώσει τον κατάλογο (η γέφυρα περιμένει ως 150″).</summary>
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(3) };
@@ -45,16 +70,20 @@ public sealed class EfoodMatchStore
     private DateTime _lastAttempt = DateTime.MinValue;
     private string _lastLogged = "";
 
-    public EfoodMatchStore(string folder, IEfoodMenu menu, Func<(string Url, string Key)> bridge, Action<string> log)
+    public EfoodMatchStore(string folder, IEfoodMenu menu, Func<(string Url, string Key)> bridge, Action<string> log,
+        MatchPlatform? platform = null)
     {
+        Platform = platform ?? EfoodPlatform;
         _menu = menu;
         _bridge = bridge;
         _log = log;
         Directory.CreateDirectory(folder);
-        _catalogPath = Path.Combine(folder, "efood-catalog.json");
-        _matchesPath = Path.Combine(folder, "efood-matching.json");
+        _catalogPath = Path.Combine(folder, Platform.Stem + "-catalog.json");
+        _matchesPath = Path.Combine(folder, Platform.Stem + "-matching.json");
         Load();
     }
+
+    public MatchPlatform Platform { get; }
 
     /// <summary>Ο κατάλογος του καταστήματος στο e-food, όπως ήρθε την τελευταία φορά — άδειος αν δεν έχει έρθει ποτέ.</summary>
     public IReadOnlyList<EfoodCatalogItem> Catalog { get; private set; } = [];
@@ -122,7 +151,7 @@ public sealed class EfoodMatchStore
         _lastAttempt = DateTime.Now;
         var (url, key) = _bridge();
         if (url.Length == 0 || key.Length == 0)
-            return (false, "Δεν έχει ρυθμιστεί η γέφυρα (Ρυθμίσεις → E-FOOD).");
+            return (false, $"Δεν έχει ρυθμιστεί η γέφυρα (Ρυθμίσεις → {Platform.SettingsName}).");
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url + "/till/catalog");
@@ -131,11 +160,11 @@ public sealed class EfoodMatchStore
             if (response.StatusCode == HttpStatusCode.Unauthorized)
                 return Failed("Η γέφυρα δεν δέχεται το κλειδί αυτού του ταμείου.");
             if (!response.IsSuccessStatusCode)
-                return Failed($"Η γέφυρα απάντησε {(int)response.StatusCode} — ο κατάλογος του e-food δεν ήρθε.");
+                return Failed($"Η γέφυρα απάντησε {(int)response.StatusCode} — ο κατάλογος {Platform.Of} δεν ήρθε.");
             var body = await response.Content.ReadAsStringAsync();
-            var items = await Task.Run(() => EfoodCatalogParser.Parse(body));
+            var items = await Task.Run(() => Platform.Parse(body));
             if (items.Count == 0)
-                return Failed("Το e-food έστειλε άδειο κατάλογο — μένει ο προηγούμενος.");
+                return Failed($"Ήρθε άδειος ο κατάλογος {Platform.Of} — μένει ο προηγούμενος.");
 
             SetCatalog(items, DateTime.Now);
             try
@@ -144,16 +173,16 @@ public sealed class EfoodMatchStore
             }
             catch (Exception ex)
             {
-                _log($"Δεν γράφτηκε το «efood-catalog.json»: {ex.GetType().Name}: {ex.Message}");
+                _log($"Δεν γράφτηκε το «{Path.GetFileName(_catalogPath)}»: {ex.GetType().Name}: {ex.Message}");
             }
             AddAutoMatches();
             _lastLogged = "";
-            return (true, $"Ήρθε ο κατάλογος του e-food — {items.Count} προϊόντα.");
+            return (true, $"Ήρθε ο κατάλογος {Platform.Of} — {items.Count} προϊόντα.");
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or FormatException
                                        or UriFormatException or InvalidOperationException)
         {
-            return Failed("Δεν ήρθε ο κατάλογος του e-food: " + ex.Message);
+            return Failed($"Δεν ήρθε ο κατάλογος {Platform.Of}: " + ex.Message);
         }
     }
 
@@ -178,11 +207,11 @@ public sealed class EfoodMatchStore
         try
         {
             if (File.Exists(_catalogPath))
-                SetCatalog(EfoodCatalogParser.Parse(File.ReadAllText(_catalogPath)), File.GetLastWriteTime(_catalogPath));
+                SetCatalog(Platform.Parse(File.ReadAllText(_catalogPath)), File.GetLastWriteTime(_catalogPath));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
         {
-            _log("Δεν διαβάστηκε το «efood-catalog.json» — ξαναέρχεται από τη γέφυρα: " + ex.Message);
+            _log($"Δεν διαβάστηκε το «{Path.GetFileName(_catalogPath)}» — ξαναέρχεται από τη γέφυρα: " + ex.Message);
         }
 
         try
@@ -197,7 +226,7 @@ public sealed class EfoodMatchStore
             // Να ΜΗ γραφτεί από πάνω σαν άδειο: κρατιέται δίπλα όπως ήταν, για να μη χαθούν οι επιβεβαιώσεις.
             var kept = _matchesPath + ".bad-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
             try { File.Copy(_matchesPath, kept, overwrite: true); } catch (Exception) { }
-            _log($"Δεν διαβάστηκε το «efood-matching.json» ({ex.Message}) — κρατήθηκε ως {Path.GetFileName(kept)}");
+            _log($"Δεν διαβάστηκε το «{Path.GetFileName(_matchesPath)}» ({ex.Message}) — κρατήθηκε ως {Path.GetFileName(kept)}");
         }
 
         AddAutoMatches();
@@ -228,7 +257,7 @@ public sealed class EfoodMatchStore
         }
         catch (Exception ex)
         {
-            _log($"Δεν γράφτηκε το «efood-matching.json»: {ex.GetType().Name}: {ex.Message}");
+            _log($"Δεν γράφτηκε το «{Path.GetFileName(_matchesPath)}»: {ex.GetType().Name}: {ex.Message}");
         }
     }
 }

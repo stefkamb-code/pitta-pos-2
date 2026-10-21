@@ -1,12 +1,15 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
+using PittaPos.Core.Box;
 using PittaPos.Core.Data;
 using PittaPos.Core.Efood;
 using PittaPos.Core.Models;
 
 // ΕΛΕΓΧΟΣ του e-food στο ταμείο, χωρίς ταμείο: οι ΠΡΑΓΜΑΤΙΚΕΣ παραγγελίες του sandbox (14/9/2026, με σβησμένα
 // προσωπικά στοιχεία) πάνω στον κατάλογο του e-food και στον MenuSeed, και ό,τι γίνεται όταν δεν υπάρχει κατάλογος.
+// Και η Box (21/10/2026), που διαβάζεται από τον ίδιο δρόμο: ό,τι δίνει η γέφυρα Box στο ταμείο (box-till-orders.json,
+// box-catalog.json — το παράδειγμα της τεκμηρίωσης της Box, μέσα από την πραγματική γέφυρα και την ψεύτικη Box).
 //
 //   dotnet run --project tools/EfoodCheck [-- <ολόκληρος κατάλογος e-food.json>]
 
@@ -157,6 +160,88 @@ Check(EfoodOrderReader.CancelReasonText("platform: SOMETHING_NEW") == "ακύρ�
 Check(EfoodOrderReader.CancelReasonText("") == "" && EfoodOrderReader.CancelReasonText("TEST_ORDER") == "δοκιμαστική",
     "κενό → κενό · χωρίς «ποιος» → μόνο ο λόγος");
 
+Console.WriteLine("--- Box: ό,τι δίνει η γέφυρα Box στο ταμείο (το παράδειγμα της τεκμηρίωσης, 21/10/2026)");
+if (samples is not null)
+{
+    var tillOrders = JsonNode.Parse(File.ReadAllText(Path.Combine(samples, "box-till-orders.json"), Encoding.UTF8)) as JsonArray;
+    var docOrder = (tillOrders?[0]?["order"] as JsonObject)!;
+    var doc = BoxOrderReader.Map(docOrder, menu);
+    Check(tillOrders?[0]?["boxId"]?.GetValue<string>() == "A1B2C3D4E5F6" && doc.Order.Ref == "MIX001",
+        $"η γέφυρα δίνει boxId και την παραγγελία όπως ήρθε · κωδικός στο μαγαζί = simplifiedId ({doc.Order.Ref})");
+    Check(doc.Order.Lines.Count == 2 && doc.Order.Lines[0] is { Name: "Croissant", Quantity: 1 } && doc.Order.Lines[0].Revenue == 2.70m
+          && doc.Order.Lines[1] is { Name: "Combo Καφέ", Quantity: 1 } && doc.Order.Lines[1].Revenue == 4.00m,
+        "λεπτά → ευρώ: Croissant 2,70 και η προσφορά «Combo Καφέ» 4,00");
+    Check(doc.Order.Lines[1].Details == "Cappuccino\nEspresso", "η προσφορά γράφει από κάτω τι έχει μέσα: " + doc.Order.Lines[1].Details.Replace("\n", " | "));
+    Check(doc.Order.Total == 6.70m && doc.ItemsTotal == 6.70m && doc.Order.PlatformTotal == 8.20m,
+        $"σύνολο γραμμών 6,70 = orderItemsPrice της Box · με μεταφορικά 1,50 = 8,20 ({doc.Order.Total})");
+    Check(doc.IsTest, "δοκιμαστική (isTestOrder) → το ταμείο ΔΕΝ τη βάζει στα έσοδα");
+    Check(doc.Payment == PaymentMethod.Card && doc.PaidInApp && doc.Order.Notes.StartsWith("ΠΛΗΡΩΜΕΝΗ ΜΕ ΚΑΡΤΑ"),
+        $"κάρτα = πληρωμένη στην εφαρμογή: «BOX Κάρτα», χωρίς προφόρτωση στο POS του διανομέα · «{doc.Order.Notes}»");
+    Check(doc.Order is { Who: "Γιώργος Παπαδόπουλος", Phone: "6912345678", Address: "Ερμού 15, Αθήνα, 11525", Floor: "1ος · Κουδούνι: Παπαδόπουλος" },
+        $"δικός μας διανομέας: όνομα, τηλέφωνο χωρίς +30, διεύθυνση, όροφος και κουδούνι ({doc.Order.Phone} · {doc.Order.Address} · {doc.Order.Floor})");
+    Check(doc is { Street: "Ερμού", StreetNumber: "15", Area: "Αθήνα", PostalCode: "11525" }, "η διεύθυνση και σε κομμάτια, για το πελατολόγιο");
+
+    var boxCatalog = BoxCatalogParser.Parse(File.ReadAllText(Path.Combine(samples, "box-catalog.json"), Encoding.UTF8));
+    Check(boxCatalog.Count == 3 && boxCatalog.All(i => i.Id == i.Code && i.Price == 0m)
+          && boxCatalog[0] is { Id: "prod_001", Name: "Cappuccino", Category: "ΚΑΦΕΣ" } && boxCatalog[0].Tiers[0].Options.Count == 2,
+        "ο κατάλογος της Box (GET /till/catalog της γέφυρας): 3 προϊόντα με friendlyId, κατηγορία και επιλογές, χωρίς τιμές");
+    Check(boxCatalog[1].Category == "ΚΑΦΕΣ · μόνο σε προσφορές", "προϊόν μόνο για προσφορές → φαίνεται στην ΑΝΤΙΣΤΟΙΧΙΣΗ");
+    Check(EfoodContext.AutoMatches(boxCatalog, [], menu).Count == 0, "χωρίς τιμές καμία αυτόματη αντιστοίχιση — κάθε πρόταση θέλει «ΣΩΣΤΟ»");
+    var known = BoxOrderReader.Map(docOrder, menu, new EfoodContext(boxCatalog, []));
+    Check(known.Order.Lines[0].Name == "Croissant" && known.Order.Unmatched.Contains("Croissant"),
+        "το ξέρει ο κατάλογος της Box αλλά δεν έχει αντιστοίχιση → με το όνομα της Box");
+}
+{
+    var chicken = Product("Πίττα κοτόπουλο");
+    var pitaTier = new EfoodCatalogTier("SEL-PITA", "Επιλέξτε πίτα", "", "",
+        [new EfoodCatalogOption("CH-ARAB", "CH-ARAB", "Αραβική", "", 0m, false), new EfoodCatalogOption("CH-GR", "CH-GR", "Ελληνική", "", 0m, false)]);
+    var pitaItem = new EfoodCatalogItem("PITA-KOT", "PITA-KOT", "Πίτα κοτόπουλο", "Πίτες", 0m, true, [pitaTier]);
+    var pitaMatch = new EfoodMatch { EfoodId = "PITA-KOT", ProductId = chicken.Product.Id, Confirmed = true };
+    var matched = new EfoodContext([pitaItem], [pitaMatch]);
+
+    var arabic = BoxOrderReader.Map(BoxOrder("cash", BoxProduct("PITA-KOT", "Πίτα κοτόπουλο", 420, 2, ("CH-ARAB", "Αραβική"))), menu, matched);
+    Check(arabic.Order.Lines[0].Name == MenuSeed.ComposeCustomizedName(chicken.Product.Name, "Αραβική") && arabic.Order.Lines[0].Quantity == 2
+          && arabic.Order.Lines[0].Revenue == 8.40m && arabic.Order.Lines[0].ProductId == chicken.Product.Id && arabic.Order.Unmatched.Count == 0,
+        $"αντιστοιχισμένο προϊόν + «Αραβική» → «{arabic.Order.Lines[0].Name}», 2 × 4,20 = 8,40, προϊόν του ταμείου");
+    Check(EfoodOrderReader.Preview(pitaItem, pitaMatch, menu) == MenuSeed.ComposeCustomizedName(chicken.Product.NameForPrint, "Ελληνική"),
+        "προεπισκόπηση της ΑΝΤΙΣΤΟΙΧΙΣΗΣ για προϊόν της Box (ψωμί: η προεπιλογή του ταμείου)");
+    Check(arabic.Payment == PaymentMethod.Cash && !arabic.PaidInApp && !arabic.IsTest
+          && arabic.Order.Notes.StartsWith("ΜΕΤΡΗΤΑ €9,90 — εισπράττει ο διανομέας") && arabic.Order.Notes.Contains("ΦΙΛΟΔΩΡΗΜΑ €1,00"),
+        $"μετρητά: ο διανομέας εισπράττει 8,40 + 1,50 μεταφορικά = 9,90, και το φιλοδώρημα χωριστά · «{arabic.Order.Notes}»");
+    Check(arabic.Order.Total == 8.40m, "τζίρος = μόνο τα προϊόντα (το ταμείο δεν έχει μεταφορικά), όπως στο e-food");
+
+    var pickup = BoxOrder("cash", BoxProduct("PITA-KOT", "Πίτα κοτόπουλο", 420, 1));
+    pickup["orderShippingType"] = "takeAway";
+    pickup.Remove("address");
+    pickup["deliveryFee"] = 0;
+    var p = BoxOrderReader.Map(pickup, menu, matched);
+    Check(p.Order.Notes.StartsWith("ΠΑΡΑΛΑΒΗ — πληρώνει μετρητά €4,20") && p.Order.Phone == "" && p.Payment == PaymentMethod.Cash,
+        $"παραλαβή με μετρητά: τα εισπράττει το μαγαζί · «{p.Order.Notes}»");
+
+    var courier = BoxOrder("cash", BoxProduct("PITA-KOT", "Πίτα κοτόπουλο", 420, 1));
+    courier["daasInfo"] = new JsonObject { ["minPreparationMinutesAllowed"] = 15, ["maxPreparationMinutesAllowed"] = 90, ["recommendedPreparationMinutes"] = 25 };
+    courier.Remove("tip");
+    courier.Remove("deliveryFee");
+    var c = BoxOrderReader.Map(courier, menu, matched);
+    Check(c.Order.Notes.StartsWith("ΔΙΑΝΟΜΗ Box") && c.Order.Phone == "" && c.PaidInApp && c.Payment == PaymentMethod.Card,
+        $"κούριερ της Box (daasInfo): χωρίς τηλέφωνο/διεύθυνση, και τα λεφτά πάνε στη Box, όχι στο συρτάρι · «{c.Order.Notes}»");
+
+    var later = BoxOrder("card", BoxProduct("PITA-KOT", "Πίτα κοτόπουλο", 420, 1));
+    later["timeSlotStart"] = "2025-12-08T19:00:00.000Z";
+    later["timeSlotEnd"] = "2025-12-08T19:30:00.000Z";
+    Check(BoxOrderReader.Map(later, menu, matched).Order.Notes.StartsWith("ΓΙΑ ΤΙΣ 21:00–21:30 · "),
+        "προγραμματισμένη: πρώτο στο χαρτί η ώρα, σε ώρα Ελλάδας (19:00Z → 21:00)");
+    var tomorrow = BoxOrder("card", BoxProduct("PITA-KOT", "Πίτα κοτόπουλο", 420, 1));
+    tomorrow["timeSlotStart"] = "2025-12-09T10:00:00.000Z";
+    Check(BoxOrderReader.Map(tomorrow, menu, matched).Order.Notes.StartsWith("ΓΙΑ ΤΙΣ 12:00 (9/12)"), "άλλη μέρα → και η ημερομηνία");
+
+    var unknown = BoxOrderReader.Map(BoxOrder("cash", BoxProduct("X-1", "Κάτι καινούριο", 350, 1, ("X-OPT", "Σάλτσα"))), menu, matched);
+    Check(unknown.Order.Lines[0] is { Name: "Κάτι καινούριο", ProductId: "", Details: "Σάλτσα" } && unknown.Order.Unmatched.Contains("Κάτι καινούριο"),
+        "άγνωστο προϊόν → με το όνομα της Box και ό,τι επιλογές ήρθαν — τίποτα δεν χάνεται");
+    var empty = BoxOrderReader.Map(new JsonObject(), menu);
+    Check(empty.Order.Lines.Count == 0 && empty.Order.Total == 0m && empty.Payment == PaymentMethod.Cash, "άδεια παραγγελία → καμία εξαίρεση");
+}
+
 // Ο ολόκληρος κατάλογος του e-food (αποθηκευμένος από τη γέφυρα): dotnet run --project tools/EfoodCheck -- <κατάλογος.json>
 if (args.Length > 0 && File.Exists(args[0]))
 {
@@ -233,6 +318,39 @@ static JsonObject Order(params JsonObject[] items)
         ["extra_parameters"] = new JsonArray("no-cutlery"),
     };
 }
+
+/// <summary>Ένα προϊόν όπως έρχεται μέσα σε παραγγελία της Box: τιμή ανά τεμάχιο σε λεπτά, με τις επιλογές ήδη μέσα.</summary>
+static JsonObject BoxProduct(string friendlyId, string name, int cents, int quantity, params (string Id, string Title)[] options) => new()
+{
+    ["name"] = name, ["category"] = "", ["quantity"] = quantity, ["comments"] = "", ["finalPrice"] = cents, ["totalEnvFee"] = 0,
+    ["friendlyId"] = friendlyId,
+    ["selections"] = new JsonArray(options.Length == 0 ? [] : [new JsonObject
+    {
+        ["title"] = "Επιλέξτε πίτα", ["friendlyId"] = "SEL-PITA",
+        ["optionsSelected"] = new JsonArray(options.Select(o => (JsonNode?)new JsonObject
+        {
+            ["friendlyId"] = o.Id, ["changeInPrice"] = 0, ["title"] = o.Title,
+        }).ToArray()),
+    }]),
+};
+
+/// <summary>Παραγγελία Box με δικό μας διανομέα, 1,50 μεταφορικά και 1,00 φιλοδώρημα.</summary>
+static JsonObject BoxOrder(string payment, params JsonObject[] products) => new()
+{
+    ["address"] = new JsonObject
+    {
+        ["street"] = "Λεωφ. Δοκιμής", ["streetNo"] = "1", ["city"] = "Δάφνη", ["postalCode"] = "17235", ["floor"] = "2ος", ["nameAtBell"] = "Πελάτης",
+    },
+    ["shopId"] = 255301, ["orderId"] = "ABCDEF123456", ["simplifiedId"] = "T1",
+    ["user"] = new JsonObject { ["id"] = "x", ["firstName"] = "Δοκιμή", ["lastName"] = "Πελάτης" },
+    ["paymentType"] = payment, ["isTestOrder"] = false, ["comments"] = "", ["orderShippingType"] = "delivery", ["orderShippingTime"] = 40,
+    ["orderContactPhone"] = "6900000000",
+    ["orderItemsPrice"] = products.Sum(p => p["finalPrice"]!.GetValue<int>() * p["quantity"]!.GetValue<int>()),
+    ["createdAt"] = "2025-12-08T18:30:00.000Z", ["timeSlotStart"] = "", ["timeSlotEnd"] = "",
+    ["products"] = new JsonArray(products.Cast<JsonNode?>().ToArray()),
+    ["offers"] = new JsonArray(),
+    ["tip"] = 100, ["deliveryFee"] = 150,
+};
 
 /// <summary>Ο MenuSeed με τους κανόνες του MenuStore (ιδιότητες κατηγορίας, αλλιώς οι παλιοί κανόνες ονόματος).</summary>
 sealed class SeedMenu : IEfoodMenu

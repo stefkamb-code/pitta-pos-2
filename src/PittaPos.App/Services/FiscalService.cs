@@ -183,8 +183,8 @@ public sealed class FiscalService
             return;
         }
         var pay = _payHint ?? PayOf(order);
-        // Διανομή (και BOX, που το φέρνει δικός μας διανομέας) με κάρτα: το ποσό προφορτώνεται στο φορητό POS του διανομέα
-        // και πληρώνεται στην πόρτα. Όρθιος: η κάρτα πάει ΑΜΕΣΩΣ στο τερματικό του μαγαζιού.
+        // Διανομή με κάρτα: το ποσό προφορτώνεται στο φορητό POS του διανομέα και πληρώνεται στην πόρτα. Όρθιος: η κάρτα
+        // πάει ΑΜΕΣΩΣ στο τερματικό του μαγαζιού. BOX με κάρτα: πληρωμένη στην εφαρμογή (βλ. PayOf) — κανένα τερματικό.
         // ΠΟΤΕ φεύγει: το αποφασίζει ΜΟΝΟ το ReceiptPolicy (διακόπτης «Αυτόματη έκδοση» + υποχρεωτικά αυτόματα).
         var decision = ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order));
         j.Sale(order.OrderNumber, day, items, pay, PreloadFor(order, pay),
@@ -199,11 +199,10 @@ public sealed class FiscalService
     /// τελευταία θέση του.</summary>
     private bool AutoOf(CompletedOrder order) => order.AutoReceipt ?? AutoReceipt;
 
-    /// <summary>Το POS του διανομέα για προφόρτωση — μόνο σε κάρτα σε δική μας διανομή (ΔΙΑΝΟΜΗ, BOX).</summary>
+    /// <summary>Το POS του διανομέα για προφόρτωση — μόνο σε ΔΙΑΝΟΜΗ με κάρτα. Η BOX με κάρτα είναι ήδη πληρωμένη στην
+    /// εφαρμογή (βλ. PayOf), οπότε ο διανομέας δεν χρεώνει τίποτα στην πόρτα.</summary>
     private static string PreloadFor(CompletedOrder order, FiscalPay pay) =>
-        pay == FiscalPay.Card && (order.Type == OrderType.Delivery || (order.Type == OrderType.Apps && order.PaymentMethod is not null))
-            ? DeliveryTerminal()
-            : "";
+        pay == FiscalPay.Card && order.Type == OrderType.Delivery ? DeliveryTerminal() : "";
 
     /// <summary>Η κατάσταση της απόδειξης μιας παραγγελίας, για το Ιστορικό. Held = περιμένει ακόμα (το κουμπί την κόβει).</summary>
     public sealed record ReceiptStatus(bool Held, string Text);
@@ -349,12 +348,14 @@ public sealed class FiscalService
     /// περιμένει ακόμα, απλώς αλλάζει· και αν ο νέος τρόπος δεν επιτρέπει αναμονή (όρθιος → κάρτα), φεύγει τώρα.</summary>
     public void OnPaymentChanged(int orderNumber, PaymentMethod method) => Safe("αλλαγή πληρωμής #" + orderNumber, j =>
     {
-        var pay = method == PaymentMethod.Card ? FiscalPay.Card : FiscalPay.Cash;
         if (Find(orderNumber) is { } order && order.Type != OrderType.Table)
+        {
+            var pay = PayFor(order.Type, method);
             j.ChangePayment(orderNumber, pay, PreloadFor(order, pay),
                 releaseHeld: !ReceiptPolicy.Decide(order.Type, order.Channel, pay, AutoOf(order)).Deferred);
+        }
         else
-            j.ChangePayment(orderNumber, pay);
+            j.ChangePayment(orderNumber, method == PaymentMethod.Card ? FiscalPay.Card : FiscalPay.Cash);
     });
 
     /// <summary>Διορθώθηκε το κανάλι (π.χ. e-food → ΔΙΑΝΟΜΗ): αλλάζει το «πληρωμένη στην πλατφόρμα».</summary>
@@ -399,11 +400,16 @@ public sealed class FiscalService
 
     /// <summary>Πώς πληρώθηκε μια παραγγελία εκτός τραπεζιού. Εφαρμογή χωρίς τρόπο πληρωμής = πληρωμένη μέσα στην
     /// πλατφόρμα (ο τρόπος για αυτές είναι ερώτηση στον λογιστή — βλ. WrappProvider).</summary>
-    private static FiscalPay PayOf(CompletedOrder order) => order.PaymentMethod switch
+    private static FiscalPay PayOf(CompletedOrder order) => PayFor(order.Type, order.PaymentMethod);
+
+    /// <summary>Ο τρόπος πληρωμής του ταμείου στην απόδειξη. Η ΕΦΑΡΜΟΓΗ με «Κάρτα» είναι η «BOX Κάρτα»: πληρωμένη μέσα στην
+    /// εφαρμογή της Box, που βάζει τα λεφτά αργότερα όπως το e-food — ΠΟΤΕ κάρτα σε τερματικό (απάντηση χρήστη, 21/10/2026).
+    /// Η «BOX Μετρητά» τα εισπράττει ο διανομέας μας, άρα μετρητά.</summary>
+    private static FiscalPay PayFor(OrderType type, PaymentMethod? method) => method switch
     {
-        PaymentMethod.Card => FiscalPay.Card,
+        PaymentMethod.Card => type == OrderType.Apps ? FiscalPay.Online : FiscalPay.Card,
         PaymentMethod.Cash => FiscalPay.Cash,
-        _ => order.Type == OrderType.Apps ? FiscalPay.Online : FiscalPay.Cash,
+        _ => type == OrderType.Apps ? FiscalPay.Online : FiscalPay.Cash,
     };
 
     private static CompletedOrder? Find(int orderNumber) =>
