@@ -320,9 +320,21 @@ public static class WaiterApiService
             if (req is not null)
             {
                 var method = req.Method == "card" ? PaymentMethod.Card : PaymentMethod.Cash;
-                OnUi(() => req.Unit < 0
-                    ? TableSettlementService.Instance.Settle(req.Table, req.OrderNumber, req.LineIndex, method, req.Amount)
-                    : TableSettlementService.Instance.Settle(req.Table, req.OrderNumber, req.LineIndex, req.Unit, method, req.Amount));
+                OnUi(() =>
+                {
+                    if (req.Unit < 0)
+                        TableSettlementService.Instance.Settle(req.Table, req.OrderNumber, req.LineIndex, method, req.Amount);
+                    else
+                        TableSettlementService.Instance.Settle(req.Table, req.OrderNumber, req.LineIndex, req.Unit, method, req.Amount);
+                    // ΕΔΩ κλείνει το τραπέζι που εξοφλήθηκε από το δεύτερο ταμείο (ή από κινητό που μιλάει σε
+                    // εκείνο). Ο έλεγχος «δεν χρωστάει τίποτα» εκεί τρέχει πάνω σε τοπικό αντίγραφο που δεν έχει
+                    // μάθει ακόμα αυτή την εξόφληση, οπότε μετά την τελευταία πληρωμή το τραπέζι έμενε ανοιχτό
+                    // με €0 — και τα ανοιχτά τραπέζια είναι ΕΚΤΟΣ τζίρου (βλ. SalesStatsService.CountedOrders).
+                    // Ο υπεύθυνος έβλεπε όλα πληρωμένα, έκλεινε βάρδια χωρίς αυτό το τραπέζι, και τα λεφτά του
+                    // έμπαιναν στον τζίρο μόνο στο κλείσιμο ημέρας των 5 (βλ. DayReportService.CloseDay).
+                    AutoCloseIfNothingOwed(req.Table);
+                    return 0;
+                });
             }
             return Results.Ok();
         });
