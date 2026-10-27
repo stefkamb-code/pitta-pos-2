@@ -283,11 +283,17 @@ public class SalesStatsService
     /// Τη σειρά της βάρδιας (#1, #2, #3…) την παίρνουν ΜΟΝΟ ΟΡΘΙΟΣ και ΔΙΑΝΟΜΗ — οι μόνες χωρίς δικό
     /// τους αριθμό (βλ. CompletedOrder.HasOwnNumber). Ξεκινά από το 1 κάθε μέρα, γιατί το ιστορικό
     /// καθαρίζει με το κλείσιμο ημέρας. Πρώτα ένας όρθιος → #1· μετά μια διανομή → #2.
+    ///
+    /// <para>Ούτε αριθμός ΑΚΥΡΩΜΕΝΗΣ παραγγελίας της ημέρας ξαναδίνεται. Μια ακυρωμένη ολόκληρη φεύγει από
+    /// παραγγελίες και πίνακα, οπότε ο αριθμός της (αν ήταν ο τελευταίος) έπεφτε στην αμέσως επόμενη: το BOX
+    /// #1102 ακυρώθηκε και το #1102 το πήρε μια e-food. Η ακύρωση κρατά μόνο τον αριθμό, οπότε στο site
+    /// (και σε ό,τι ψάχνει με αριθμό) εμφανιζόταν σαν ακύρωση εκείνης της e-food, με άλλο ποσό.</para>
     /// </summary>
     public int NextOrderNumber(bool hasOwnNumber)
     {
         var used = Orders.Select(o => o.OrderNumber)
             .Concat(OrderBoardService.Instance.Orders.Select(o => o.OrderNumber))
+            .Concat(CancellationLogService.Instance.Entries.Select(c => c.OrderNumber))
             .ToList();
         return hasOwnNumber
             ? 1 + Math.Max(ExternalBandStart - 1, used.DefaultIfEmpty(0).Max())
