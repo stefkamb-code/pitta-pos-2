@@ -434,6 +434,9 @@ public partial class StatsViewModel : ObservableObject
     /// SalesStatsService.CountedOrders). Ίδια διακριτική γραμμή με τις διανομές σε αναμονή.</summary>
     public string OpenTablesRevenueLabel { get; private set; } = Order.FormatPrice(0);
     public string OpenTablesCountLabel { get; private set; } = "0 τραπέζια";
+    /// <summary>Η μεγάλη κόκκινη προειδοποίηση πάνω από τον τζίρο και ποια τραπέζια είναι («Τραπέζια 1, 5»).</summary>
+    public string OpenTablesWarningLabel { get; private set; } = "";
+    public string OpenTablesNumbersLabel { get; private set; } = "";
     public bool HasOpenTables { get; private set; }
 
     public IReadOnlyList<ProductStatViewModel> ProductStats { get; private set; } = [];
@@ -607,9 +610,15 @@ public partial class StatsViewModel : ObservableObject
         PendingCountLabel = CountLabel(awaiting.Count);
         HasPending = awaiting.Count > 0;
 
-        var openTableCount = openTables.Select(o => o.TableNumberLabel).Distinct().Count();
+        var openTableNumbers = openTables.Select(o => o.TableNumberLabel).Distinct()
+            .OrderBy(n => int.TryParse(n, out var t) ? t : int.MaxValue).ToList();
+        var openTableCount = openTableNumbers.Count;
         OpenTablesRevenueLabel = Order.FormatPrice(openTables.Sum(o => o.Total));
         OpenTablesCountLabel = openTableCount + (openTableCount == 1 ? " τραπέζι" : " τραπέζια");
+        OpenTablesWarningLabel = openTableCount == 1
+            ? "ΠΡΟΣΟΧΗ: 1 ΑΝΟΙΧΤΟ ΤΡΑΠΕΖΙ — ΔΕΝ ΕΙΝΑΙ ΜΕΣΑ ΣΤΟΝ ΤΖΙΡΟ"
+            : $"ΠΡΟΣΟΧΗ: {openTableCount} ΑΝΟΙΧΤΑ ΤΡΑΠΕΖΙΑ — ΔΕΝ ΕΙΝΑΙ ΜΕΣΑ ΣΤΟΝ ΤΖΙΡΟ";
+        OpenTablesNumbersLabel = (openTableCount == 1 ? "Τραπέζι " : "Τραπέζια ") + string.Join(", ", openTableNumbers);
         HasOpenTables = openTables.Count > 0;
 
         NoData = orders.Count == 0;
@@ -635,6 +644,8 @@ public partial class StatsViewModel : ObservableObject
         OnPropertyChanged(nameof(HasPending));
         OnPropertyChanged(nameof(OpenTablesRevenueLabel));
         OnPropertyChanged(nameof(OpenTablesCountLabel));
+        OnPropertyChanged(nameof(OpenTablesWarningLabel));
+        OnPropertyChanged(nameof(OpenTablesNumbersLabel));
         OnPropertyChanged(nameof(HasOpenTables));
         OnPropertyChanged(nameof(CashTotalLabel));
         OnPropertyChanged(nameof(CardTotalLabel));

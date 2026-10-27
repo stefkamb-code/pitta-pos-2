@@ -237,6 +237,24 @@
 
             <!-- summary tiles -->
             <StackPanel Grid.Row="0">
+            <!-- ΑΝΟΙΧΤΑ ΤΡΑΠΕΖΙΑ — ΠΑΝΩ από τον τζίρο και σε κόκκινο. Μένουν εκτός τζίρου μέχρι να κλείσουν (βλ.
+                 SalesStatsService.CountedOrders) και ως διακριτική γραμμή κάτω από τις βάρδιες δεν τα έβλεπε
+                 κανείς: ο υπεύθυνος περνούσε τον τζίρο στο Excel χωρίς ένα τραπέζι που ήταν ακόμα ανοιχτό. -->
+            <Border Visibility="{Binding HasOpenTables, Converter={StaticResource BoolToVis}}"
+                    Background="{DynamicResource Accent600}" CornerRadius="12" Padding="18,14" Margin="0,0,0,14">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding OpenTablesRevenueLabel}" FontSize="26"
+                               FontWeight="ExtraBold" Foreground="White" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding OpenTablesWarningLabel}" FontSize="17" FontWeight="ExtraBold"
+                                   Foreground="White" TextWrapping="Wrap"/>
+                        <TextBlock FontSize="12.5" Foreground="White" TextWrapping="Wrap" Margin="0,4,0,0">
+                            <Run Text="{Binding OpenTablesNumbersLabel, Mode=OneWay}" FontWeight="ExtraBold"/>
+                            <Run Text=" · Κλείσ' τα πριν γράψεις τον τζίρο της βάρδιας."/>
+                        </TextBlock>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <UniformGrid Columns="2" Margin="0,0,0,14">
                 <Grid Margin="0,0,14,0">
                     <Border Background="{DynamicResource Bg}" CornerRadius="12" Effect="{StaticResource SoftShadowSmall}"/>
@@ -318,19 +336,6 @@
                 </DockPanel>
             </Border>
 
-            <!-- Ίδια γραμμή για τα ανοιχτά τραπέζια: μπαίνουν στον τζίρο μόλις κλείσουν
-                 (βλ. SalesStatsService.CountedOrders), μέχρι τότε φαίνονται μόνο εδώ. -->
-            <Border Visibility="{Binding HasOpenTables, Converter={StaticResource BoolToVis}}"
-                    Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,-14,0,26">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Right" Text="{Binding OpenTablesRevenueLabel}" FontSize="14"
-                               FontWeight="ExtraBold" Foreground="{DynamicResource Neutral600}"/>
-                    <TextBlock FontSize="11.5" Foreground="{DynamicResource Neutral600}">
-                        <Run Text="ΑΝΟΙΧΤΑ ΤΡΑΠΕΖΙΑ · ΕΚΤΟΣ ΤΖΙΡΟΥ ΜΕΧΡΙ ΝΑ ΚΛΕΙΣΟΥΝ · " FontWeight="ExtraBold"/>
-                        <Run Text="{Binding OpenTablesCountLabel, Mode=OneWay}"/>
-                    </TextBlock>
-                </DockPanel>
-            </Border>
 
             <!-- Ανά κανάλι, ΧΩΡΙΣΤΑ ανά βάρδια: δύο σειρές με τα ίδια έξι κανάλια στην ίδια θέση, ώστε
                  να συγκρίνεται κάθετα το πρωί με το βράδυ σε κάθε κανάλι. -->
