@@ -172,7 +172,7 @@ public sealed class SiteLinkService
         string Who, int? TablePerson, decimal Total, List<TillLineDto> Lines, DateTime PlacedAt, bool IsEveningShift,
         MoneyDto Money);
     private sealed record TillCancelDto(int OrderNumber, string Name, int Quantity, decimal Revenue, DateTime CancelledAt,
-        string CancelledBy, string Channel);
+        string CancelledBy, string Channel, string AppOrderRef);
     private sealed record TillOrderKeyDto(int OrderNumber, int? TablePerson);
     private sealed record TillDayDto(string Date, List<TillOrderKeyDto> Orders);
 
@@ -235,7 +235,7 @@ public sealed class SiteLinkService
         o.PlacedAt, o.IsEveningShift, money);
 
     private static TillCancelDto CancelDto(CancelledLine c) =>
-        new(c.OrderNumber, c.Name, c.Quantity, c.Revenue, c.CancelledAt, c.CancelledBy, c.Channel);
+        new(c.OrderNumber, c.Name, c.Quantity, c.Revenue, c.CancelledAt, c.CancelledBy, c.Channel, c.AppOrderRef);
 
     private static async Task<HttpStatusCode> PostOrdersAsync(string url, string key, object body)
     {

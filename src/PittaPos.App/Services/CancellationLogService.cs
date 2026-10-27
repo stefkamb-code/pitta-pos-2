@@ -20,6 +20,11 @@ public sealed record CancelledLine(int OrderNumber, string Who, string Name, int
     /// εγγραφές του cancellations.json, που δεν έχουν το πεδίο, διαβάζονται κανονικά με κενό κανάλι.</summary>
     public string Channel { get; init; } = "";
 
+    /// <summary>Ο κωδικός της πλατφόρμας (BOX/e-food/Wolt), ο αριθμός που ξέρει το μαγαζί. Χωρίς αυτόν, μια ακυρωμένη
+    /// ολόκληρη παραγγελία φαινόταν με τον εσωτερικό αριθμό (π.χ. «1102» αντί για «Β815»): η παραγγελία δεν υπάρχει πια
+    /// πουθενά για να ρωτηθεί. Ιδιότητα με αρχική τιμή, όπως το <see cref="Channel"/> — οι παλιές εγγραφές διαβάζονται κενές.</summary>
+    public string AppOrderRef { get; init; } = "";
+
     /// <summary>Το κανάλι για τις λίστες — «—» για τις παλιές εγγραφές που δεν το κατέγραφαν.</summary>
     public string ChannelLabel => Channel.Length > 0 ? Channel : "—";
 }

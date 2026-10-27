@@ -123,17 +123,20 @@ public class CancelledEntryViewModel
     public required DateTime CancelledAt { get; init; }
     public required IReadOnlyList<CancelledLine> Lines { get; init; }
 
-    /// <summary>Ίδιος κανόνας με το <see cref="CompletedOrder.DisplayNumber"/>, όσο το επιτρέπει η
-    /// ακύρωση: κρατά μόνο αριθμό και «ποιος», οπότε ο αριθμός τραπεζιού βγαίνει από το Who. Ο κωδικός
-    /// πλατφόρμας δεν αποθηκεύεται στην ακύρωση — εκεί μένει ο εσωτερικός αριθμός.</summary>
+    /// <summary>Ίδιος κανόνας με το <see cref="CompletedOrder.DisplayNumber"/>: ο αριθμός τραπεζιού (από το Who), ο
+    /// κωδικός της πλατφόρμας (BOX/e-food/Wolt), αλλιώς η σειρά της βάρδιας. Ο εσωτερικός αριθμός μένει μόνο για
+    /// τις παλιές ακυρώσεις, από πριν κρατιέται ο κωδικός.</summary>
     public string DisplayNumber
     {
         get
         {
             var digits = new string(Who.Where(char.IsDigit).ToArray());
+            var appRef = Lines[0].AppOrderRef;
             return Who.StartsWith("Τραπέζι", StringComparison.Ordinal) && digits.Length > 0
                 ? digits
-                : OrderNumber < SalesStatsService.ExternalBandStart
+                : appRef.Length > 0
+                    ? appRef
+                    : OrderNumber < SalesStatsService.ExternalBandStart
                     ? OrderNumber.ToString("00")
                     : OrderNumber.ToString();
         }
@@ -696,6 +699,8 @@ public partial class HistoryViewModel : ObservableObject
         if (searching)
             allCancellations = allCancellations.Where(c =>
                 c.OrderNumber.ToString().Contains(search)
+                // Και με τον κωδικό της πλατφόρμας: αυτόν βλέπει ο ταμίας στη λίστα (π.χ. «Β815»).
+                || c.AppOrderRef.Contains(search, StringComparison.OrdinalIgnoreCase)
                 // Και με τον αριθμό τραπεζιού: αυτόν βλέπει πια ο ταμίας στη λίστα, οπότε αυτόν θα
                 // πληκτρολογήσει ψάχνοντας «τι ακυρώθηκε στο 5».
                 || (c.Who.StartsWith("Τραπέζι", StringComparison.Ordinal)

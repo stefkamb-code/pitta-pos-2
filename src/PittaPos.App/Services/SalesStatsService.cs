@@ -544,7 +544,7 @@ public class SalesStatsService
         var removed = lines[lineIndex];
         CancellationLogService.Instance.Log(new CancelledLine(
             order.OrderNumber, order.WhoLabel, removed.Name, removed.Quantity, removed.Revenue, cancelledAt ?? DateTime.Now, cancelledBy)
-            { Channel = order.TypeLabel });
+            { Channel = order.TypeLabel, AppOrderRef = order.AppOrderRef ?? "" });
         // Εδώ, στο κύριο ταμείο, φτάνει κάθε ακύρωση γραμμής (και από το δεύτερο ταμείο/κινητό). Με πάροχο: ό,τι δεν
         // έφυγε δεν φεύγει, ό,τι κόπηκε πιστώνεται ή ακυρώνεται. Χωρίς πάροχο, τίποτα.
         FiscalService.Instance.OnLineCancelled(orderNumber, lineIndex);
@@ -874,7 +874,7 @@ public class SalesStatsService
         foreach (var l in order.Lines)
             CancellationLogService.Instance.Log(new CancelledLine(
                 order.OrderNumber, order.WhoLabel, l.Name, l.Quantity, l.Revenue, cancelledAt, cancelledBy)
-                { Channel = order.TypeLabel });
+                { Channel = order.TypeLabel, AppOrderRef = order.AppOrderRef ?? "" });
         // Κάθε ακύρωση ολόκληρης παραγγελίας περνάει από εδώ στο κύριο ταμείο (Ιστορικό, τραπέζι, δεύτερο ταμείο,
         // ακύρωση από το e-food). Με πάροχο: ακύρωση/πιστωτικό. Χωρίς πάροχο, τίποτα.
         FiscalService.Instance.OnOrderCancelled(orderNumber);
