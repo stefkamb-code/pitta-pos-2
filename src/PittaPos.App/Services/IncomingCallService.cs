@@ -68,7 +68,9 @@ public partial class IncomingCallService : ObservableObject
     /// κοιτάει κανείς· πιο πάνω απλώς σκεπάζουν την οθόνη.</summary>
     private const int MaxQueue = 12;
 
-    private readonly List<(int Id, string Phone)> _queue = [];
+    /// <summary>CallId: η κλήση στο τηλεφωνικό κέντρο (Linkedid του AMI) — για να κλείσει η κάρτα όταν κλείσει η
+    /// κλήση (βλ. <see cref="ReportHangup"/>). null όταν η ειδοποίηση ήρθε χωρίς αυτό (π.χ. δοκιμή από browser).</summary>
+    private readonly List<(int Id, string Phone, string? CallId)> _queue = [];
     private int _nextId = 1;
 
     [ObservableProperty]
@@ -83,7 +85,7 @@ public partial class IncomingCallService : ObservableObject
     }
 
     /// <summary>Καλείται όταν χτυπάει το τηλέφωνο — μόνο στο κύριο ταμείο φτάνει ποτέ αυτό το request.</summary>
-    public void ReportRinging(string number)
+    public void ReportRinging(string number, string? callId = null)
     {
         if (RemoteSync.IsClient)
             return;
@@ -98,14 +100,33 @@ public partial class IncomingCallService : ObservableObject
             return;
         _recentlySeen.Add((digits, now));
 
-        _queue.Add((_nextId++, digits));
-        // Η ουρά δεν αδειάζει μόνη της: μια κάρτα φεύγει μόνο όταν πατηθεί, ή όταν η κλήση γίνει
-        // παραγγελία. Λάθος νούμερα, κλεισίματα και «πόσο κάνει η πίτα;» μένουν εκεί όλη τη βραδιά και
-        // στοιβάζονται στην αρχική. Κρατάμε τις πιο πρόσφατες — αυτές έχει νόημα να πάρει κανείς πίσω.
+        _queue.Add((_nextId++, digits, callId));
+        // Μια κάρτα φεύγει όταν πατηθεί, όταν η κλήση γίνει παραγγελία, ή όταν κλείσει η κλήση (βλ. ReportHangup).
+        // Αν δεν ήρθε ποτέ το κλείσιμο (π.χ. έπεσε η σύνδεση με το κέντρο), κρατάμε τις πιο πρόσφατες.
         while (_queue.Count > MaxQueue)
         {
             AppLog.Write("calls", $"Η λίστα κλήσεων γέμισε ({MaxQueue}) — έφυγε η παλαιότερη: {_queue[0].Phone}");
             _queue.RemoveAt(0);
+        }
+        ApplyEntries(Snapshot());
+    }
+
+    /// <summary>
+    /// Η κλήση έκλεισε στο τηλεφωνικό κέντρο — φεύγει η κάρτα της, απαντημένη ή όχι (ζητήθηκε ρητά: μια
+    /// αναπάντητη που μένει στην οθόνη μπερδεύει περισσότερο απ' όσο βοηθά). Ξεχνιέται και από τα «πρόσφατα»,
+    /// ώστε αν ο ίδιος πελάτης ξαναπάρει αμέσως να βγει ξανά κάρτα αντί να αγνοηθεί σαν διπλό.
+    /// </summary>
+    public void ReportHangup(string callId)
+    {
+        if (RemoteSync.IsClient)
+            return;
+        var ended = _queue.Where(c => c.CallId == callId).ToList();
+        if (ended.Count == 0)
+            return;
+        foreach (var call in ended)
+        {
+            _queue.Remove(call);
+            _recentlySeen.RemoveAll(r => r.Digits == call.Phone);
         }
         ApplyEntries(Snapshot());
     }

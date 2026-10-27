@@ -221,12 +221,28 @@ public static class AmiClientService
     /// </summary>
     private static void HandleBlock(Dictionary<string, string> block)
     {
-        if (!block.TryGetValue("Event", out var evt) || evt is not ("Newchannel" or "Newstate"))
+        if (!block.TryGetValue("Event", out var evt))
+            return;
+        var dispatcher = Application.Current?.Dispatcher;
+
+        // Η κλήση τελείωσε (ο πελάτης έκλεισε, απαντημένη ή όχι): φεύγει η κάρτα της. Μετράει ΜΟΝΟ το κλείσιμο του
+        // πρώτου καναλιού της κλήσης (Uniqueid == Linkedid) — όταν χτυπάνε πολλά εσωτερικά και το σηκώσει ένα, τα
+        // υπόλοιπα κλείνουν κι αυτά με Hangup, ενώ η κλήση συνεχίζεται· εκείνα δεν πρέπει να κλείσουν την κάρτα.
+        if (evt == "Hangup")
+        {
+            var unique = block.GetValueOrDefault("Uniqueid", "");
+            if (unique.Length > 0 && unique == block.GetValueOrDefault("Linkedid", ""))
+                dispatcher?.BeginInvoke(() => IncomingCallService.Instance.ReportHangup(unique));
+            return;
+        }
+
+        if (evt is not ("Newchannel" or "Newstate"))
             return;
         if (!block.TryGetValue("CallerIDNum", out var caller) || caller.Length == 0)
             return;
 
-        var dispatcher = Application.Current?.Dispatcher;
-        dispatcher?.BeginInvoke(() => IncomingCallService.Instance.ReportRinging(caller));
+        // Ποια κλήση είναι: όλα τα κανάλια της ίδιας κλήσης έχουν το ίδιο Linkedid (το Uniqueid του πρώτου).
+        var callId = block.GetValueOrDefault("Linkedid") is { Length: > 0 } linked ? linked : block.GetValueOrDefault("Uniqueid");
+        dispatcher?.BeginInvoke(() => IncomingCallService.Instance.ReportRinging(caller, callId));
     }
 }
