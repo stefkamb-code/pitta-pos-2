@@ -109,6 +109,21 @@ public static class AmiClientService
         }
     }
 
+    /// <summary>Μετά από τόση σιωπή ρωτάμε το κέντρο «είσαι εκεί;» (Action: Ping). Όταν δεν χτυπάει τηλέφωνο δεν
+    /// έρχεται τίποτα, οπότε χωρίς ερώτηση το ήσυχο κέντρο δεν ξεχωρίζει από το νεκρό.</summary>
+    private static readonly TimeSpan PingAfter = TimeSpan.FromSeconds(30);
+
+    /// <summary>Τόση σιωπή παρά τα Ping σημαίνει νεκρή σύνδεση. Αν το κέντρο ή το δίκτυο πέσουν χωρίς να κλείσει
+    /// κανονικά η σύνδεση (π.χ. διακοπή ρεύματος), το ταμείο δεν ειδοποιείται ποτέ: περίμενε για πάντα, χωρίς καμία
+    /// γραμμή στο αρχείο, και η αναγνώριση κλήσεων έμενε σταματημένη μέχρι να ξανανοίξει η εφαρμογή.</summary>
+    private static readonly TimeSpan DeadAfter = TimeSpan.FromSeconds(75);
+
+    /// <summary>Τα εσωτερικά τηλέφωνα έχουν 3-4 ψηφία· αριθμός πελάτη δεν είναι ποτέ τόσο σύντομος.</summary>
+    private const int ExtensionMaxDigits = 5;
+
+    /// <summary>Οι κλήσεις σε εξέλιξη που ξεκίνησαν από εσωτερικό τηλέφωνο (Linkedid) — βλ. <see cref="HandleBlock"/>.</summary>
+    private static readonly HashSet<string> FromExtension = [];
+
     /// <summary>Τελευταίο καταγεγραμμένο πρόβλημα — ώστε μια μόνιμα χαλασμένη ρύθμιση (π.χ. λάθος IP)
     /// να μη γεμίσει το αρχείο καταγραφής με την ίδια γραμμή κάθε 5 δευτερόλεπτα. Γράφεται μία φορά
     /// όταν αλλάζει η αιτία, και μία φορά όταν αποκαθίσταται η σύνδεση.</summary>
@@ -156,7 +171,9 @@ public static class AmiClientService
         await using var writer = new StreamWriter(stream, Encoding.ASCII) { NewLine = "\r\n", AutoFlush = true };
 
         // Πρώτη γραμμή: banner του AMI (π.χ. "Asterisk Call Manager/x.x") — απλά τη διαβάζουμε.
-        await reader.ReadLineAsync();
+        var banner = reader.ReadLineAsync();
+        if (await Task.WhenAny(banner, Task.Delay(DeadAfter)) != banner)
+            throw Abandon(banner, "το κέντρο δέχτηκε τη σύνδεση αλλά δεν απαντά");
 
         await writer.WriteLineAsync("Action: Login");
         await writer.WriteLineAsync("Username: " + s.AmiUsername.Trim());
@@ -164,11 +181,22 @@ public static class AmiClientService
         await writer.WriteLineAsync();
 
         var loggedIn = false;
+        var lastHeard = DateTime.UtcNow;
         while (true)
         {
-            var block = await ReadBlockAsync(reader);
+            var read = ReadBlockAsync(reader);
+            while (await Task.WhenAny(read, Task.Delay(PingAfter)) != read)
+            {
+                if (DateTime.UtcNow - lastHeard > DeadAfter)
+                    throw Abandon(read, "το κέντρο σταμάτησε να απαντά");
+                await writer.WriteLineAsync("Action: Ping");
+                await writer.WriteLineAsync();
+            }
+
+            var block = await read;
             if (block is null)
                 return; // η σύνδεση έκλεισε — ξαναπροσπάθησε από το RunForeverAsync
+            lastHeard = DateTime.UtcNow;
 
             // Η απάντηση στο Login: λάθος όνομα/κωδικός δίνει «Response: Error». Χωρίς αυτόν τον έλεγχο
             // η εφαρμογή ξανασυνδεόταν επ' άπειρον κάθε 5 δευτερόλεπτα χωρίς να πει ποτέ ΓΙΑΤΙ δεν
@@ -191,6 +219,14 @@ public static class AmiClientService
 
             HandleBlock(block);
         }
+    }
+
+    /// <summary>Η ανάγνωση που μένει μετέωρη αποτυγχάνει μόλις κλείσει η σύνδεση. Το ξέρουμε ήδη και γράφεται μία
+    /// φορά από το <see cref="Report"/> — χωρίς αυτό θα έμπαινε και σαν σφάλμα «unobserved task» στο αρχείο.</summary>
+    private static IOException Abandon(Task read, string reason)
+    {
+        _ = read.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        return new IOException(reason);
     }
 
     /// <summary>
@@ -217,22 +253,26 @@ public static class AmiClientService
     /// <summary>
     /// Νέο κανάλι/αλλαγή κατάστασης με αριθμό καλούντος — το ίδιο το IncomingCallService αγνοεί ήδη
     /// σύντομους αριθμούς (εσωτερικά τηλέφωνα, 3-4 ψηφία) και διπλά events για την ίδια κλήση, οπότε
-    /// εδώ δεν χρειάζεται λεπτομερές φιλτράρισμα — αρκεί να πιάνουμε νωρίς κάθε πιθανό σήμα κλήσης.
+    /// εδώ φιλτράρονται μόνο οι κλήσεις που ξεκίνησαν από το μαγαζί — αρκεί να πιάνουμε νωρίς κάθε πιθανό σήμα κλήσης.
     /// </summary>
     private static void HandleBlock(Dictionary<string, string> block)
     {
         if (!block.TryGetValue("Event", out var evt))
             return;
         var dispatcher = Application.Current?.Dispatcher;
+        var unique = block.GetValueOrDefault("Uniqueid", "");
+        var linked = block.GetValueOrDefault("Linkedid", "");
 
         // Η κλήση τελείωσε (ο πελάτης έκλεισε, απαντημένη ή όχι): φεύγει η κάρτα της. Μετράει ΜΟΝΟ το κλείσιμο του
         // πρώτου καναλιού της κλήσης (Uniqueid == Linkedid) — όταν χτυπάνε πολλά εσωτερικά και το σηκώσει ένα, τα
         // υπόλοιπα κλείνουν κι αυτά με Hangup, ενώ η κλήση συνεχίζεται· εκείνα δεν πρέπει να κλείσουν την κάρτα.
         if (evt == "Hangup")
         {
-            var unique = block.GetValueOrDefault("Uniqueid", "");
-            if (unique.Length > 0 && unique == block.GetValueOrDefault("Linkedid", ""))
+            if (unique.Length > 0 && unique == linked)
+            {
+                FromExtension.Remove(unique);
                 dispatcher?.BeginInvoke(() => IncomingCallService.Instance.ReportHangup(unique));
+            }
             return;
         }
 
@@ -241,8 +281,17 @@ public static class AmiClientService
         if (!block.TryGetValue("CallerIDNum", out var caller) || caller.Length == 0)
             return;
 
+        // Κλήση που ξεκίνησε από εσωτερικό τηλέφωνο του μαγαζιού (σύντομος αριθμός στο πρώτο της κανάλι) δεν είναι
+        // εισερχόμενη: το κανάλι προς τη γραμμή έχει τον αριθμό που κάλεσαν και θα έβγαζε κάρτα σαν να χτυπούσε το
+        // τηλέφωνο. Μένει σημειωμένη ως το τέλος της, γιατί και το πρώτο κανάλι μπορεί να πάρει μετά τον αριθμό του
+        // μαγαζιού. Σημειώνεται ΜΟΝΟ ό,τι ξέρουμε σίγουρα: στις εισερχόμενες δεν αλλάζει τίποτα.
+        if (unique.Length > 0 && unique == linked && caller.Count(char.IsDigit) is > 0 and <= ExtensionMaxDigits)
+            FromExtension.Add(unique);
+        if (FromExtension.Contains(linked))
+            return;
+
         // Ποια κλήση είναι: όλα τα κανάλια της ίδιας κλήσης έχουν το ίδιο Linkedid (το Uniqueid του πρώτου).
-        var callId = block.GetValueOrDefault("Linkedid") is { Length: > 0 } linked ? linked : block.GetValueOrDefault("Uniqueid");
+        var callId = linked.Length > 0 ? linked : block.GetValueOrDefault("Uniqueid");
         dispatcher?.BeginInvoke(() => IncomingCallService.Instance.ReportRinging(caller, callId));
     }
 }
