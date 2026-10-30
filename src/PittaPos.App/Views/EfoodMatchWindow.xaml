@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ctl="clr-namespace:PittaPos.App.Controls"
         xmlns:vm="clr-namespace:PittaPos.App.ViewModels"
-        Title="ΑΝΤΙΣΤΟΙΧΙΣΗ E-FOOD" Height="760" Width="1060"
+        Title="{Binding Title}" Height="760" Width="1060"
         WindowStartupLocation="CenterOwner"
         Icon="pack://application:,,,/Assets/logo.png"
         FontFamily="{StaticResource PosFont}"
@@ -48,9 +48,9 @@
                 <Image DockPanel.Dock="Left" Source="pack://application:,,,/Assets/logo.png"
                        Height="32" Margin="0,0,9,0" VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="HighQuality"/>
-                <TextBlock DockPanel.Dock="Left" Text="ΑΝΤΙΣΤΟΙΧΙΣΗ E-FOOD" FontWeight="ExtraBold" FontSize="14"
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Title}" FontWeight="ExtraBold" FontSize="14"
                            Foreground="{DynamicResource Ink}" VerticalAlignment="Center"/>
-                <Button DockPanel.Dock="Right" Content="↻  ΚΑΤΑΛΟΓΟΣ E-FOOD" Style="{StaticResource FlatButton}"
+                <Button DockPanel.Dock="Right" Content="{Binding RefreshLabel}" Style="{StaticResource FlatButton}"
                         Height="36" FontSize="11.5" FontWeight="ExtraBold" Padding="14,0" HorizontalAlignment="Right"
                         Command="{Binding RefreshCatalogCommand}"/>
                 <Border/>
@@ -58,7 +58,7 @@
         </Border>
 
         <StackPanel Grid.Row="1" Margin="24,16,24,10">
-            <TextBlock Text="Ποιο προϊόν του ταμείου είναι κάθε προϊόν του e-food. Δεν αλλάζει ούτε ο κατάλογος του e-food ούτε το μενού ή το χαρτί του ταμείου — μόνο το πώς μπαίνουν οι παραγγελίες e-food. Όσα είναι κίτρινα τυπώνονται με το όνομα του e-food μέχρι να πατηθεί «ΣΩΣΤΟ» ή να διαλεχτεί προϊόν."
+            <TextBlock Text="{Binding Intro}"
                        FontSize="11.5" Foreground="{DynamicResource Neutral500}" TextWrapping="Wrap" Margin="0,0,0,10"/>
             <DockPanel>
                 <Button DockPanel.Dock="Left" Content="{Binding PendingLabel}" Command="{Binding ShowPendingCommand}">

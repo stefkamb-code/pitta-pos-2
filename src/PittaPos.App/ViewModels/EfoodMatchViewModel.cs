@@ -39,6 +39,15 @@ public partial class EfoodMatchViewModel : ObservableObject
 
     public EfoodMatchStore Store { get; }
     public IEfoodMenu Menu { get; }
+    private MatchPlatform Platform => Store.Platform;
+
+    /// <summary>«ΑΝΤΙΣΤΟΙΧΙΣΗ E-FOOD» / «ΑΝΤΙΣΤΟΙΧΙΣΗ BOX» — ίδια οθόνη για τις δύο πλατφόρμες.</summary>
+    public string Title => "ΑΝΤΙΣΤΟΙΧΙΣΗ " + Platform.SettingsName;
+    public string RefreshLabel => "↻  ΚΑΤΑΛΟΓΟΣ " + Platform.SettingsName;
+    public string Intro =>
+        $"Ποιο προϊόν του ταμείου είναι κάθε προϊόν {Platform.Of}. Δεν αλλάζει ούτε ο κατάλογος {Platform.Of} ούτε το μενού ή το χαρτί του ταμείου — μόνο το πώς μπαίνουν οι παραγγελίες {Platform.Label}. Όσα είναι κίτρινα τυπώνονται με το όνομα {Platform.Of} μέχρι να πατηθεί «ΣΩΣΤΟ» ή να διαλεχτεί προϊόν."
+        + (Platform == EfoodMatchStore.BoxPlatform ? " Η Box δεν δίνει τιμές στον κατάλογο, οπότε κάθε πρόταση θέλει ένα «ΣΩΣΤΟ»." : "");
+
     public IReadOnlyList<EfoodCategoryChoice> Categories { get; }
     public IReadOnlyList<string> BreadChoices { get; } = [EfoodMatchRowViewModel.AnyBread, .. MenuSeed.BreadOptions];
     internal IReadOnlyDictionary<string, EfoodSuggestion?> Suggestions { get; private set; } = new Dictionary<string, EfoodSuggestion?>();
@@ -68,8 +77,8 @@ public partial class EfoodMatchViewModel : ObservableObject
     {
         Rows = ShowPendingOnly ? _all.Where(r => r.NeedsConfirm).ToList() : _all;
         EmptyText = Rows.Count > 0 ? ""
-            : _all.Count == 0 ? "Ο κατάλογος του e-food δεν έχει έρθει ακόμα — πάτα «↻ ΚΑΤΑΛΟΓΟΣ E-FOOD»."
-            : "✓ Όλα τα προϊόντα του e-food έχουν αντιστοιχιστεί.";
+            : _all.Count == 0 ? $"Ο κατάλογος {Platform.Of} δεν έχει έρθει ακόμα — πάτα «{RefreshLabel.Replace("  ", " ")}»."
+            : $"✓ Όλα τα προϊόντα {Platform.Of} έχουν αντιστοιχιστεί.";
         UpdateCounts();
     }
 
@@ -82,7 +91,7 @@ public partial class EfoodMatchViewModel : ObservableObject
     private void UpdateStatus(string message) =>
         Status = message.Length > 0 ? message
             : Store.Catalog.Count == 0 ? ""
-            : $"Κατάλογος e-food: {Store.Catalog.Count} προϊόντα · ήρθε {Store.CatalogUpdated:d/M HH:mm}";
+            : $"Κατάλογος {Platform.Label}: {Store.Catalog.Count} προϊόντα · ήρθε {Store.CatalogUpdated:d/M HH:mm}";
 
     [RelayCommand]
     private void ShowPending()
@@ -104,7 +113,7 @@ public partial class EfoodMatchViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshCatalogAsync()
     {
-        Status = "Φέρνω τον κατάλογο του e-food… (έως 2 λεπτά)";
+        Status = $"Φέρνω τον κατάλογο {Platform.Of}… (έως 2 λεπτά)";
         var (ok, message) = await Store.RefreshAsync();
         if (ok)
             Rebuild();
@@ -136,7 +145,10 @@ public partial class EfoodMatchRowViewModel : ObservableObject
 
     public EfoodCatalogItem Item { get; }
     public string EfoodName => Item.Name;
-    public string EfoodInfo => Item.Category + " · " + Order.FormatPrice(Item.Price) + (Item.IsAvailable ? "" : " · μη διαθέσιμο");
+    // Ο κατάλογος της Box δεν έχει τιμές — δεν γράφεται «€0,00».
+    public string EfoodInfo => Item.Category
+        + (_owner.Store.Platform == EfoodMatchStore.BoxPlatform ? "" : " · " + Order.FormatPrice(Item.Price))
+        + (Item.IsAvailable ? "" : " · μη διαθέσιμο");
     public IReadOnlyList<EfoodCategoryChoice> Categories => _owner.Categories;
     public IReadOnlyList<string> BreadChoices => _owner.BreadChoices;
 

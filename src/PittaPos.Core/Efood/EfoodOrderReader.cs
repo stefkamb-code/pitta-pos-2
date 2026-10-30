@@ -43,7 +43,9 @@ public static class EfoodOrderReader
 
     public static EfoodImport Map(JsonObject order, IEfoodMenu menu) => Map(order, menu, EfoodContext.Empty);
 
-    public static EfoodImport Map(JsonObject order, IEfoodMenu menu, EfoodContext context)
+    /// <param name="platform">Το όνομα της πλατφόρμας στο χαρτί («ΔΙΑΝΟΜΗ e-food», «Προϊόν e-food») — η Box διαβάζεται
+    /// από τον ίδιο δρόμο (βλ. BoxOrderReader).</param>
+    public static EfoodImport Map(JsonObject order, IEfoodMenu menu, EfoodContext context, string platform = "e-food")
     {
         var customer = order["customer"] as JsonObject;
         var transport = order["transport_method"] as JsonObject;
@@ -66,9 +68,9 @@ public static class EfoodOrderReader
         var unmatched = new List<string>();
         var lines = new List<EfoodLine>();
         foreach (var product in products)
-            lines.Add(Line(product, menu, context, index, unmatched, addMaterials));
+            lines.Add(Line(product, menu, context, index, unmatched, addMaterials, platform));
         foreach (var offer in offers)
-            lines.Add(OfferLine(offer, menu, context, index, unmatched));
+            lines.Add(OfferLine(offer, menu, context, index, unmatched, platform));
 
         // Κουπόνι / Πεινιάτα του καταστήματος: τζίρος = ό,τι μένει μετά την έκπτωση, μοιρασμένη αναλογικά στις γραμμές
         // ώστε και οι κατηγορίες να βγαίνουν με το καθαρό (απόφαση χρήστη 24/9).
@@ -88,7 +90,7 @@ public static class EfoodOrderReader
                 ? "ΠΑΡΑΛΑΒΗ — πληρώνει μετρητά " + Order.FormatPrice(platformTotal)
                 : "ΠΑΡΑΛΑΒΗ — πληρωμένη");
         else
-            notes.Add("ΔΙΑΝΟΜΗ e-food");
+            notes.Add("ΔΙΑΝΟΜΗ " + platform);
         foreach (var (joker, amount) in discounts)
             notes.Add((joker ? "ΕΚΠΤΩΣΗ ΠΕΙΝΙΑΤΑΣ −" : "ΕΚΠΤΩΣΗ ΚΟΥΠΟΝΙΟΥ −") + Order.FormatPrice(amount));
         // Το φιλοδώρημα ΔΕΝ είναι μέσα στο price (#16, 24/9: 17,10 + 0,50 = 17,60 με tip 1) — είναι του διανομέα μας.
@@ -133,11 +135,11 @@ public static class EfoodOrderReader
     }
 
     private static EfoodLine Line(JsonObject item, IEfoodMenu menu, EfoodContext context, CatalogIndex index,
-        List<string> unmatched, bool addMaterials)
+        List<string> unmatched, bool addMaterials, string platform)
     {
         var efoodName = Text(item["name"]);
         if (efoodName.Length == 0)
-            efoodName = "Προϊόν e-food";
+            efoodName = "Προϊόν " + platform;
         var quantity = Quantity(item);
         var unit = UnitPrice(item) + (addMaterials ? MaterialsMoney(item) : 0m);
         var revenue = Math.Round(unit * quantity, 2, MidpointRounding.AwayFromZero);
@@ -449,11 +451,12 @@ public static class EfoodOrderReader
     private static decimal OfferPrice(JsonObject offer) =>
         Money(offer["discount_price"]) is { } discounted && discounted > 0 ? discounted : Money(offer["price"]) ?? 0m;
 
-    private static EfoodLine OfferLine(JsonObject offer, IEfoodMenu menu, EfoodContext context, CatalogIndex index, List<string> unmatched)
+    private static EfoodLine OfferLine(JsonObject offer, IEfoodMenu menu, EfoodContext context, CatalogIndex index, List<string> unmatched,
+        string platform)
     {
         var name = Text(offer["name"]);
         if (name.Length == 0)
-            name = "Προσφορά e-food";
+            name = "Προσφορά " + platform;
         var quantity = Math.Max(1, Count(offer["iteration"]));
         var details = new List<string>();
         foreach (var node in offer["products"] as JsonArray ?? [])
@@ -461,7 +464,7 @@ public static class EfoodOrderReader
             if (node is not JsonObject item || Text(item["name"]).Length == 0)
                 continue;
             // Ίδια ανάγνωση με τα κανονικά προϊόντα — μόνο για το κείμενο· ο τζίρος είναι η τιμή της προσφοράς.
-            var line = Line(item, menu, context, index, unmatched, addMaterials: false);
+            var line = Line(item, menu, context, index, unmatched, addMaterials: false, platform);
             details.Add((line.Quantity > 1 ? line.Quantity + " × " : "") + line.Name);
             details.AddRange(line.Details.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(d => "  " + d));
         }

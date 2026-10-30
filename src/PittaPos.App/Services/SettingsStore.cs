@@ -88,6 +88,12 @@ public class AppSettings
     /// <summary>Αυτόματη αποδοχή στο e-food με αυτόν τον χρόνο παράδοσης σε λεπτά — 0 = όχι.</summary>
     public int EfoodAutoAcceptMinutes { get; set; }
 
+    // ---- Γέφυρα Box (βλ. BoxBridgeService) — ΜΟΝΟ στο κύριο ταμείο, δεν συγχρονίζεται ----
+    /// <summary>Η διεύθυνση της γέφυρας Box, π.χ. https://bridge.example.gr — κενό = ανενεργή.</summary>
+    public string BoxBridgeUrl { get; set; } = "";
+    /// <summary>Το κλειδί ΑΥΤΟΥ του ταμείου στη γέφυρα Box (το ξεχωρίζει από τα άλλα καταστήματα).</summary>
+    public string BoxTillKey { get; set; } = "";
+
     // ---- Site διαχείρισης (βλ. SiteLinkService) — ΜΟΝΟ στο κύριο ταμείο, δεν συγχρονίζεται ----
     /// <summary>Η διεύθυνση του site, π.χ. https://admin.example.gr — κενό = ανενεργό.</summary>
     public string SiteUrl { get; set; } = "";
@@ -524,6 +530,15 @@ public class SettingsStore
         Settings.EfoodBridgeUrl = url.Trim().TrimEnd('/');
         Settings.EfoodTillKey = tillKey.Trim();
         Settings.EfoodAutoAcceptMinutes = Math.Clamp(autoAcceptMinutes, 0, 180);
+        Save();
+    }
+
+    /// <summary>Γέφυρα Box. Τοπικά μόνο, όπως η γέφυρα e-food: ένα δεύτερο ταμείο με τα ίδια στοιχεία θα τραβούσε τις
+    /// ίδιες παραγγελίες δεύτερη φορά.</summary>
+    public void SetBoxBridge(string url, string tillKey)
+    {
+        Settings.BoxBridgeUrl = url.Trim().TrimEnd('/');
+        Settings.BoxTillKey = tillKey.Trim();
         Save();
     }
 

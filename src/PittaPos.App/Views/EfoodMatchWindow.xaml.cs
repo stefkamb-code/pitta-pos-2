@@ -5,8 +5,8 @@ using PittaPos.Core.Efood;
 
 namespace PittaPos.App.Views;
 
-/// <summary>ΑΝΤΙΣΤΟΙΧΙΣΗ των προϊόντων του e-food με τα προϊόντα του ταμείου (βλ. EfoodMatchViewModel). Ανοίγει από
-/// τις Ρυθμίσεις → E-FOOD, που θέλουν ήδη τον κωδικό του ιδιοκτήτη.</summary>
+/// <summary>ΑΝΤΙΣΤΟΙΧΙΣΗ των προϊόντων του e-food (ή της Box, με <see cref="EfoodMatchStore.Box"/>) με τα προϊόντα του
+/// ταμείου (βλ. EfoodMatchViewModel). Ανοίγει από τις Ρυθμίσεις → E-FOOD / BOX, που θέλουν ήδη τον κωδικό του ιδιοκτήτη.</summary>
 public partial class EfoodMatchWindow : Window
 {
     public EfoodMatchWindow() : this(EfoodMatchStore.Instance, EfoodMenu.Live)

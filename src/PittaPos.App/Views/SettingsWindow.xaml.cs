@@ -95,6 +95,13 @@ public partial class SettingsWindow : Window
             new EfoodSettingsWindow { Owner = this }.ShowDialog();
     }
 
+    /// <summary>Μόνο ο ιδιοκτήτης: το κλειδί της γέφυρας ανοίγει τις παραγγελίες Box του καταστήματος.</summary>
+    private void OpenBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (PinDialog.RequireAdmin(this))
+            new BoxSettingsWindow { Owner = this }.ShowDialog();
+    }
+
     /// <summary>Μόνο ο ιδιοκτήτης: το κλειδί του site στέλνει τις παραγγελίες και φέρνει το κλειδί του παρόχου ΑΑΔΕ.</summary>
     private void OpenSite_Click(object sender, RoutedEventArgs e)
     {
