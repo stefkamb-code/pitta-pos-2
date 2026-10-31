@@ -71,7 +71,9 @@ public sealed class SiteLinkService
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppIdentity.DataFolder);
         Directory.CreateDirectory(dir);
         _settingsClient = new FiscalSettingsClient(Http, Path.Combine(dir, "fiscal-settings.dat"), Protect, Unprotect);
-        _historyPath = Path.Combine(dir, "site-history.json");
+        // «-2»: ΜΙΑ φορά ξαναστέλνεται όλο το αρχείο. Το site κρατούσε μία από τις γραμμές με ίδιο όνομα σε κάθε ολόκληρη
+        // ακύρωση, και τις συμπληρώνει μόνο αν τις ξαναλάβει — ό,τι υπάρχει ήδη δεν το διπλομετρά.
+        _historyPath = Path.Combine(dir, "site-history-2.json");
         try
         {
             if (File.Exists(_historyPath))

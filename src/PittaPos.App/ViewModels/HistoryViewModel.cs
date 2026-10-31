@@ -148,7 +148,7 @@ public class CancelledEntryViewModel
     public string RevenueLabel => Order.FormatPrice(Revenue);
     /// <summary>Πάνω από μία γραμμή — ολόκληρη παραγγελία ακυρώθηκε μαζί, όχι μεμονωμένο προϊόν.</summary>
     public bool IsWholeOrder => Lines.Count > 1;
-    public string SummaryLabel => Lines.Count + " προϊόντα";
+    public string SummaryLabel => Lines.Sum(l => l.Quantity) + " προϊόντα";
 }
 
 /// <summary>Ιστορικό παραγγελιών ημέρας — προβολή, διόρθωση πληρωμής, ακύρωση/διαγραφή, επανεκτύπωση.</summary>

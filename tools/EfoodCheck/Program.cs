@@ -154,7 +154,9 @@ Console.WriteLine("--- χωρίς κατάλογο: με τα ονόματα, κ
 Console.WriteLine("--- λόγος ακύρωσης του e-food («{ποιος}:{λόγος}», 13/10/2026) στο χαρτί ΑΚΥΡΩΣΗ");
 Check(EfoodOrderReader.CancelReasonText("vendor: ITEM_UNAVAILABLE") == "ακύρωσε το κατάστημα · δεν υπάρχει προϊόν",
     "vendor: ITEM_UNAVAILABLE → " + EfoodOrderReader.CancelReasonText("vendor: ITEM_UNAVAILABLE"));
-Check(EfoodOrderReader.CancelReasonText("customer:TOO_BUSY") == "ακύρωσε ο πελάτης · πολύς φόρτος", "χωρίς κενό μετά την «:» → ίδιο");
+Check(EfoodOrderReader.CancelReasonText("customer:TOO_BUSY") == "υπαίτιος ο πελάτης · πολύς φόρτος", "χωρίς κενό μετά την «:» → ίδιο");
+Check(EfoodOrderReader.CancelReasonText("customer: UNABLE_TO_FIND") == "υπαίτιος ο πελάτης · δεν βρέθηκε ο πελάτης",
+    "customer: UNABLE_TO_FIND → " + EfoodOrderReader.CancelReasonText("customer: UNABLE_TO_FIND"));
 Check(EfoodOrderReader.CancelReasonText("platform: SOMETHING_NEW") == "ακύρωσε το e-food · SOMETHING_NEW",
     "άγνωστος λόγος → μένει όπως ήρθε, δεν χάνεται");
 Check(EfoodOrderReader.CancelReasonText("") == "" && EfoodOrderReader.CancelReasonText("TEST_ORDER") == "δοκιμαστική",

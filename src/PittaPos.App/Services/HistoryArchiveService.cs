@@ -44,6 +44,24 @@ public static class HistoryArchiveService
     private static string CancellationsPath(DateTime businessDay) => Path.Combine(ArchiveDir, "cancellations-" + businessDay.ToString("yyyy-MM-dd") + ".json");
     private static string PaymentsPath(DateTime businessDay) => Path.Combine(ArchiveDir, "payments-" + businessDay.ToString("yyyy-MM-dd") + ".json");
 
+    /// <summary>Ενώνει τις ακυρώσεις του αρχείου με όσες έρχονται. Δεν έχουν δικό τους μοναδικό κωδικό — ταυτίζονται από το
+    /// σύνολο των πεδίων τους (record: η ισότητα είναι κατά τιμή), ώστε να μη διπλογραφτούν. Όμως δύο ολόιδιες γραμμές της
+    /// ίδιας ακύρωσης (δύο «1 × ΕΛ. Χοιρινό» με άλλα υλικά, e-food #9730) είναι δύο προϊόντα, και ένα Distinct κρατούσε τη
+    /// μία. Γι' αυτό κάθε γραμμή που έρχεται ταιριάζει με ΜΙΑ ίδια του αρχείου, και μπαίνει μόνο όποια περισσέψει.</summary>
+    public static List<CancelledLine> MergeCancellations(IReadOnlyList<CancelledLine> existing, IEnumerable<CancelledLine> incoming)
+    {
+        var inArchive = existing.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
+        var merged = existing.ToList();
+        foreach (var c in incoming)
+        {
+            if (inArchive.GetValueOrDefault(c) > 0)
+                inArchive[c]--;
+            else
+                merged.Add(c);
+        }
+        return merged.OrderBy(c => c.CancelledAt).ToList();
+    }
+
     /// <summary>
     /// Οι εισπράξεις των τραπεζιών της ημέρας (μετρητά/κάρτα ανά άτομο). Το TablePaymentsService τις σβήνει στο
     /// κλείσιμο ημέρας, οπότε χωρίς αυτό μια παλιά μέρα ήξερε τι πουλήθηκε στα τραπέζια αλλά όχι ΠΩΣ πληρώθηκε —
@@ -94,10 +112,7 @@ public static class HistoryArchiveService
 
             if (cancellations.Count > 0)
             {
-                var existing = ReadCancellations(businessDay);
-                // Οι ακυρώσεις δεν έχουν δικό τους μοναδικό κωδικό — ταυτίζονται από το σύνολο των
-                // πεδίων τους (record: η ισότητα είναι κατά τιμή), ώστε να μη διπλογραφτούν.
-                var merged = existing.Concat(cancellations).Distinct().OrderBy(c => c.CancelledAt).ToList();
+                var merged = MergeCancellations(ReadCancellations(businessDay), cancellations);
                 AtomicFile.WriteAllText(CancellationsPath(businessDay), JsonSerializer.Serialize(merged, JsonOpts));
             }
         }

@@ -391,6 +391,7 @@ public static class EfoodOrderReader
         ["OUTSIDE_DELIVERY_AREA"] = "εκτός περιοχής",
         ["TEST_ORDER"] = "δοκιμαστική",
         ["TOO_BUSY"] = "πολύς φόρτος",
+        ["UNABLE_TO_FIND"] = "δεν βρέθηκε ο πελάτης",
     };
 
     /// <summary>Ο λόγος ακύρωσης του e-food («{ποιος}:{λόγος}», π.χ. «vendor: ITEM_UNAVAILABLE») στα ελληνικά, για το χαρτί:
@@ -405,7 +406,8 @@ public static class EfoodOrderReader
         {
             "" => "",
             "vendor" => "ακύρωσε το κατάστημα",
-            "customer" => "ακύρωσε ο πελάτης",
+            // Το e-food το λέει «Υπαίτιος: Πελάτης»: σε «δεν βρέθηκε ο πελάτης» δεν ακύρωσε ο ίδιος.
+            "customer" => "υπαίτιος ο πελάτης",
             _ => "ακύρωσε το e-food",
         };
         var why = CancelReasons.TryGetValue(reason, out var text) ? text : reason;
